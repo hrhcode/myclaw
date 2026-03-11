@@ -8,12 +8,13 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
 from app.agent import get_agent, get_session_manager
+from app.channels.wechat import WechatChannel
 from app.config import get_config
 
 logging.basicConfig(
@@ -219,6 +220,113 @@ async def _stream_response(
     }
     yield f"data: {json.dumps(final_data)}\n\n"
     yield "data: [DONE]\n\n"
+
+
+_wechat_channel: Optional[WechatChannel] = None
+
+
+def get_wechat_channel() -> WechatChannel:
+    """
+    获取微信通道实例
+    
+    Returns:
+        WechatChannel 实例
+    """
+    global _wechat_channel
+    if _wechat_channel is None:
+        _wechat_channel = WechatChannel()
+    return _wechat_channel
+
+
+@app.get("/wechat/callback")
+async def wechat_verify(
+    msg_signature: str = Query(..., alias="msg_signature"),
+    timestamp: str = Query(...),
+    nonce: str = Query(...),
+    echostr: str = Query(...),
+) -> PlainTextResponse:
+    """
+    微信回调 URL 验证
+    
+    Args:
+        msg_signature: 签名
+        timestamp: 时间戳
+        nonce: 随机数
+        echostr: 随机字符串
+        
+    Returns:
+        echostr 原样返回
+    """
+    config = get_config()
+    if not config.wechat.enabled:
+        raise HTTPException(status_code=403, detail="微信通道未启用")
+    
+    channel = get_wechat_channel()
+    
+    if channel.verify_signature(msg_signature, timestamp, nonce, echostr):
+        logger.info("微信回调验证成功")
+        return PlainTextResponse(content=echostr)
+    else:
+        logger.warning("微信回调验证失败")
+        raise HTTPException(status_code=403, detail="签名验证失败")
+
+
+@app.post("/wechat/callback")
+async def wechat_message(
+    request: Request,
+    msg_signature: str = Query(..., alias="msg_signature"),
+    timestamp: str = Query(...),
+    nonce: str = Query(...),
+) -> PlainTextResponse:
+    """
+    微信消息回调处理
+    
+    Args:
+        request: 请求对象
+        msg_signature: 签名
+        timestamp: 时间戳
+        nonce: 随机数
+        
+    Returns:
+        处理结果
+    """
+    config = get_config()
+    if not config.wechat.enabled:
+        raise HTTPException(status_code=403, detail="微信通道未启用")
+    
+    channel = get_wechat_channel()
+    
+    body = await request.body()
+    xml_content = body.decode("utf-8")
+    
+    if not channel.verify_signature(msg_signature, timestamp, nonce):
+        logger.warning("微信消息签名验证失败")
+        raise HTTPException(status_code=403, detail="签名验证失败")
+    
+    try:
+        message = channel.parse_message(xml_content)
+        
+        msg_type = message.get("MsgType", "")
+        if msg_type != "text":
+            return PlainTextResponse(content="success")
+        
+        content = message.get("Content", "")
+        from_user = message.get("FromUserName", "")
+        
+        logger.info(f"收到微信消息: from={from_user}, content={content[:50]}...")
+        
+        session_id = channel.get_session_id(from_user)
+        agent = get_agent()
+        
+        response_text = await agent.process_message(session_id, content, channel="wechat")
+        
+        await channel.send_message(from_user, response_text)
+        
+        return PlainTextResponse(content="success")
+        
+    except Exception as e:
+        logger.error(f"处理微信消息失败: {e}")
+        return PlainTextResponse(content="success")
 
 
 def main() -> None:
