@@ -6,12 +6,13 @@ FastAPI 应用启动和路由配置
 import logging
 import uuid
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Optional
+from datetime import datetime
+from typing import Any, AsyncGenerator, Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.agent import get_agent, get_session_manager
 from app.channels.wechat import WechatChannel
@@ -56,6 +57,54 @@ class ChatResponse(BaseModel):
     created: int
     model: str
     choices: list[ChatChoice]
+
+
+class SessionInfo(BaseModel):
+    """会话信息模型"""
+
+    id: str
+    channel: str
+    message_count: int
+    created_at: str
+    updated_at: str
+
+
+class SessionListResponse(BaseModel):
+    """会话列表响应模型"""
+
+    sessions: list[SessionInfo]
+    total: int
+
+
+class MessageInfo(BaseModel):
+    """消息信息模型"""
+
+    id: int
+    role: str
+    content: str
+    timestamp: str
+
+
+class MessageListResponse(BaseModel):
+    """消息列表响应模型"""
+
+    session_id: str
+    messages: list[MessageInfo]
+    total: int
+
+
+class SessionCreateRequest(BaseModel):
+    """创建会话请求模型"""
+
+    session_id: Optional[str] = None
+    channel: str = "web"
+
+
+class SessionCreateResponse(BaseModel):
+    """创建会话响应模型"""
+
+    session_id: str
+    created: bool
 
 
 @asynccontextmanager
@@ -123,6 +172,123 @@ async def root() -> dict:
         "docs": "/docs",
         "health": "/health",
     }
+
+
+@app.get("/v1/sessions", response_model=SessionListResponse)
+async def list_sessions(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> SessionListResponse:
+    """
+    获取会话列表
+    
+    Args:
+        limit: 返回数量限制
+        offset: 偏移量
+        
+    Returns:
+        会话列表
+    """
+    from app.storage.database import get_database
+    
+    db = get_database()
+    sessions = await db.list_sessions(limit=limit, offset=offset)
+    total = await db.count_sessions()
+    
+    return SessionListResponse(
+        sessions=[
+            SessionInfo(
+                id=s["id"],
+                channel=s["channel"] or "web",
+                message_count=s["message_count"] or 0,
+                created_at=s["created_at"] or "",
+                updated_at=s["updated_at"] or "",
+            )
+            for s in sessions
+        ],
+        total=total,
+    )
+
+
+@app.post("/v1/sessions", response_model=SessionCreateResponse)
+async def create_session(request: SessionCreateRequest) -> SessionCreateResponse:
+    """
+    创建新会话
+    
+    Args:
+        request: 创建会话请求
+        
+    Returns:
+        创建会话响应
+    """
+    session_id = request.session_id or str(uuid.uuid4())
+    session_manager = get_session_manager()
+    
+    existing = await session_manager.get_session(session_id)
+    if existing:
+        return SessionCreateResponse(session_id=session_id, created=False)
+    
+    await session_manager.create_session(session_id, request.channel)
+    return SessionCreateResponse(session_id=session_id, created=True)
+
+
+@app.get("/v1/sessions/{session_id}/messages", response_model=MessageListResponse)
+async def get_session_messages(
+    session_id: str,
+    limit: int = Query(default=50, ge=1, le=200),
+) -> MessageListResponse:
+    """
+    获取会话的历史消息
+    
+    Args:
+        session_id: 会话 ID
+        limit: 返回数量限制
+        
+    Returns:
+        消息列表
+    """
+    session_manager = get_session_manager()
+    
+    session = await session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    
+    messages = await session_manager.get_messages(session_id, limit=limit)
+    
+    return MessageListResponse(
+        session_id=session_id,
+        messages=[
+            MessageInfo(
+                id=m["id"],
+                role=m["role"],
+                content=m["content"],
+                timestamp=m["timestamp"] or "",
+            )
+            for m in messages
+        ],
+        total=len(messages),
+    )
+
+
+@app.delete("/v1/sessions/{session_id}")
+async def delete_session(session_id: str) -> dict:
+    """
+    删除会话
+    
+    Args:
+        session_id: 会话 ID
+        
+    Returns:
+        删除结果
+    """
+    session_manager = get_session_manager()
+    
+    session = await session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    
+    await session_manager.clear_session(session_id)
+    return {"status": "ok", "message": "会话已删除"}
 
 
 @app.post("/v1/chat/completions")

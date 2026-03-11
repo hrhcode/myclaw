@@ -720,6 +720,60 @@ class Database:
             
             return deleted_count
 
+    async def list_sessions(
+        self,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """
+        获取会话列表
+        
+        Args:
+            limit: 返回数量限制
+            offset: 偏移量
+            
+        Returns:
+            会话列表
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                SELECT s.*, COUNT(m.id) as message_count
+                FROM sessions s
+                LEFT JOIN messages m ON s.id = m.session_id
+                GROUP BY s.id
+                ORDER BY s.updated_at DESC
+                LIMIT ? OFFSET ?
+                """,
+                (limit, offset),
+            )
+            rows = await cursor.fetchall()
+            
+            return [
+                {
+                    "id": row["id"],
+                    "channel": row["channel"],
+                    "metadata": json.loads(row["metadata"]) if row["metadata"] else None,
+                    "message_count": row["message_count"],
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                }
+                for row in rows
+            ]
+
+    async def count_sessions(self) -> int:
+        """
+        获取会话总数
+        
+        Returns:
+            会话总数
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute("SELECT COUNT(*) FROM sessions")
+            result = await cursor.fetchone()
+            return result[0] if result else 0
+
 
 _database: Optional[Database] = None
 
