@@ -5,11 +5,12 @@ Embedding 客户端模块
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import httpx
 
-from app.config import get_config
+if TYPE_CHECKING:
+    from app.config import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +159,7 @@ def get_embedding_client() -> EmbeddingClient:
     """
     global _embedding_client
     if _embedding_client is None:
+        from app.config import get_config
         config = get_config()
         embedding_config = config.memory.embedding
         
