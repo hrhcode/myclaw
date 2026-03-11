@@ -1,0 +1,25 @@
+server:
+  port: 18789
+  host: "127.0.0.1"
+
+llm:
+  provider: zhipu
+  model: glm-4-flash
+  api_key: "${ZHIPU_API_KEY}"
+
+wechat:
+  enabled: false
+  corp_id: "${WECHAT_CORP_ID}"
+  agent_id: "${WECHAT_AGENT_ID}"
+  secret: "${WECHAT_SECRET}"
+  token: "${WECHAT_TOKEN}"
+  encoding_aes_key: "${WECHAT_ENCODING_AES_KEY}"
+
+memory:
+  enabled: true
+  embedding_model: embedding-3
+  max_memories: 1000
+
+tools:
+  search:
+    provider: duckduckgo
