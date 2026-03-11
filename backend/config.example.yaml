@@ -17,8 +17,17 @@ wechat:
 
 memory:
   enabled: true
-  embedding_model: embedding-3
   max_memories: 1000
+  embedding:
+    provider: openrouter
+    model: "nvidia/llama-nemotron-embed-vl-1b-v2:free"
+    api_key: "${OPENROUTER_API_KEY}"
+    base_url: "https://openrouter.ai/api/v1"
+  hybrid_search:
+    enabled: true
+    vector_weight: 0.7
+    fts_weight: 0.3
+    min_score: 0.3
 
 tools:
   search:

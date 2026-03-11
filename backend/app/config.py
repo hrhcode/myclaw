@@ -6,7 +6,7 @@
 import os
 import re
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 import yaml
 from pydantic import BaseModel, Field
@@ -38,12 +38,36 @@ class WechatConfig(BaseModel):
     encoding_aes_key: str = Field(default="", description="加密Key")
 
 
+class EmbeddingConfig(BaseModel):
+    """Embedding 配置"""
+
+    provider: Literal["zhipu", "openrouter", "none"] = Field(
+        default="none", description="Embedding 提供商 (zhipu/openrouter/none)"
+    )
+    model: str = Field(
+        default="nvidia/llama-nemotron-embed-vl-1b-v2:free",
+        description="Embedding 模型名称",
+    )
+    api_key: str = Field(default="", description="Embedding API Key (可选，默认使用 LLM API Key)")
+    base_url: str = Field(default="https://openrouter.ai/api/v1", description="API 基础 URL")
+
+
+class HybridSearchConfig(BaseModel):
+    """混合检索配置"""
+
+    enabled: bool = Field(default=True, description="是否启用混合检索")
+    vector_weight: float = Field(default=0.7, description="向量检索权重")
+    fts_weight: float = Field(default=0.3, description="FTS 检索权重")
+    min_score: float = Field(default=0.3, description="最低相似度阈值")
+
+
 class MemoryConfig(BaseModel):
     """记忆系统配置"""
 
     enabled: bool = Field(default=True, description="是否启用记忆")
-    embedding_model: str = Field(default="embedding-3", description="嵌入模型")
     max_memories: int = Field(default=1000, description="最大记忆数量")
+    embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
+    hybrid_search: HybridSearchConfig = Field(default_factory=HybridSearchConfig)
 
 
 class SearchToolConfig(BaseModel):

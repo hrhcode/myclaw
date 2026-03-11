@@ -3,7 +3,6 @@ LLM 客户端模块
 封装智谱 AI API 调用，支持流式输出和工具调用
 """
 
-import json
 import logging
 from typing import Any, AsyncGenerator, Optional
 
@@ -163,26 +162,6 @@ class LLMClient:
             ]
         
         return result
-
-    async def get_embedding(self, text: str) -> list[float]:
-        """
-        获取文本的向量嵌入
-        
-        Args:
-            text: 输入文本
-            
-        Returns:
-            嵌入向量
-        """
-        client = self._ensure_client()
-        config = get_config()
-        
-        response = client.embeddings.create(
-            model=config.memory.embedding_model,
-            input=text,
-        )
-        
-        return response.data[0].embedding
 
 
 _llm_client: Optional[LLMClient] = None
