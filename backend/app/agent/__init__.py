@@ -10,6 +10,7 @@ from typing import Any, AsyncGenerator, Optional
 from app.agent.llm import LLMClient, get_llm_client
 from app.agent.session import SessionManager, get_session_manager
 from app.agent.tools import ToolRegistry, get_tool_registry
+from app.config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,20 @@ class Agent:
         self.sessions = session_manager or get_session_manager()
         self.tools = tool_registry or get_tool_registry()
         self.system_prompt = system_prompt or self._default_system_prompt()
+        self._memory_store = None
+
+    async def _get_memory_store(self):
+        """
+        获取记忆存储实例（延迟加载）
+        
+        Returns:
+            MemoryStore 实例
+        """
+        if self._memory_store is None:
+            from app.memory import get_memory_store
+            self._memory_store = get_memory_store()
+            await self._memory_store.init_db()
+        return self._memory_store
 
     def _default_system_prompt(self) -> str:
         """
@@ -79,6 +94,14 @@ class Agent:
         
         await self.sessions.add_message(session_id, "user", user_message)
         
+        config = get_config()
+        if config.memory.enabled:
+            try:
+                memory_store = await self._get_memory_store()
+                await memory_store.add_memory(session_id, "user", user_message)
+            except Exception as e:
+                logger.warning(f"保存用户记忆失败: {e}")
+        
         messages = await self._build_messages(session_id)
         
         max_iterations = 5
@@ -95,6 +118,14 @@ class Agent:
             if "tool_calls" not in response:
                 assistant_message = response["content"]
                 await self.sessions.add_message(session_id, "assistant", assistant_message)
+                
+                if config.memory.enabled:
+                    try:
+                        memory_store = await self._get_memory_store()
+                        await memory_store.add_memory(session_id, "assistant", assistant_message)
+                    except Exception as e:
+                        logger.warning(f"保存助手记忆失败: {e}")
+                
                 return assistant_message
             
             await self.sessions.add_message(
@@ -229,6 +260,32 @@ class Agent:
         history = await self.sessions.get_messages_for_llm(session_id)
         
         messages = [{"role": "system", "content": self.system_prompt}]
+        
+        config = get_config()
+        if config.memory.enabled and history:
+            try:
+                memory_store = await self._get_memory_store()
+                last_user_msg = None
+                for msg in reversed(history):
+                    if msg.get("role") == "user":
+                        last_user_msg = msg.get("content", "")
+                        break
+                
+                if last_user_msg:
+                    related_memories = await memory_store.search_memories(
+                        last_user_msg, session_id=session_id, limit=3
+                    )
+                    if related_memories:
+                        memory_context = "相关历史记忆：\n"
+                        for mem in related_memories:
+                            memory_context += f"- {mem['role']}: {mem['content'][:100]}...\n"
+                        messages.append({
+                            "role": "system",
+                            "content": memory_context,
+                        })
+            except Exception as e:
+                logger.warning(f"搜索记忆失败: {e}")
+        
         messages.extend(history)
         
         return messages
