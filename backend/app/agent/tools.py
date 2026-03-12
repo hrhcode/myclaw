@@ -68,6 +68,7 @@ class ToolRegistry:
     def __init__(self):
         """初始化工具注册表"""
         self._tools: dict[str, Tool] = {}
+        self._enabled: dict[str, bool] = {}
         self._register_builtin_tools()
 
     def _register_builtin_tools(self) -> None:
@@ -128,6 +129,7 @@ class ToolRegistry:
             tool: 工具实例
         """
         self._tools[tool.name] = tool
+        self._enabled[tool.name] = True
         logger.debug(f"注册工具: {tool.name}")
 
     def get(self, name: str) -> Optional[Tool]:
@@ -151,14 +153,42 @@ class ToolRegistry:
         """
         return list(self._tools.values())
 
+    def is_enabled(self, name: str) -> bool:
+        """
+        检查工具是否启用
+        
+        Args:
+            name: 工具名称
+            
+        Returns:
+            是否启用
+        """
+        return self._enabled.get(name, True)
+
+    def set_enabled(self, name: str, enabled: bool) -> None:
+        """
+        设置工具启用状态
+        
+        Args:
+            name: 工具名称
+            enabled: 是否启用
+        """
+        if name in self._tools:
+            self._enabled[name] = enabled
+            logger.info(f"工具 {name} {'启用' if enabled else '禁用'}")
+
     def get_openai_tools(self) -> list[dict[str, Any]]:
         """
-        获取 OpenAI 格式的工具定义列表
+        获取 OpenAI 格式的工具定义列表（仅返回启用的工具）
         
         Returns:
             OpenAI 格式的工具列表
         """
-        return [tool.to_openai_format() for tool in self._tools.values()]
+        return [
+            tool.to_openai_format() 
+            for name, tool in self._tools.items() 
+            if self._enabled.get(name, True)
+        ]
 
     async def execute(self, name: str, arguments: dict[str, Any]) -> str:
         """

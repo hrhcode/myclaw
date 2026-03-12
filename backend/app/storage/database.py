@@ -774,6 +774,115 @@ class Database:
             result = await cursor.fetchone()
             return result[0] if result else 0
 
+    async def list_all_messages(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        session_id: Optional[str] = None,
+    ) -> list[dict[str, Any]]:
+        """
+        获取所有消息列表（用于记忆管理）
+        
+        Args:
+            limit: 返回数量限制
+            offset: 偏移量
+            session_id: 会话ID过滤
+            
+        Returns:
+            消息列表
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            
+            if session_id:
+                cursor = await db.execute(
+                    """
+                    SELECT * FROM messages 
+                    WHERE session_id = ?
+                    ORDER BY timestamp DESC 
+                    LIMIT ? OFFSET ?
+                    """,
+                    (session_id, limit, offset),
+                )
+            else:
+                cursor = await db.execute(
+                    """
+                    SELECT * FROM messages 
+                    ORDER BY timestamp DESC 
+                    LIMIT ? OFFSET ?
+                    """,
+                    (limit, offset),
+                )
+            
+            rows = await cursor.fetchall()
+            
+            return [
+                {
+                    "id": row["id"],
+                    "session_id": row["session_id"],
+                    "role": row["role"],
+                    "content": row["content"],
+                    "tool_calls": json.loads(row["tool_calls"]) if row["tool_calls"] else None,
+                    "tool_call_id": row["tool_call_id"],
+                    "timestamp": row["timestamp"],
+                }
+                for row in rows
+            ]
+
+    async def count_all_messages(self) -> int:
+        """
+        获取消息总数
+        
+        Returns:
+            消息总数
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute("SELECT COUNT(*) FROM messages")
+            result = await cursor.fetchone()
+            return result[0] if result else 0
+
+    async def delete_message(self, message_id: int) -> bool:
+        """
+        删除单条消息
+        
+        Args:
+            message_id: 消息ID
+            
+        Returns:
+            是否删除成功
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                "DELETE FROM messages WHERE id = ?",
+                (message_id,),
+            )
+            deleted = cursor.rowcount > 0
+            
+            try:
+                await db.execute(
+                    "DELETE FROM messages_fts WHERE id = ?",
+                    (message_id,),
+                )
+            except Exception:
+                pass
+            
+            await db.commit()
+            return deleted
+
+    async def clear_all_messages(self) -> None:
+        """清空所有消息"""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("DELETE FROM messages")
+            await db.execute("DELETE FROM sessions")
+            
+            try:
+                await db.execute("DELETE FROM messages_fts")
+            except Exception:
+                pass
+            
+            await db.commit()
+            logger.info("已清空所有消息和会话")
+
 
 _database: Optional[Database] = None
 

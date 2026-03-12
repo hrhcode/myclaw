@@ -18,7 +18,7 @@ from app.agent import get_agent, get_session_manager
 from app.channels.qq import QQChannel
 from app.channels.web import get_web_channel
 from app.channels.wechat import WechatChannel
-from app.config import get_config
+from app.config import get_config, get_config_path, reload_config, save_config
 from app.gateway import get_gateway
 
 logging.basicConfig(
@@ -345,6 +345,293 @@ async def stop_channel(channel_name: str) -> dict:
     channel = _gateway_instance.channels[channel_name]
     await channel.stop()
     return {"status": "ok", "message": f"通道 {channel_name} 已停止"}
+
+
+class ChannelConfigUpdate(BaseModel):
+    """通道配置更新模型"""
+    enabled: Optional[bool] = None
+    api_url: Optional[str] = None
+    access_token: Optional[str] = None
+    corp_id: Optional[str] = None
+    agent_id: Optional[str] = None
+    secret: Optional[str] = None
+    token: Optional[str] = None
+    encoding_aes_key: Optional[str] = None
+
+
+@app.put("/api/channels/{channel_name}/config")
+async def update_channel_config(channel_name: str, config_update: ChannelConfigUpdate) -> dict:
+    """
+    更新通道配置
+    
+    Args:
+        channel_name: 通道名称
+        config_update: 配置更新
+        
+    Returns:
+        操作结果
+    """
+    config = get_config()
+    
+    if channel_name == "web":
+        if config_update.enabled is not None:
+            config.channels.web.enabled = config_update.enabled
+    elif channel_name == "qq":
+        if config_update.enabled is not None:
+            config.channels.qq.enabled = config_update.enabled
+        if config_update.api_url is not None:
+            config.channels.qq.api_url = config_update.api_url
+        if config_update.access_token is not None:
+            config.channels.qq.access_token = config_update.access_token
+    elif channel_name == "wechat":
+        if config_update.enabled is not None:
+            config.channels.wechat.enabled = config_update.enabled
+        if config_update.corp_id is not None:
+            config.channels.wechat.corp_id = config_update.corp_id
+        if config_update.agent_id is not None:
+            config.channels.wechat.agent_id = config_update.agent_id
+        if config_update.secret is not None:
+            config.channels.wechat.secret = config_update.secret
+        if config_update.token is not None:
+            config.channels.wechat.token = config_update.token
+        if config_update.encoding_aes_key is not None:
+            config.channels.wechat.encoding_aes_key = config_update.encoding_aes_key
+    else:
+        raise HTTPException(status_code=404, detail="通道不存在")
+    
+    save_config(config)
+    
+    return {"status": "ok", "message": f"通道 {channel_name} 配置已更新"}
+
+
+@app.get("/api/config")
+async def get_app_config() -> dict:
+    """
+    获取应用配置
+    
+    Returns:
+        应用配置
+    """
+    config = get_config()
+    return config.model_dump()
+
+
+class ConfigUpdateRequest(BaseModel):
+    """配置更新请求模型"""
+    llm_provider: Optional[str] = None
+    llm_model: Optional[str] = None
+    llm_api_key: Optional[str] = None
+    memory_enabled: Optional[bool] = None
+    embedding_provider: Optional[str] = None
+    embedding_api_key: Optional[str] = None
+    embedding_base_url: Optional[str] = None
+    vector_weight: Optional[float] = None
+    fts_weight: Optional[float] = None
+    min_score: Optional[float] = None
+    system_prompt: Optional[str] = None
+
+
+@app.put("/api/config")
+async def update_app_config(request: ConfigUpdateRequest) -> dict:
+    """
+    更新应用配置
+    
+    Args:
+        request: 配置更新请求
+        
+    Returns:
+        操作结果
+    """
+    config = get_config()
+    
+    if request.llm_provider is not None:
+        config.llm.provider = request.llm_provider
+    if request.llm_model is not None:
+        config.llm.model = request.llm_model
+    if request.llm_api_key is not None:
+        config.llm.api_key = request.llm_api_key
+    if request.memory_enabled is not None:
+        config.memory.enabled = request.memory_enabled
+    if request.embedding_provider is not None:
+        config.memory.embedding.provider = request.embedding_provider
+    if request.embedding_api_key is not None:
+        config.memory.embedding.api_key = request.embedding_api_key
+    if request.embedding_base_url is not None:
+        config.memory.embedding.base_url = request.embedding_base_url
+    if request.vector_weight is not None:
+        config.memory.hybrid_search.vector_weight = request.vector_weight
+    if request.fts_weight is not None:
+        config.memory.hybrid_search.fts_weight = request.fts_weight
+    if request.min_score is not None:
+        config.memory.hybrid_search.min_score = request.min_score
+    if request.system_prompt is not None:
+        config.agent.system_prompt = request.system_prompt
+    
+    save_config(config)
+    
+    return {"status": "ok", "message": "配置已更新"}
+
+
+@app.post("/api/config/reload")
+async def reload_app_config() -> dict:
+    """
+    重新加载配置
+    
+    Returns:
+        操作结果
+    """
+    reload_config()
+    return {"status": "ok", "message": "配置已重新加载"}
+
+
+@app.get("/api/tools")
+async def list_tools() -> dict:
+    """
+    获取工具列表
+    
+    Returns:
+        工具列表
+    """
+    from app.agent.tools import get_tool_registry
+    
+    registry = get_tool_registry()
+    tools = registry.list_tools()
+    
+    return {
+        "tools": [
+            {
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": tool.parameters,
+                "enabled": registry.is_enabled(tool.name),
+            }
+            for tool in tools
+        ]
+    }
+
+
+class ToolEnabledRequest(BaseModel):
+    """工具启用请求模型"""
+    enabled: bool
+
+
+@app.put("/api/tools/{tool_name}/enabled")
+async def set_tool_enabled(tool_name: str, request: ToolEnabledRequest) -> dict:
+    """
+    设置工具启用状态
+    
+    Args:
+        tool_name: 工具名称
+        request: 启用请求
+        
+    Returns:
+        操作结果
+    """
+    from app.agent.tools import get_tool_registry
+    
+    registry = get_tool_registry()
+    
+    if not registry.get(tool_name):
+        raise HTTPException(status_code=404, detail="工具不存在")
+    
+    registry.set_enabled(tool_name, request.enabled)
+    
+    return {"status": "ok", "message": f"工具 {tool_name} 已{'启用' if request.enabled else '禁用'}"}
+
+
+@app.get("/api/memories")
+async def list_memories(
+    query: str = Query(default="", description="搜索关键词"),
+    session_id: str = Query(default="", description="会话ID过滤"),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> dict:
+    """
+    获取记忆列表
+    
+    Args:
+        query: 搜索关键词
+        session_id: 会话ID过滤
+        limit: 返回数量限制
+        offset: 偏移量
+        
+    Returns:
+        记忆列表
+    """
+    from app.storage.database import get_database
+    
+    db = get_database()
+    
+    if query:
+        memories = await db.search_memories(query, session_id=session_id or None, limit=limit)
+    else:
+        memories = await db.list_all_messages(limit=limit, offset=offset, session_id=session_id or None)
+    
+    total = await db.count_all_messages()
+    
+    return {
+        "memories": memories,
+        "total": total,
+    }
+
+
+@app.get("/api/memories/stats")
+async def get_memory_stats() -> dict:
+    """
+    获取记忆统计
+    
+    Returns:
+        记忆统计信息
+    """
+    from app.storage.database import get_database
+    
+    db = get_database()
+    
+    total_messages = await db.count_all_messages()
+    total_sessions = await db.count_sessions()
+    
+    return {
+        "total_messages": total_messages,
+        "total_sessions": total_sessions,
+    }
+
+
+@app.delete("/api/memories/{message_id}")
+async def delete_memory(message_id: int) -> dict:
+    """
+    删除单条记忆
+    
+    Args:
+        message_id: 消息ID
+        
+    Returns:
+        操作结果
+    """
+    from app.storage.database import get_database
+    
+    db = get_database()
+    deleted = await db.delete_message(message_id)
+    
+    if not deleted:
+        raise HTTPException(status_code=404, detail="消息不存在")
+    
+    return {"status": "ok", "message": "记忆已删除"}
+
+
+@app.delete("/api/memories")
+async def clear_all_memories() -> dict:
+    """
+    清空所有记忆
+    
+    Returns:
+        操作结果
+    """
+    from app.storage.database import get_database
+    
+    db = get_database()
+    await db.clear_all_messages()
+    
+    return {"status": "ok", "message": "所有记忆已清空"}
 
 
 @app.get("/api/sessions")

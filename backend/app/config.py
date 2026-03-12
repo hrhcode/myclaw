@@ -225,3 +225,30 @@ def reload_config(config_path: Optional[str] = None) -> AppConfig:
     global _config
     _config = load_config(config_path)
     return _config
+
+
+def save_config(config: AppConfig, config_path: Optional[str] = None) -> None:
+    """
+    保存配置到文件
+    
+    Args:
+        config: 配置对象
+        config_path: 配置文件路径，默认为当前目录的 config.yaml
+    """
+    if config_path is None:
+        config_path = str(Path.cwd() / "config.yaml")
+    
+    config_dict = config.model_dump()
+    
+    with open(config_path, "w", encoding="utf-8") as f:
+        yaml.dump(config_dict, f, default_flow_style=False, allow_unicode=True)
+
+
+def get_config_path() -> str:
+    """
+    获取配置文件路径
+    
+    Returns:
+        配置文件路径
+    """
+    return str(Path.cwd() / "config.yaml")
