@@ -1,14 +1,14 @@
 <script setup lang="ts">
 /**
  * Modal 弹窗组件
- * 提供统一的弹窗样式
+ * 提供统一的弹窗样式，支持多种尺寸
  */
 import { watch } from 'vue'
 
 const props = defineProps<{
   modelValue: boolean
   title?: string
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg' | 'xl'
   closable?: boolean
 }>()
 
@@ -43,8 +43,10 @@ function onOverlayClick(e: MouseEvent) {
       <div v-if="modelValue" class="modal-overlay" @click="onOverlayClick">
         <div class="modal" :class="size">
           <div v-if="title || $slots.header" class="modal-header">
-            <h3 class="modal-title">{{ title }}</h3>
-            <slot name="header" />
+            <div class="modal-header-content">
+              <h3 class="modal-title">{{ title }}</h3>
+              <slot name="header" />
+            </div>
             <button v-if="closable !== false" class="modal-close" @click="close">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -70,7 +72,8 @@ function onOverlayClick(e: MouseEvent) {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -84,7 +87,8 @@ function onOverlayClick(e: MouseEvent) {
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--shadow-xl), 0 0 0 1px hsl(var(--border));
+  overflow: hidden;
 }
 
 .sm {
@@ -99,31 +103,45 @@ function onOverlayClick(e: MouseEvent) {
 
 .lg {
   width: 100%;
-  max-width: 800px;
+  max-width: 720px;
+}
+
+.xl {
+  width: 100%;
+  max-width: 960px;
 }
 
 .modal-header {
   display: flex;
-  align-items: center;
-  padding: 1rem 1.25rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
   border-bottom: 1px solid hsl(var(--border));
+  background: linear-gradient(180deg, hsl(var(--muted) / 0.2) 0%, transparent 100%);
+}
+
+.modal-header-content {
+  flex: 1;
 }
 
 .modal-title {
-  flex: 1;
-  font-size: 1rem;
+  font-size: 1.125rem;
   font-weight: 600;
   margin: 0;
+  letter-spacing: -0.01em;
 }
 
 .modal-close {
-  padding: 0.375rem;
+  padding: 0.5rem;
   background: transparent;
   border: none;
   border-radius: var(--radius);
   cursor: pointer;
   color: hsl(var(--muted-foreground));
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .modal-close:hover {
@@ -138,27 +156,27 @@ function onOverlayClick(e: MouseEvent) {
 
 .modal-body {
   flex: 1;
-  padding: 1.25rem;
+  padding: 1.5rem;
   overflow-y: auto;
 }
 
 .modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 0.5rem;
-  padding: 1rem 1.25rem;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
   border-top: 1px solid hsl(var(--border));
-  background: hsl(var(--muted) / 0.3);
+  background: hsl(var(--muted) / 0.2);
 }
 
 .modal-enter-active,
 .modal-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity 0.25s ease;
 }
 
 .modal-enter-active .modal,
 .modal-leave-active .modal {
-  transition: transform 0.2s ease;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .modal-enter-from,
@@ -168,6 +186,6 @@ function onOverlayClick(e: MouseEvent) {
 
 .modal-enter-from .modal,
 .modal-leave-to .modal {
-  transform: scale(0.95);
+  transform: scale(0.95) translateY(10px);
 }
 </style>

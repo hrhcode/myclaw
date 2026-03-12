@@ -2,6 +2,7 @@
 /**
  * Sidebar 导航组件
  * 侧边导航栏，支持分组和折叠
+ * 添加科技感发光效果
  */
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
@@ -63,6 +64,7 @@ function getIconClass(icon: string): string {
 
 <template>
   <nav class="sidebar" :class="{ collapsed }">
+    <div class="sidebar-glow" />
     <div v-for="group in navGroups" :key="group.label" class="nav-group">
       <div v-if="group.label && !collapsed" class="nav-group-label">
         {{ group.label }}
@@ -74,10 +76,12 @@ function getIconClass(icon: string): string {
         :class="{ active: activeTab === item.id }"
         @click="navigate(item.id)"
       >
+        <div class="nav-item-glow" />
         <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getIconClass(item.icon)" />
         </svg>
         <span v-if="!collapsed" class="nav-label">{{ item.label }}</span>
+        <div v-if="activeTab === item.id" class="nav-active-indicator" />
       </div>
     </div>
   </nav>
@@ -90,10 +94,29 @@ function getIconClass(icon: string): string {
   flex-direction: column;
   gap: 0.5rem;
   padding: 1rem;
-  background: hsl(var(--card) / 0.5);
+  background: hsl(var(--card) / 0.6);
+  backdrop-filter: blur(12px);
   border-right: 1px solid hsl(var(--border));
   overflow-y: auto;
   transition: all 0.3s ease;
+  position: relative;
+}
+
+.sidebar-glow {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 1px;
+  height: 100%;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    hsl(var(--primary) / 0.5) 20%,
+    hsl(var(--primary) / 0.3) 50%,
+    hsl(var(--primary) / 0.5) 80%,
+    transparent 100%
+  );
+  opacity: 0.5;
 }
 
 .sidebar.collapsed {
@@ -107,15 +130,16 @@ function getIconClass(icon: string): string {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  position: relative;
 }
 
 .nav-group-label {
   padding: 0.5rem 0.75rem;
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   font-weight: 600;
   color: hsl(var(--muted-foreground));
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
 }
 
 .nav-item {
@@ -126,7 +150,17 @@ function getIconClass(icon: string): string {
   border-radius: var(--radius);
   cursor: pointer;
   color: hsl(var(--foreground));
-  transition: all 0.2s;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.nav-item-glow {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.1) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
 }
 
 .nav-item:hover {
@@ -134,21 +168,47 @@ function getIconClass(icon: string): string {
   color: hsl(var(--accent-foreground));
 }
 
+.nav-item:hover .nav-item-glow {
+  opacity: 1;
+}
+
 .nav-item.active {
-  background: hsl(var(--primary));
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.9) 100%);
   color: hsl(var(--primary-foreground));
+  box-shadow: 0 2px 10px hsl(var(--primary) / 0.3);
+}
+
+.nav-item.active .nav-item-glow {
+  background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%);
+  opacity: 1;
 }
 
 .nav-icon {
   width: 1.25rem;
   height: 1.25rem;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .nav-label {
   font-size: 0.875rem;
   font-weight: 500;
   white-space: nowrap;
+  position: relative;
+  z-index: 1;
+}
+
+.nav-active-indicator {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  background: hsl(var(--primary-foreground));
+  border-radius: 0 2px 2px 0;
+  opacity: 0.5;
 }
 
 @media (max-width: 768px) {

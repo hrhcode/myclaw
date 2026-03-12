@@ -1,14 +1,15 @@
 <script setup lang="ts">
 /**
  * Button 按钮组件
- * 提供统一的按钮样式
+ * 提供统一的按钮样式，支持多种变体和尺寸
  */
 defineProps<{
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost'
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline'
   size?: 'sm' | 'md' | 'lg'
   loading?: boolean
   disabled?: boolean
   icon?: boolean
+  block?: boolean
 }>()
 
 defineEmits<{
@@ -19,7 +20,7 @@ defineEmits<{
 <template>
   <button
     class="btn"
-    :class="[variant, size, { 'btn-icon': icon, loading }]"
+    :class="[variant, size, { 'btn-icon': icon, loading, 'btn-block': block }]"
     :disabled="disabled || loading"
     @click="$emit('click', $event)"
   >
@@ -40,9 +41,28 @@ defineEmits<{
   border-radius: var(--radius);
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid transparent;
   white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.btn:hover::before {
+  opacity: 1;
+}
+
+.btn:active {
+  transform: scale(0.98);
 }
 
 .btn:disabled {
@@ -54,51 +74,78 @@ defineEmits<{
   transform: none;
 }
 
+.btn:disabled::before {
+  opacity: 0;
+}
+
 .btn-icon {
   padding: 0.5rem;
 }
 
+.btn-block {
+  width: 100%;
+}
+
 .md {
-  padding: 0.5rem 1rem;
+  padding: 0.625rem 1.25rem;
   font-size: 0.875rem;
+  height: 40px;
 }
 
 .sm {
-  padding: 0.375rem 0.75rem;
-  font-size: 0.75rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.8125rem;
+  height: 32px;
 }
 
 .lg {
   padding: 0.75rem 1.5rem;
   font-size: 1rem;
+  height: 48px;
 }
 
 .primary {
-  background: hsl(var(--primary));
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.9) 100%);
   color: hsl(var(--primary-foreground));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 0 0 1px hsl(var(--primary) / 0.1);
 }
 
 .primary:hover:not(:disabled) {
-  background: hsl(var(--primary) / 0.9);
+  box-shadow: 0 4px 12px hsl(var(--primary) / 0.3), 0 0 0 1px hsl(var(--primary) / 0.2);
 }
 
 .secondary {
   background: hsl(var(--secondary));
   color: hsl(var(--secondary-foreground));
   border-color: hsl(var(--border));
+  box-shadow: var(--shadow-sm);
 }
 
 .secondary:hover:not(:disabled) {
   background: hsl(var(--accent));
+  border-color: hsl(var(--border));
+  box-shadow: var(--shadow);
+}
+
+.outline {
+  background: transparent;
+  color: hsl(var(--primary));
+  border-color: hsl(var(--primary) / 0.5);
+}
+
+.outline:hover:not(:disabled) {
+  background: hsl(var(--primary) / 0.1);
+  border-color: hsl(var(--primary));
 }
 
 .danger {
-  background: hsl(var(--destructive));
+  background: linear-gradient(135deg, hsl(var(--destructive)) 0%, hsl(var(--destructive) / 0.9) 100%);
   color: white;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .danger:hover:not(:disabled) {
-  background: hsl(var(--destructive) / 0.9);
+  box-shadow: 0 4px 12px hsl(var(--destructive) / 0.3);
 }
 
 .ghost {
@@ -118,6 +165,10 @@ defineEmits<{
 
 .loading {
   pointer-events: none;
+}
+
+.loading .spinner {
+  margin-right: 0.25rem;
 }
 
 @keyframes spin {

@@ -8,6 +8,7 @@ defineProps<{
   options: { value: string; label: string }[]
   placeholder?: string
   disabled?: boolean
+  size?: 'sm' | 'md' | 'lg'
 }>()
 
 const emit = defineEmits<{
@@ -21,7 +22,7 @@ function onChange(event: Event) {
 </script>
 
 <template>
-  <div class="select-wrapper" :class="{ disabled }">
+  <div class="select-wrapper" :class="[size, { disabled }]">
     <select
       :value="modelValue"
       :disabled="disabled"
@@ -56,25 +57,48 @@ function onChange(event: Event) {
 
 .select {
   appearance: none;
-  padding: 0.5rem 2.5rem 0.5rem 0.75rem;
   background: hsl(var(--background));
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius);
-  font-size: 0.875rem;
   color: hsl(var(--foreground));
   cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-sm);
   min-width: 120px;
+  padding-right: 2.5rem;
+}
+
+.md .select {
+  padding: 0.625rem 2.5rem 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  height: 40px;
+}
+
+.sm .select {
+  padding: 0.5rem 2.25rem 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  height: 32px;
+}
+
+.lg .select {
+  padding: 0.75rem 2.75rem 0.75rem 1rem;
+  font-size: 1rem;
+  height: 48px;
+}
+
+.select:hover:not(:disabled) {
+  border-color: hsl(var(--border) / 0.8);
 }
 
 .select:focus {
   outline: none;
   border-color: hsl(var(--primary));
-  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1), var(--shadow-sm);
 }
 
 .select:disabled {
   cursor: not-allowed;
+  background: hsl(var(--muted) / 0.3);
 }
 
 .select-arrow {
@@ -86,5 +110,10 @@ function onChange(event: Event) {
   height: 1rem;
   color: hsl(var(--muted-foreground));
   pointer-events: none;
+  transition: transform 0.2s;
+}
+
+.select-wrapper:focus-within .select-arrow {
+  color: hsl(var(--primary));
 }
 </style>

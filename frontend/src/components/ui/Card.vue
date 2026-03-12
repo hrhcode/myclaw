@@ -1,17 +1,18 @@
 <script setup lang="ts">
 /**
  * Card 卡片组件
- * 提供统一的卡片容器样式
+ * 提供统一的卡片容器样式，支持标题、副标题和操作区
  */
 defineProps<{
   title?: string
   subtitle?: string
   noPadding?: boolean
+  hoverable?: boolean
 }>()
 </script>
 
 <template>
-  <div class="card">
+  <div class="card" :class="{ hoverable }">
     <div v-if="title || $slots.header" class="card-header">
       <div class="card-header-content">
         <h3 v-if="title" class="card-title">{{ title }}</h3>
@@ -37,14 +38,27 @@ defineProps<{
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius-lg);
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card.hoverable {
+  cursor: pointer;
+}
+
+.card.hoverable:hover {
+  border-color: hsl(var(--primary) / 0.3);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 1rem 1.25rem;
+  padding: 1.25rem 1.5rem;
   border-bottom: 1px solid hsl(var(--border));
+  background: linear-gradient(180deg, hsl(var(--muted) / 0.2) 0%, transparent 100%);
 }
 
 .card-header-content {
@@ -56,10 +70,11 @@ defineProps<{
   font-weight: 600;
   margin: 0;
   color: hsl(var(--foreground));
+  letter-spacing: -0.01em;
 }
 
 .card-subtitle {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: hsl(var(--muted-foreground));
   margin: 0.25rem 0 0 0;
 }
@@ -71,7 +86,7 @@ defineProps<{
 }
 
 .card-body {
-  padding: 1.25rem;
+  padding: 1.5rem;
 }
 
 .card-body.no-padding {
@@ -79,8 +94,12 @@ defineProps<{
 }
 
 .card-footer {
-  padding: 0.75rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
   border-top: 1px solid hsl(var(--border));
-  background: hsl(var(--muted) / 0.3);
+  background: hsl(var(--muted) / 0.2);
 }
 </style>

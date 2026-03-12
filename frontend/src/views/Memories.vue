@@ -1,12 +1,13 @@
 <script setup lang="ts">
 /**
- * 记忆管理页面
+ * Memories 记忆管理页面
  * 提供记忆浏览、搜索和删除功能
+ * 使用科技感组件优化视觉效果
  */
 import { ref, onMounted, computed, watch } from 'vue'
 import { memoriesApi, type Memory, type MemoryStats } from '@/api/settings'
 import { get } from '@/utils/request'
-import { Card, Button, Badge, Modal, Input, Select, Empty, Skeleton } from '@/components/ui'
+import { Card, Button, Badge, Modal, Select, Empty, Skeleton, GlowCard, AnimatedList, AnimatedListItem } from '@/components/ui'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
@@ -24,6 +25,7 @@ const total = ref(0)
 const showDetailModal = ref(false)
 const selectedMemory = ref<Memory | null>(null)
 const showClearConfirm = ref(false)
+const listVisible = ref(false)
 
 const totalPages = computed(() => Math.ceil(total.value / pageSize))
 
@@ -37,6 +39,9 @@ const sessionOptions = computed(() => {
 
 onMounted(async () => {
   await Promise.all([loadMemories(), loadStats(), loadSessions()])
+  setTimeout(() => {
+    listVisible.value = true
+  }, 100)
 })
 
 watch([searchQuery, selectedSession], () => {
@@ -144,6 +149,16 @@ function getRoleVariant(role: string): 'default' | 'primary' | 'success' | 'warn
   return variants[role] || 'default'
 }
 
+function getRoleGlowColor(role: string): string {
+  const colors: Record<string, string> = {
+    user: 'rgba(59, 130, 246, 0.4)',
+    assistant: 'rgba(16, 185, 129, 0.4)',
+    system: 'rgba(139, 92, 246, 0.4)',
+    tool: 'rgba(245, 158, 11, 0.4)',
+  }
+  return colors[role] || 'rgba(59, 130, 246, 0.4)'
+}
+
 function formatTime(timestamp: string): string {
   if (!timestamp) return '-'
   return new Date(timestamp).toLocaleString('zh-CN')
@@ -157,20 +172,37 @@ function truncateContent(content: string, maxLength: number = 200): string {
 </script>
 
 <template>
-  <div class="memories-page">
+  <div class="memories-page page-container">
     <div class="page-header">
       <div class="header-content">
-        <h1>记忆管理</h1>
-        <p class="header-subtitle">浏览和搜索对话记忆</p>
+        <h1 class="page-title">
+          <span class="title-text">记忆管理</span>
+          <span class="title-glow" />
+        </h1>
+        <p class="page-subtitle">浏览和搜索对话记忆</p>
       </div>
       <div v-if="stats" class="header-stats">
-        <div class="stat-item">
-          <span class="stat-value">{{ stats.total_messages }}</span>
-          <span class="stat-label">条记忆</span>
+        <div class="stat-badge">
+          <div class="stat-icon icon-box icon-box-primary">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+            </svg>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value">{{ stats.total_messages }}</span>
+            <span class="stat-label">条记忆</span>
+          </div>
         </div>
-        <div class="stat-item">
-          <span class="stat-value">{{ stats.total_sessions }}</span>
-          <span class="stat-label">个会话</span>
+        <div class="stat-badge">
+          <div class="stat-icon icon-box icon-box-success">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value">{{ stats.total_sessions }}</span>
+            <span class="stat-label">个会话</span>
+          </div>
         </div>
       </div>
     </div>
@@ -220,35 +252,32 @@ function truncateContent(content: string, maxLength: number = 200): string {
       :description="searchQuery ? '没有匹配的记忆' : '还没有任何记忆记录'"
     />
 
-    <div v-else class="memories-list">
-      <Card
-        v-for="memory in memories"
-        :key="memory.id"
-        class="memory-card"
-        @click="viewMemoryDetail(memory)"
-      >
-        <div class="memory-header">
-          <Badge :variant="getRoleVariant(memory.role)" size="sm">
-            {{ getRoleLabel(memory.role) }}
-          </Badge>
-          <code class="memory-session">{{ memory.session_id?.slice(0, 8) }}</code>
-          <span class="memory-time">{{ formatTime(memory.timestamp) }}</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            @click.stop="deleteMemory(memory.id)"
-          >
-            删除
-          </Button>
-        </div>
-        <div class="memory-content">
-          {{ truncateContent(memory.content) }}
-        </div>
-        <div v-if="memory.tool_calls && memory.tool_calls.length > 0" class="memory-tools">
-          <Badge variant="warning" size="sm">工具调用: {{ memory.tool_calls.length }}</Badge>
-        </div>
-      </Card>
-    </div>
+    <AnimatedList v-else class="memories-list" :visible="listVisible" :stagger="60">
+      <AnimatedListItem v-for="(memory, index) in memories" :key="memory.id" :index="index" :visible="listVisible">
+        <GlowCard class="memory-card" :glow-color="getRoleGlowColor(memory.role)" hover-glow>
+          <div class="memory-header" @click="viewMemoryDetail(memory)">
+            <Badge :variant="getRoleVariant(memory.role)" size="sm">
+              {{ getRoleLabel(memory.role) }}
+            </Badge>
+            <code class="memory-session">{{ memory.session_id?.slice(0, 8) }}</code>
+            <span class="memory-time">{{ formatTime(memory.timestamp) }}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              @click.stop="deleteMemory(memory.id)"
+            >
+              删除
+            </Button>
+          </div>
+          <div class="memory-content">
+            {{ truncateContent(memory.content) }}
+          </div>
+          <div v-if="memory.tool_calls && memory.tool_calls.length > 0" class="memory-tools">
+            <Badge variant="warning" size="sm">工具调用: {{ memory.tool_calls.length }}</Badge>
+          </div>
+        </GlowCard>
+      </AnimatedListItem>
+    </AnimatedList>
 
     <div v-if="totalPages > 1" class="pagination">
       <Button
@@ -313,7 +342,14 @@ function truncateContent(content: string, maxLength: number = 200): string {
     </Modal>
 
     <Modal v-model="showClearConfirm" title="确认清空" size="sm">
-      <p class="confirm-text">确定要清空所有记忆吗？此操作不可恢复！</p>
+      <div class="confirm-content">
+        <div class="confirm-icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <p class="confirm-text">确定要清空所有记忆吗？此操作不可恢复！</p>
+      </div>
       <template #footer>
         <Button variant="secondary" @click="showClearConfirm = false">取消</Button>
         <Button variant="danger" @click="clearAllMemories">确认清空</Button>
@@ -324,48 +360,79 @@ function truncateContent(content: string, maxLength: number = 200): string {
 
 <style scoped>
 .memories-page {
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
 }
 
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1.5rem;
+.page-title {
+  position: relative;
+  display: inline-block;
 }
 
-.header-content h1 {
-  font-size: 1.75rem;
-  font-weight: 800;
-  margin: 0;
+.title-text {
+  background: linear-gradient(135deg, hsl(var(--foreground)) 0%, hsl(var(--foreground) / 0.7) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-.header-subtitle {
-  font-size: 0.875rem;
-  color: hsl(var(--muted-foreground));
-  margin: 0.25rem 0 0 0;
+.title-glow {
+  position: absolute;
+  inset: -10px -20px;
+  background: radial-gradient(ellipse at center, hsl(var(--primary) / 0.1) 0%, transparent 70%);
+  pointer-events: none;
 }
 
 .header-stats {
   display: flex;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
-.stat-item {
+.stat-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--muted) / 0.3) 100%);
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-badge::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.3), transparent);
+}
+
+.stat-icon {
+  width: 36px;
+  height: 36px;
+}
+
+.stat-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.stat-info {
   display: flex;
   flex-direction: column;
-  align-items: center;
 }
 
 .stat-value {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 700;
-  color: hsl(var(--primary));
+  color: hsl(var(--foreground));
+  letter-spacing: -0.02em;
 }
 
 .stat-label {
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   color: hsl(var(--muted-foreground));
 }
 
@@ -388,16 +455,22 @@ function truncateContent(content: string, maxLength: number = 200): string {
   max-width: 400px;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
   background: hsl(var(--background));
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius);
+  transition: all 0.2s;
+}
+
+.search-box:focus-within {
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1);
 }
 
 .search-icon {
-  width: 1rem;
-  height: 1rem;
+  width: 1.125rem;
+  height: 1.125rem;
   color: hsl(var(--muted-foreground));
   flex-shrink: 0;
 }
@@ -408,10 +481,15 @@ function truncateContent(content: string, maxLength: number = 200): string {
   background: transparent;
   font-size: 0.875rem;
   color: hsl(var(--foreground));
+  min-width: 0;
 }
 
 .search-input:focus {
   outline: none;
+}
+
+.search-input::placeholder {
+  color: hsl(var(--muted-foreground));
 }
 
 .loading-skeleton {
@@ -423,7 +501,7 @@ function truncateContent(content: string, maxLength: number = 200): string {
 .skeleton-card {
   background: hsl(var(--card));
   border: 1px solid hsl(var(--border));
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   padding: 1rem;
 }
 
@@ -441,27 +519,22 @@ function truncateContent(content: string, maxLength: number = 200): string {
 }
 
 .memory-card {
-  padding: 1rem;
+  padding: 1.25rem;
   cursor: pointer;
-  transition: all 0.2s;
-}
-
-.memory-card:hover {
-  border-color: hsl(var(--primary) / 0.3);
 }
 
 .memory-header {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 
 .memory-session {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.75rem;
   background: hsl(var(--muted) / 0.5);
-  padding: 0.125rem 0.5rem;
+  padding: 0.25rem 0.5rem;
   border-radius: var(--radius);
 }
 
@@ -473,14 +546,14 @@ function truncateContent(content: string, maxLength: number = 200): string {
 
 .memory-content {
   font-size: 0.875rem;
-  line-height: 1.5;
+  line-height: 1.6;
   color: hsl(var(--foreground));
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .memory-tools {
-  margin-top: 0.5rem;
+  margin-top: 0.75rem;
 }
 
 .pagination {
@@ -489,11 +562,15 @@ function truncateContent(content: string, maxLength: number = 200): string {
   align-items: center;
   gap: 1rem;
   margin-top: 1.5rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, hsl(var(--muted) / 0.3) 0%, hsl(var(--muted) / 0.1) 100%);
+  border-radius: var(--radius-lg);
 }
 
 .page-info {
   font-size: 0.875rem;
   color: hsl(var(--muted-foreground));
+  font-weight: 500;
 }
 
 .memory-detail {
@@ -506,20 +583,21 @@ function truncateContent(content: string, maxLength: number = 200): string {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 1rem;
-  padding: 1rem;
-  background: hsl(var(--muted) / 0.3);
+  padding: 1.25rem;
+  background: linear-gradient(135deg, hsl(var(--muted) / 0.3) 0%, hsl(var(--muted) / 0.1) 100%);
   border-radius: var(--radius);
 }
 
 .detail-item {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.375rem;
 }
 
 .detail-label {
   font-size: 0.75rem;
   color: hsl(var(--muted-foreground));
+  font-weight: 500;
 }
 
 .detail-value {
@@ -539,19 +617,45 @@ function truncateContent(content: string, maxLength: number = 200): string {
 .tools-json {
   margin: 0;
   padding: 1rem;
-  background: hsl(var(--muted) / 0.3);
+  background: linear-gradient(135deg, hsl(var(--muted) / 0.3) 0%, hsl(var(--muted) / 0.2) 100%);
   border-radius: var(--radius);
   font-size: 0.8125rem;
-  line-height: 1.5;
+  line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
   overflow-x: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+.confirm-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1rem 0;
+}
+
+.confirm-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: hsl(var(--destructive) / 0.1);
+  border-radius: 50%;
+  margin-bottom: 1rem;
+}
+
+.confirm-icon svg {
+  width: 24px;
+  height: 24px;
+  color: hsl(var(--destructive));
+}
+
 .confirm-text {
   margin: 0;
   color: hsl(var(--muted-foreground));
+  font-size: 0.9375rem;
 }
 
 @media (max-width: 768px) {

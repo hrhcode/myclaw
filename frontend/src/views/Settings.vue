@@ -1,11 +1,12 @@
 <script setup lang="ts">
 /**
- * 系统设置页面
+ * Settings 系统设置页面
  * 提供配置管理功能
+ * 使用科技感组件优化视觉效果
  */
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { configApi, type AppConfig } from '@/api/settings'
-import { Card, Button, Input, Toggle, Textarea, Badge, Modal, Skeleton } from '@/components/ui'
+import { Card, Button, Input, Toggle, Textarea, Badge, Modal, Skeleton, GlowCard } from '@/components/ui'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
@@ -14,7 +15,6 @@ const loading = ref(false)
 const saving = ref(false)
 const config = ref<AppConfig | null>(null)
 const activeTab = ref<'llm' | 'memory' | 'agent' | 'gateway' | 'server'>('llm')
-const showExportModal = ref(false)
 const showImportModal = ref(false)
 const importJson = ref('')
 
@@ -55,11 +55,11 @@ const formData = reactive({
 const errors = reactive<Record<string, string>>({})
 
 const tabs = [
-  { id: 'llm', label: 'LLM 配置', icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
-  { id: 'memory', label: '记忆系统', icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4' },
-  { id: 'agent', label: 'Agent 配置', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z' },
-  { id: 'gateway', label: 'Gateway', icon: 'M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01' },
-  { id: 'server', label: '服务器', icon: 'M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2' },
+  { id: 'llm', label: 'LLM 配置', icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z', color: 'primary' },
+  { id: 'memory', label: '记忆系统', icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4', color: 'success' },
+  { id: 'agent', label: 'Agent 配置', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z', color: 'purple' },
+  { id: 'gateway', label: 'Gateway', icon: 'M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01', color: 'primary' },
+  { id: 'server', label: '服务器', icon: 'M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2', color: 'warning' },
 ]
 
 onMounted(async () => {
@@ -214,14 +214,27 @@ function importConfig() {
     toast.error('配置格式错误')
   }
 }
+
+function getTabColorClass(color: string): string {
+  const classes: Record<string, string> = {
+    primary: 'icon-box-primary',
+    success: 'icon-box-success',
+    purple: 'icon-box-purple',
+    warning: 'icon-box-warning',
+  }
+  return classes[color] || 'icon-box-primary'
+}
 </script>
 
 <template>
-  <div class="settings-page">
+  <div class="settings-page page-container">
     <div class="page-header">
       <div class="header-content">
-        <h1>系统设置</h1>
-        <p class="header-subtitle">配置 LLM、记忆系统和 Agent 参数</p>
+        <h1 class="page-title">
+          <span class="title-text">系统设置</span>
+          <span class="title-glow" />
+        </h1>
+        <p class="page-subtitle">配置 LLM、记忆系统和 Agent 参数</p>
       </div>
       <div class="header-actions">
         <Button variant="secondary" size="sm" @click="showImportModal = true">
@@ -254,22 +267,34 @@ function importConfig() {
           :class="{ active: activeTab === tab.id }"
           @click="activeTab = tab.id as any"
         >
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="tab.icon" />
-          </svg>
+          <div class="tab-icon" :class="getTabColorClass(tab.color)">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="tab.icon" />
+            </svg>
+          </div>
           <span>{{ tab.label }}</span>
+          <div class="tab-glow" />
         </button>
       </div>
 
-      <Card class="settings-content">
+      <GlowCard class="settings-content" glow-color="rgba(59, 130, 246, 0.2)">
         <div v-if="loading" class="loading-skeleton">
           <Skeleton :rows="5" />
         </div>
 
         <template v-else>
           <div v-show="activeTab === 'llm'" class="form-section">
-            <h3 class="section-title">LLM 配置</h3>
-            <p class="section-desc">配置大语言模型的提供商和参数</p>
+            <div class="section-header">
+              <div class="section-icon icon-box icon-box-primary">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="section-title">LLM 配置</h3>
+                <p class="section-desc">配置大语言模型的提供商和参数</p>
+              </div>
+            </div>
             
             <div class="form-group">
               <label class="form-label">提供商</label>
@@ -292,11 +317,23 @@ function importConfig() {
           </div>
 
           <div v-show="activeTab === 'memory'" class="form-section">
-            <h3 class="section-title">记忆系统配置</h3>
-            <p class="section-desc">配置对话记忆和向量检索功能</p>
+            <div class="section-header">
+              <div class="section-icon icon-box icon-box-success">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="section-title">记忆系统配置</h3>
+                <p class="section-desc">配置对话记忆和向量检索功能</p>
+              </div>
+            </div>
             
-            <div class="form-group">
-              <label class="form-label">启用记忆系统</label>
+            <div class="form-group toggle-row">
+              <div>
+                <label class="form-label">启用记忆系统</label>
+                <p class="form-hint">开启后将自动保存和检索对话记忆</p>
+              </div>
               <Toggle v-model="formData.memory.enabled" />
             </div>
             
@@ -306,7 +343,10 @@ function importConfig() {
                 <Input v-model="formData.memory.max_memories" type="number" placeholder="1000" />
               </div>
               
-              <h4 class="subsection-title">Embedding 配置</h4>
+              <h4 class="subsection-title">
+                <span class="subsection-dot"></span>
+                Embedding 配置
+              </h4>
               
               <div class="form-row">
                 <div class="form-group">
@@ -330,10 +370,16 @@ function importConfig() {
                 </div>
               </div>
               
-              <h4 class="subsection-title">混合搜索配置</h4>
+              <h4 class="subsection-title">
+                <span class="subsection-dot"></span>
+                混合搜索配置
+              </h4>
               
-              <div class="form-group">
-                <label class="form-label">启用混合搜索</label>
+              <div class="form-group toggle-row">
+                <div>
+                  <label class="form-label">启用混合搜索</label>
+                  <p class="form-hint">结合向量搜索和全文搜索</p>
+                </div>
                 <Toggle v-model="formData.memory.hybrid_search.enabled" />
               </div>
               
@@ -361,8 +407,17 @@ function importConfig() {
           </div>
 
           <div v-show="activeTab === 'agent'" class="form-section">
-            <h3 class="section-title">Agent 配置</h3>
-            <p class="section-desc">配置 AI Agent 的行为参数</p>
+            <div class="section-header">
+              <div class="section-icon icon-box icon-box-purple">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="section-title">Agent 配置</h3>
+                <p class="section-desc">配置 AI Agent 的行为参数</p>
+              </div>
+            </div>
             
             <div class="form-group">
               <label class="form-label">系统提示词</label>
@@ -372,13 +427,24 @@ function importConfig() {
           </div>
 
           <div v-show="activeTab === 'gateway'" class="form-section">
-            <h3 class="section-title">Gateway 配置</h3>
-            <p class="section-desc">配置消息网关的启动选项</p>
+            <div class="section-header">
+              <div class="section-icon icon-box icon-box-primary">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="section-title">Gateway 配置</h3>
+                <p class="section-desc">配置消息网关的启动选项</p>
+              </div>
+            </div>
             
-            <div class="form-group">
-              <label class="form-label">启用 Gateway</label>
+            <div class="form-group toggle-row">
+              <div>
+                <label class="form-label">启用 Gateway</label>
+                <p class="form-hint">启用后系统启动时会自动启动消息网关</p>
+              </div>
               <Toggle v-model="formData.gateway.enabled" />
-              <p class="form-hint">启用后系统启动时会自动启动消息网关</p>
             </div>
             
             <div class="gateway-info">
@@ -392,8 +458,17 @@ function importConfig() {
           </div>
 
           <div v-show="activeTab === 'server'" class="form-section">
-            <h3 class="section-title">服务器配置</h3>
-            <p class="section-desc">配置 HTTP 服务器参数（需要重启生效）</p>
+            <div class="section-header">
+              <div class="section-icon icon-box icon-box-warning">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="section-title">服务器配置</h3>
+                <p class="section-desc">配置 HTTP 服务器参数（需要重启生效）</p>
+              </div>
+            </div>
             
             <div class="form-row">
               <div class="form-group">
@@ -421,7 +496,7 @@ function importConfig() {
             <Button variant="primary" :loading="saving" @click="saveConfig">保存配置</Button>
           </div>
         </template>
-      </Card>
+      </GlowCard>
     </div>
 
     <Modal v-model="showImportModal" title="导入配置" size="md">
@@ -439,27 +514,26 @@ function importConfig() {
 
 <style scoped>
 .settings-page {
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
 }
 
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1.5rem;
+.page-title {
+  position: relative;
+  display: inline-block;
 }
 
-.header-content h1 {
-  font-size: 1.75rem;
-  font-weight: 800;
-  margin: 0;
+.title-text {
+  background: linear-gradient(135deg, hsl(var(--foreground)) 0%, hsl(var(--foreground) / 0.7) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-.header-subtitle {
-  font-size: 0.875rem;
-  color: hsl(var(--muted-foreground));
-  margin: 0.25rem 0 0 0;
+.title-glow {
+  position: absolute;
+  inset: -10px -20px;
+  background: radial-gradient(ellipse at center, hsl(var(--primary) / 0.1) 0%, transparent 70%);
+  pointer-events: none;
 }
 
 .header-actions {
@@ -475,25 +549,49 @@ function importConfig() {
 
 .settings-tabs {
   display: flex;
-  gap: 0.25rem;
-  padding: 0.25rem;
-  background: hsl(var(--muted) / 0.3);
-  border-radius: var(--radius);
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--muted) / 0.3) 100%);
+  border-radius: var(--radius-lg);
   flex-wrap: wrap;
+  border: 1px solid hsl(var(--border));
+  position: relative;
+  overflow: hidden;
+}
+
+.settings-tabs::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.5), transparent);
 }
 
 .tab-button {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.625rem 1rem;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
   background: transparent;
   border: none;
   border-radius: var(--radius);
   font-size: 0.875rem;
   color: hsl(var(--muted-foreground));
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+}
+
+.tab-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 50%, hsl(var(--primary) / 0.1) 0%, transparent 50%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
 .tab-button:hover {
@@ -501,21 +599,39 @@ function importConfig() {
   color: hsl(var(--foreground));
 }
 
-.tab-button.active {
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
-  font-weight: 500;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+.tab-button:hover .tab-glow {
+  opacity: 1;
 }
 
-.tab-button svg {
-  width: 1rem;
-  height: 1rem;
+.tab-button.active {
+  background: hsl(var(--background));
+  color: hsl(var(--primary));
+  font-weight: 500;
+  box-shadow: var(--shadow-sm);
+}
+
+.tab-button.active .tab-glow {
+  opacity: 1;
+}
+
+.tab-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
   flex-shrink: 0;
+}
+
+.tab-icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 .settings-content {
   min-height: 400px;
+  padding: 1.5rem;
 }
 
 .loading-skeleton {
@@ -525,7 +641,26 @@ function importConfig() {
 .form-section {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1.5rem;
+}
+
+.section-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.section-icon {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.section-icon svg {
+  width: 22px;
+  height: 22px;
 }
 
 .section-title {
@@ -535,22 +670,41 @@ function importConfig() {
 }
 
 .section-desc {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   color: hsl(var(--muted-foreground));
-  margin: 0 0 0.5rem 0;
+  margin: 0;
 }
 
 .subsection-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-size: 0.875rem;
   font-weight: 600;
   margin: 0.5rem 0 0.75rem 0;
-  color: hsl(var(--muted-foreground));
+  color: hsl(var(--foreground));
+}
+
+.subsection-dot {
+  width: 6px;
+  height: 6px;
+  background: hsl(var(--primary));
+  border-radius: 50%;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+.toggle-row {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: linear-gradient(135deg, hsl(var(--muted) / 0.2) 0%, hsl(var(--muted) / 0.1) 100%);
+  border-radius: var(--radius);
 }
 
 .form-label {
@@ -581,19 +735,19 @@ function importConfig() {
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
-  margin-top: 1.5rem;
+  margin-top: 2rem;
   padding-top: 1.5rem;
   border-top: 1px solid hsl(var(--border));
 }
 
-.gateway-info,
-.server-warning {
+.gateway-info {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   padding: 1rem;
-  background: hsl(var(--muted) / 0.3);
+  background: linear-gradient(135deg, hsl(var(--muted) / 0.3) 0%, hsl(var(--muted) / 0.1) 100%);
   border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
 }
 
 .info-item {
@@ -608,7 +762,15 @@ function importConfig() {
 }
 
 .server-warning {
-  color: hsl(var(--chart-1));
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: linear-gradient(135deg, hsl(var(--chart-4) / 0.1) 0%, hsl(var(--chart-4) / 0.05) 100%);
+  border: 1px solid hsl(var(--chart-4) / 0.3);
+  border-radius: var(--radius);
+  color: hsl(var(--chart-4));
+  font-size: 0.875rem;
 }
 
 .server-warning svg {
@@ -636,6 +798,7 @@ function importConfig() {
   
   .tab-button {
     white-space: nowrap;
+    padding: 0.625rem 1rem;
   }
   
   .form-row {
@@ -650,6 +813,12 @@ function importConfig() {
   .header-actions {
     width: 100%;
     justify-content: flex-end;
+  }
+  
+  .toggle-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
   }
 }
 </style>
