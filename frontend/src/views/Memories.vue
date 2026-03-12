@@ -3,24 +3,45 @@
  * 记忆管理页面
  * 提供记忆浏览、搜索和删除功能
  */
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { memoriesApi, type Memory, type MemoryStats } from '@/api/settings'
+import { get } from '@/utils/request'
+import { Card, Button, Badge, Modal, Input, Select, Empty, Skeleton } from '@/components/ui'
+import { useToast } from '@/composables/useToast'
+
+const toast = useToast()
 
 const memories = ref<Memory[]>([])
 const stats = ref<MemoryStats | null>(null)
+const sessions = ref<{ id: string; count: number }[]>([])
 const loading = ref(false)
 const searchQuery = ref('')
 const selectedSession = ref('')
 const currentPage = ref(1)
 const pageSize = 20
 const total = ref(0)
-const message = ref<{ type: 'success' | 'error'; text: string } | null>(null)
+
+const showDetailModal = ref(false)
+const selectedMemory = ref<Memory | null>(null)
 const showClearConfirm = ref(false)
 
 const totalPages = computed(() => Math.ceil(total.value / pageSize))
 
+const sessionOptions = computed(() => {
+  const options = [{ value: '', label: '全部会话' }]
+  for (const s of sessions.value) {
+    options.push({ value: s.id, label: `${s.id.slice(0, 8)}... (${s.count})` })
+  }
+  return options
+})
+
 onMounted(async () => {
-  await Promise.all([loadMemories(), loadStats()])
+  await Promise.all([loadMemories(), loadStats(), loadSessions()])
+})
+
+watch([searchQuery, selectedSession], () => {
+  currentPage.value = 1
+  loadMemories()
 })
 
 async function loadMemories() {
@@ -35,7 +56,7 @@ async function loadMemories() {
     memories.value = result.memories
     total.value = result.total
   } catch (error) {
-    showMessage('error', '加载记忆失败')
+    toast.error('加载记忆失败')
   } finally {
     loading.value = false
   }
@@ -49,9 +70,16 @@ async function loadStats() {
   }
 }
 
-async function search() {
-  currentPage.value = 1
-  await loadMemories()
+async function loadSessions() {
+  try {
+    const result = await get('/api/sessions?limit=100')
+    sessions.value = (result.sessions || []).map((s: any) => ({
+      id: s.id,
+      count: s.message_count || 0,
+    }))
+  } catch (error) {
+    console.error('加载会话列表失败:', error)
+  }
 }
 
 async function deleteMemory(id: number) {
@@ -59,24 +87,27 @@ async function deleteMemory(id: number) {
   
   try {
     await memoriesApi.delete(id)
-    showMessage('success', '记忆已删除')
+    toast.success('记忆已删除')
     await Promise.all([loadMemories(), loadStats()])
   } catch (error) {
-    showMessage('error', '删除失败')
+    toast.error('删除失败')
   }
 }
 
 async function clearAllMemories() {
-  if (!confirm('确定要清空所有记忆吗？此操作不可恢复！')) return
-  
   try {
     await memoriesApi.clearAll()
-    showMessage('success', '所有记忆已清空')
+    toast.success('所有记忆已清空')
     showClearConfirm.value = false
-    await Promise.all([loadMemories(), loadStats()])
+    await Promise.all([loadMemories(), loadStats(), loadSessions()])
   } catch (error) {
-    showMessage('error', '清空失败')
+    toast.error('清空失败')
   }
+}
+
+function viewMemoryDetail(memory: Memory) {
+  selectedMemory.value = memory
+  showDetailModal.value = true
 }
 
 async function prevPage() {
@@ -103,8 +134,14 @@ function getRoleLabel(role: string): string {
   return labels[role] || role
 }
 
-function getRoleClass(role: string): string {
-  return `role-${role}`
+function getRoleVariant(role: string): 'default' | 'primary' | 'success' | 'warning' {
+  const variants: Record<string, 'default' | 'primary' | 'success' | 'warning'> = {
+    user: 'primary',
+    assistant: 'success',
+    system: 'default',
+    tool: 'warning',
+  }
+  return variants[role] || 'default'
 }
 
 function formatTime(timestamp: string): string {
@@ -117,120 +154,171 @@ function truncateContent(content: string, maxLength: number = 200): string {
   if (content.length <= maxLength) return content
   return content.slice(0, maxLength) + '...'
 }
-
-function showMessage(type: 'success' | 'error', text: string) {
-  message.value = { type, text }
-  setTimeout(() => {
-    message.value = null
-  }, 3000)
-}
 </script>
 
 <template>
   <div class="memories-page">
     <div class="page-header">
-      <h1>记忆管理</h1>
-      <div class="header-stats" v-if="stats">
-        <span class="stat">
+      <div class="header-content">
+        <h1>记忆管理</h1>
+        <p class="header-subtitle">浏览和搜索对话记忆</p>
+      </div>
+      <div v-if="stats" class="header-stats">
+        <div class="stat-item">
           <span class="stat-value">{{ stats.total_messages }}</span>
           <span class="stat-label">条记忆</span>
-        </span>
-        <span class="stat">
+        </div>
+        <div class="stat-item">
           <span class="stat-value">{{ stats.total_sessions }}</span>
           <span class="stat-label">个会话</span>
-        </span>
+        </div>
       </div>
     </div>
 
-    <div v-if="message" class="message" :class="message.type">
-      {{ message.text }}
-    </div>
-
-    <div class="search-bar">
-      <input 
-        v-model="searchQuery" 
-        type="text" 
-        class="form-control" 
-        placeholder="搜索记忆..."
-        @keyup.enter="search"
-      />
-      <button @click="search" class="btn btn-primary">搜索</button>
-      <button @click="showClearConfirm = true" class="btn btn-danger">
+    <div class="toolbar">
+      <div class="search-filters">
+        <div class="search-box">
+          <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            v-model="searchQuery"
+            type="text"
+            class="search-input"
+            placeholder="搜索记忆内容..."
+          />
+        </div>
+        <Select
+          v-model="selectedSession"
+          :options="sessionOptions"
+          placeholder="选择会话"
+        />
+      </div>
+      <Button variant="danger" size="sm" @click="showClearConfirm = true">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
         清空所有
-      </button>
+      </Button>
     </div>
 
-    <div v-if="loading" class="loading">加载中...</div>
-
-    <div v-else class="memories-content">
-      <div v-if="memories.length === 0" class="empty-state">
-        <p>暂无记忆</p>
+    <div v-if="loading && memories.length === 0" class="loading-skeleton">
+      <div v-for="i in 5" :key="i" class="skeleton-card">
+        <div class="skeleton-header">
+          <Skeleton width="60px" height="1.5rem" />
+          <Skeleton width="100px" height="0.75rem" />
+          <Skeleton width="140px" height="0.75rem" />
+        </div>
+        <Skeleton :rows="2" />
       </div>
+    </div>
 
-      <div v-else class="memories-list">
-        <div 
-          v-for="memory in memories" 
-          :key="memory.id" 
-          class="memory-card"
-        >
-          <div class="memory-header">
-            <span class="memory-role" :class="getRoleClass(memory.role)">
-              {{ getRoleLabel(memory.role) }}
-            </span>
-            <span class="memory-session">{{ memory.session_id?.slice(0, 8) }}</span>
-            <span class="memory-time">{{ formatTime(memory.timestamp) }}</span>
-            <button 
-              @click="deleteMemory(memory.id)" 
-              class="btn btn-icon btn-danger"
-              title="删除"
-            >
-              删除
-            </button>
+    <Empty
+      v-else-if="memories.length === 0"
+      icon="folder"
+      title="暂无记忆"
+      :description="searchQuery ? '没有匹配的记忆' : '还没有任何记忆记录'"
+    />
+
+    <div v-else class="memories-list">
+      <Card
+        v-for="memory in memories"
+        :key="memory.id"
+        class="memory-card"
+        @click="viewMemoryDetail(memory)"
+      >
+        <div class="memory-header">
+          <Badge :variant="getRoleVariant(memory.role)" size="sm">
+            {{ getRoleLabel(memory.role) }}
+          </Badge>
+          <code class="memory-session">{{ memory.session_id?.slice(0, 8) }}</code>
+          <span class="memory-time">{{ formatTime(memory.timestamp) }}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            @click.stop="deleteMemory(memory.id)"
+          >
+            删除
+          </Button>
+        </div>
+        <div class="memory-content">
+          {{ truncateContent(memory.content) }}
+        </div>
+        <div v-if="memory.tool_calls && memory.tool_calls.length > 0" class="memory-tools">
+          <Badge variant="warning" size="sm">工具调用: {{ memory.tool_calls.length }}</Badge>
+        </div>
+      </Card>
+    </div>
+
+    <div v-if="totalPages > 1" class="pagination">
+      <Button
+        variant="secondary"
+        size="sm"
+        :disabled="currentPage === 1"
+        @click="prevPage"
+      >
+        上一页
+      </Button>
+      <span class="page-info">{{ currentPage }} / {{ totalPages }}</span>
+      <Button
+        variant="secondary"
+        size="sm"
+        :disabled="currentPage === totalPages"
+        @click="nextPage"
+      >
+        下一页
+      </Button>
+    </div>
+
+    <Modal v-model="showDetailModal" title="记忆详情" size="lg">
+      <div v-if="selectedMemory" class="memory-detail">
+        <div class="detail-header">
+          <div class="detail-item">
+            <span class="detail-label">角色</span>
+            <Badge :variant="getRoleVariant(selectedMemory.role)">
+              {{ getRoleLabel(selectedMemory.role) }}
+            </Badge>
           </div>
-          <div class="memory-content">
-            {{ truncateContent(memory.content) }}
+          <div class="detail-item">
+            <span class="detail-label">会话 ID</span>
+            <code class="detail-value">{{ selectedMemory.session_id }}</code>
           </div>
-          <div v-if="memory.tool_calls" class="memory-tools">
-            <span class="tool-badge">工具调用</span>
+          <div class="detail-item">
+            <span class="detail-label">时间</span>
+            <span class="detail-value">{{ formatTime(selectedMemory.timestamp) }}</span>
           </div>
+          <div v-if="selectedMemory.tool_call_id" class="detail-item">
+            <span class="detail-label">工具调用 ID</span>
+            <code class="detail-value">{{ selectedMemory.tool_call_id }}</code>
+          </div>
+        </div>
+
+        <div class="detail-content">
+          <h4>内容</h4>
+          <pre class="content-text">{{ selectedMemory.content }}</pre>
+        </div>
+
+        <div v-if="selectedMemory.tool_calls && selectedMemory.tool_calls.length > 0" class="detail-tools">
+          <h4>工具调用</h4>
+          <pre class="tools-json">{{ JSON.stringify(selectedMemory.tool_calls, null, 2) }}</pre>
         </div>
       </div>
 
-      <div v-if="totalPages > 1" class="pagination">
-        <button 
-          @click="prevPage" 
-          class="btn btn-secondary" 
-          :disabled="currentPage === 1"
-        >
-          上一页
-        </button>
-        <span class="page-info">
-          {{ currentPage }} / {{ totalPages }}
-        </span>
-        <button 
-          @click="nextPage" 
-          class="btn btn-secondary" 
-          :disabled="currentPage === totalPages"
-        >
-          下一页
-        </button>
-      </div>
-    </div>
+      <template #footer>
+        <Button variant="secondary" @click="showDetailModal = false">关闭</Button>
+        <Button variant="danger" @click="deleteMemory(selectedMemory!.id); showDetailModal = false">
+          删除
+        </Button>
+      </template>
+    </Modal>
 
-    <div v-if="showClearConfirm" class="modal-overlay" @click="showClearConfirm = false">
-      <div class="modal" @click.stop>
-        <h3>确认清空</h3>
-        <p>确定要清空所有记忆吗？此操作不可恢复！</p>
-        <div class="modal-actions">
-          <button @click="showClearConfirm = false" class="btn btn-secondary">
-            取消
-          </button>
-          <button @click="clearAllMemories" class="btn btn-danger">
-            确认清空
-          </button>
-        </div>
-      </div>
-    </div>
+    <Modal v-model="showClearConfirm" title="确认清空" size="sm">
+      <p class="confirm-text">确定要清空所有记忆吗？此操作不可恢复！</p>
+      <template #footer>
+        <Button variant="secondary" @click="showClearConfirm = false">取消</Button>
+        <Button variant="danger" @click="clearAllMemories">确认清空</Button>
+      </template>
+    </Modal>
   </div>
 </template>
 
@@ -243,14 +331,20 @@ function showMessage(type: 'success' | 'error', text: string) {
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 1.5rem;
 }
 
-.page-header h1 {
+.header-content h1 {
   font-size: 1.75rem;
   font-weight: 800;
   margin: 0;
+}
+
+.header-subtitle {
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+  margin: 0.25rem 0 0 0;
 }
 
 .header-stats {
@@ -258,7 +352,7 @@ function showMessage(type: 'success' | 'error', text: string) {
   gap: 1.5rem;
 }
 
-.stat {
+.stat-item {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -275,44 +369,69 @@ function showMessage(type: 'success' | 'error', text: string) {
   color: hsl(var(--muted-foreground));
 }
 
-.message {
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius);
-  margin-bottom: 1rem;
-}
-
-.message.success {
-  background: hsl(var(--chart-2) / 0.1);
-  color: hsl(var(--chart-2));
-  border: 1px solid hsl(var(--chart-2) / 0.3);
-}
-
-.message.error {
-  background: hsl(var(--destructive) / 0.1);
-  color: hsl(var(--destructive));
-  border: 1px solid hsl(var(--destructive) / 0.3);
-}
-
-.search-bar {
+.toolbar {
   display: flex;
-  gap: 0.5rem;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
   margin-bottom: 1.5rem;
 }
 
-.search-bar .form-control {
+.search-filters {
+  display: flex;
+  gap: 0.75rem;
   flex: 1;
 }
 
-.loading {
-  text-align: center;
-  padding: 2rem;
-  color: hsl(var(--muted-foreground));
+.search-box {
+  flex: 1;
+  max-width: 300px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
 }
 
-.empty-state {
-  text-align: center;
-  padding: 3rem;
+.search-icon {
+  width: 1rem;
+  height: 1rem;
   color: hsl(var(--muted-foreground));
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 0.875rem;
+  color: hsl(var(--foreground));
+}
+
+.search-input:focus {
+  outline: none;
+}
+
+.loading-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.skeleton-card {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+
+.skeleton-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
 }
 
 .memories-list {
@@ -322,10 +441,13 @@ function showMessage(type: 'success' | 'error', text: string) {
 }
 
 .memory-card {
-  background: hsl(var(--card));
-  border: 1px solid hsl(var(--border));
-  border-radius: var(--radius);
   padding: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.memory-card:hover {
+  border-color: hsl(var(--primary) / 0.3);
 }
 
 .memory-header {
@@ -335,37 +457,12 @@ function showMessage(type: 'success' | 'error', text: string) {
   margin-bottom: 0.5rem;
 }
 
-.memory-role {
-  padding: 0.125rem 0.5rem;
-  border-radius: var(--radius);
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.memory-role.role-user {
-  background: hsl(var(--primary) / 0.1);
-  color: hsl(var(--primary));
-}
-
-.memory-role.role-assistant {
-  background: hsl(var(--chart-2) / 0.1);
-  color: hsl(var(--chart-2));
-}
-
-.memory-role.role-system {
-  background: hsl(var(--muted));
-  color: hsl(var(--muted-foreground));
-}
-
-.memory-role.role-tool {
-  background: hsl(var(--chart-1) / 0.1);
-  color: hsl(var(--chart-1));
-}
-
 .memory-session {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.75rem;
-  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted) / 0.5);
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius);
 }
 
 .memory-time {
@@ -386,14 +483,6 @@ function showMessage(type: 'success' | 'error', text: string) {
   margin-top: 0.5rem;
 }
 
-.tool-badge {
-  padding: 0.125rem 0.5rem;
-  background: hsl(var(--chart-1) / 0.1);
-  color: hsl(var(--chart-1));
-  border-radius: var(--radius);
-  font-size: 0.6875rem;
-}
-
 .pagination {
   display: flex;
   justify-content: center;
@@ -407,121 +496,90 @@ function showMessage(type: 'success' | 'error', text: string) {
   color: hsl(var(--muted-foreground));
 }
 
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+.memory-detail {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
-.modal {
-  background: hsl(var(--card));
-  border-radius: var(--radius-lg);
-  padding: 1.5rem;
-  max-width: 400px;
-  width: 90%;
+.detail-header {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  padding: 1rem;
+  background: hsl(var(--muted) / 0.3);
+  border-radius: var(--radius);
 }
 
-.modal h3 {
-  margin: 0 0 0.75rem 0;
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
-.modal p {
-  margin: 0 0 1.5rem 0;
+.detail-label {
+  font-size: 0.75rem;
   color: hsl(var(--muted-foreground));
 }
 
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-}
-
-.form-control {
-  padding: 0.5rem 0.75rem;
-  background: hsl(var(--background));
-  border: 1px solid hsl(var(--border));
-  border-radius: var(--radius);
-  font-size: 0.875rem;
-  color: hsl(var(--foreground));
-}
-
-.form-control:focus {
-  outline: none;
-  border-color: hsl(var(--primary));
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  border-radius: var(--radius);
+.detail-value {
   font-size: 0.875rem;
   font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid transparent;
 }
 
-.btn-primary {
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
+.detail-content h4,
+.detail-tools h4 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+  color: hsl(var(--muted-foreground));
 }
 
-.btn-primary:hover:not(:disabled) {
-  background: hsl(var(--primary) / 0.9);
+.content-text,
+.tools-json {
+  margin: 0;
+  padding: 1rem;
+  background: hsl(var(--muted) / 0.3);
+  border-radius: var(--radius);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-.btn-secondary {
-  background: hsl(var(--secondary));
-  color: hsl(var(--secondary-foreground));
-  border-color: hsl(var(--border));
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: hsl(var(--accent));
-}
-
-.btn-danger {
-  background: hsl(var(--destructive));
-  color: white;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: hsl(var(--destructive) / 0.9);
-}
-
-.btn-icon {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.75rem;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.confirm-text {
+  margin: 0;
+  color: hsl(var(--muted-foreground));
 }
 
 @media (max-width: 768px) {
   .page-header {
     flex-direction: column;
-    align-items: flex-start;
     gap: 1rem;
   }
   
-  .search-bar {
-    flex-wrap: wrap;
+  .header-stats {
+    width: 100%;
+    justify-content: flex-start;
   }
   
-  .memory-header {
-    flex-wrap: wrap;
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .search-filters {
+    flex-direction: column;
+  }
+  
+  .search-box {
+    max-width: none;
+  }
+  
+  .detail-header {
+    grid-template-columns: 1fr;
   }
 }
 </style>
