@@ -324,7 +324,7 @@ function truncateContent(content: string, maxLength: number = 200): string {
 
 <style scoped>
 .memories-page {
-  max-width: 900px;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
@@ -385,7 +385,7 @@ function truncateContent(content: string, maxLength: number = 200): string {
 
 .search-box {
   flex: 1;
-  max-width: 300px;
+  max-width: 400px;
   display: flex;
   align-items: center;
   gap: 0.5rem;

@@ -216,7 +216,7 @@ function getParamTypeColor(type: string): string {
 
 <style scoped>
 .tools-page {
-  max-width: 900px;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
@@ -273,7 +273,7 @@ function getParamTypeColor(type: string): string {
   align-items: center;
   gap: 0.5rem;
   margin-left: auto;
-  max-width: 300px;
+  max-width: 400px;
 }
 
 .search-icon {

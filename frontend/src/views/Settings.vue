@@ -246,7 +246,7 @@ function importConfig() {
     </div>
 
     <div class="settings-layout">
-      <div class="settings-sidebar">
+      <div class="settings-tabs">
         <button
           v-for="tab in tabs"
           :key="tab.id"
@@ -439,7 +439,7 @@ function importConfig() {
 
 <style scoped>
 .settings-page {
-  max-width: 900px;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
@@ -468,29 +468,31 @@ function importConfig() {
 }
 
 .settings-layout {
-  display: grid;
-  grid-template-columns: 200px 1fr;
-  gap: 1.5rem;
-}
-
-.settings-sidebar {
   display: flex;
   flex-direction: column;
+  gap: 1rem;
+}
+
+.settings-tabs {
+  display: flex;
   gap: 0.25rem;
+  padding: 0.25rem;
+  background: hsl(var(--muted) / 0.3);
+  border-radius: var(--radius);
+  flex-wrap: wrap;
 }
 
 .tab-button {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
   background: transparent;
   border: none;
   border-radius: var(--radius);
   font-size: 0.875rem;
   color: hsl(var(--muted-foreground));
   cursor: pointer;
-  text-align: left;
   transition: all 0.2s;
 }
 
@@ -500,14 +502,15 @@ function importConfig() {
 }
 
 .tab-button.active {
-  background: hsl(var(--primary) / 0.1);
-  color: hsl(var(--primary));
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
   font-weight: 500;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .tab-button svg {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1rem;
+  height: 1rem;
   flex-shrink: 0;
 }
 
@@ -627,14 +630,8 @@ function importConfig() {
 }
 
 @media (max-width: 768px) {
-  .settings-layout {
-    grid-template-columns: 1fr;
-  }
-  
-  .settings-sidebar {
-    flex-direction: row;
-    overflow-x: auto;
-    padding-bottom: 0.5rem;
+  .settings-tabs {
+    flex-wrap: wrap;
   }
   
   .tab-button {
