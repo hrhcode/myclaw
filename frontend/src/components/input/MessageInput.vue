@@ -33,7 +33,12 @@ function focus() {
   textareaRef.value?.focus()
 }
 
-defineExpose({ focus })
+function setContent(value: string) {
+  input.value = value
+  adjustHeight()
+}
+
+defineExpose({ focus, setContent })
 </script>
 
 <template>

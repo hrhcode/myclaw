@@ -61,7 +61,8 @@ watch(() => props.messages[props.messages.length - 1]?.content, scrollToBottom)
 
 <style scoped>
 .message-list {
-  flex: 1;
+  flex: 1 1 0;
+  min-height: 0;
   overflow-y: auto;
   padding: 1.5rem;
 }

@@ -1,9 +1,9 @@
 <script setup lang="ts">
 /**
  * Chat 聊天页面
- * 提供聊天功能，参考 OpenClaw 设计集成会话选择器
+ * 参考 OpenClaw 设计，简洁的聊天界面
  */
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import type { Message, Session } from '@/types'
 import MessageList from '@/components/chat/MessageList.vue'
 import MessageInput from '@/components/input/MessageInput.vue'
@@ -15,23 +15,22 @@ const messages = ref<Message[]>([])
 const isLoading = ref(false)
 
 const sessions = ref<Session[]>([])
-const currentSessionId = ref<string>('')
+const currentSessionId = ref<string>('main')
 const isLoadingSessions = ref(false)
 
 let abortController: AbortController | null = null
 const inputRef = ref<InstanceType<typeof MessageInput> | null>(null)
 
 const STORAGE_KEY = 'myclaw_session_id'
+const MAIN_SESSION_ID = 'main'
 
 const { registerShortcut } = useKeyboard()
 
-const currentSession = computed(() => {
-  return sessions.value.find(s => s.id === currentSessionId.value)
-})
-
 const sessionDisplayName = computed(() => {
-  if (!currentSessionId.value) return '新对话'
-  const session = currentSession.value
+  if (currentSessionId.value === MAIN_SESSION_ID) {
+    return 'Main Session'
+  }
+  const session = sessions.value.find(s => s.id === currentSessionId.value)
   if (session) {
     const count = session.message_count || 0
     return `对话 ${currentSessionId.value.slice(0, 8)} (${count} 条消息)`
@@ -45,7 +44,12 @@ onMounted(() => {
   registerShortcut({
     key: 'n',
     ctrl: true,
-    handler: createNewSession,
+    handler: () => {
+      if (inputRef.value) {
+        inputRef.value.setContent('/new ')
+        inputRef.value.focus()
+      }
+    },
     description: '新建会话'
   })
   
@@ -69,7 +73,7 @@ async function initSession() {
   
   const savedSessionId = localStorage.getItem(STORAGE_KEY)
   
-  if (savedSessionId) {
+  if (savedSessionId && savedSessionId !== MAIN_SESSION_ID) {
     const sessionExists = sessions.value.some(s => s.id === savedSessionId)
     if (sessionExists) {
       currentSessionId.value = savedSessionId
@@ -78,47 +82,8 @@ async function initSession() {
     }
   }
   
-  const validSession = sessions.value.find(s => s.message_count > 0)
-  if (validSession) {
-    currentSessionId.value = validSession.id
-    localStorage.setItem(STORAGE_KEY, validSession.id)
-    await loadMessages()
-  } else {
-    await createNewSession()
-  }
-}
-
-async function createNewSession() {
-  try {
-    const data = await post(API_ENDPOINTS.SESSIONS, { channel: 'web' })
-    currentSessionId.value = data.session_id
-    localStorage.setItem(STORAGE_KEY, data.session_id)
-    messages.value = []
-    await loadSessions()
-  } catch (error) {
-    console.error('创建会话失败:', error)
-  }
-}
-
-async function switchSession(sessionId: string) {
-  if (sessionId === currentSessionId.value) return
-  
-  currentSessionId.value = sessionId
-  localStorage.setItem(STORAGE_KEY, sessionId)
+  currentSessionId.value = MAIN_SESSION_ID
   await loadMessages()
-}
-
-async function deleteCurrentSession() {
-  if (!currentSessionId.value) return
-  if (!confirm('确定要删除当前会话吗？')) return
-
-  try {
-    await del(API_ENDPOINTS.SESSION_DETAIL(currentSessionId.value))
-    localStorage.removeItem(STORAGE_KEY)
-    await initSession()
-  } catch (error) {
-    console.error('删除会话失败:', error)
-  }
 }
 
 async function loadSessions() {
@@ -176,8 +141,6 @@ async function loadMessages() {
   } catch (error) {
     if ((error as any)?.response?.status === 404) {
       messages.value = []
-      localStorage.removeItem(STORAGE_KEY)
-      await initSession()
     } else {
       console.error('加载消息失败:', error)
       messages.value = []
@@ -185,7 +148,60 @@ async function loadMessages() {
   }
 }
 
+async function switchSession(sessionId: string) {
+  if (sessionId === currentSessionId.value) return
+  
+  currentSessionId.value = sessionId
+  localStorage.setItem(STORAGE_KEY, sessionId)
+  await loadMessages()
+}
+
+function isResetCommand(text: string): boolean {
+  const trimmed = text.trim().toLowerCase()
+  return trimmed === '/new' || trimmed === '/reset' || 
+         trimmed.startsWith('/new ') || trimmed.startsWith('/reset ')
+}
+
+async function handleResetCommand(content: string): Promise<boolean> {
+  const trimmed = content.trim()
+  const normalized = trimmed.toLowerCase()
+  
+  let newContent = ''
+  if (normalized.startsWith('/new ')) {
+    newContent = trimmed.slice(5).trim()
+  } else if (normalized.startsWith('/reset ')) {
+    newContent = trimmed.slice(7).trim()
+  }
+  
+  try {
+    const data = await post(API_ENDPOINTS.SESSIONS, { channel: 'web' })
+    currentSessionId.value = data.session_id
+    localStorage.setItem(STORAGE_KEY, data.session_id)
+    messages.value = []
+    await loadSessions()
+    
+    if (newContent) {
+      await sendMessageInternal(newContent)
+    }
+    return true
+  } catch (error) {
+    console.error('创建会话失败:', error)
+    return false
+  }
+}
+
 async function sendMessage(content: string) {
+  if (!content.trim()) return
+  
+  if (isResetCommand(content)) {
+    await handleResetCommand(content)
+    return
+  }
+  
+  await sendMessageInternal(content)
+}
+
+async function sendMessageInternal(content: string) {
   if (!content.trim()) return
 
   if (isLoading.value) {
@@ -197,11 +213,10 @@ async function sendMessage(content: string) {
   }
 
   if (!currentSessionId.value) {
-    await createNewSession()
-    if (!currentSessionId.value) {
-      console.error('无法创建会话')
-      return
-    }
+    const data = await post(API_ENDPOINTS.SESSIONS, { channel: 'web' })
+    currentSessionId.value = data.session_id
+    localStorage.setItem(STORAGE_KEY, data.session_id)
+    messages.value = []
   }
 
   messages.value.push({
@@ -306,14 +321,14 @@ async function sendMessage(content: string) {
 <template>
   <div class="chat-page">
     <div class="chat-header">
-      <div class="chat-controls">
-        <div class="session-selector">
-          <select
-            :value="currentSessionId"
-            @change="switchSession(($event.target as HTMLSelectElement).value)"
-            class="session-select"
-          >
-            <option value="" disabled>选择会话...</option>
+      <div class="session-selector">
+        <select
+          :value="currentSessionId"
+          @change="switchSession(($event.target as HTMLSelectElement).value)"
+          class="session-select"
+        >
+          <option :value="MAIN_SESSION_ID">Main Session</option>
+          <optgroup label="其他会话">
             <option
               v-for="session in sessions"
               :key="session.id"
@@ -321,31 +336,10 @@ async function sendMessage(content: string) {
             >
               对话 {{ session.id.slice(0, 8) }} ({{ session.message_count }} 条消息)
             </option>
-          </select>
-        </div>
-        
-        <button @click="createNewSession" class="btn btn-new" title="新建对话">
-          <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-          </svg>
-          <span>新建</span>
-        </button>
-        
-        <button
-          v-if="currentSessionId"
-          @click="deleteCurrentSession"
-          class="btn btn-delete"
-          title="删除当前对话"
-        >
-          <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-        </button>
+          </optgroup>
+        </select>
       </div>
-      
-      <div class="session-info">
-        <span class="session-title">{{ sessionDisplayName }}</span>
-      </div>
+      <span class="session-title">{{ sessionDisplayName }}</span>
     </div>
     
     <MessageList
@@ -361,6 +355,9 @@ async function sendMessage(content: string) {
         :disabled="isLoading"
         @submit="sendMessage"
       />
+      <div class="input-hint">
+        <span>输入 /new 创建新会话</span>
+      </div>
     </footer>
   </div>
 </template>
@@ -369,27 +366,24 @@ async function sendMessage(content: string) {
 .chat-page {
   display: flex;
   flex-direction: column;
+  flex: 1 1 0;
   height: 100%;
+  min-height: 0;
+  overflow: hidden;
   background: hsl(var(--card) / 0.5);
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius-lg);
-  overflow: hidden;
 }
 
 .chat-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 1rem;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
   background: hsl(var(--card) / 0.8);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid hsl(var(--border));
-}
-
-.chat-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .session-selector {
@@ -398,18 +392,18 @@ async function sendMessage(content: string) {
 
 .session-select {
   appearance: none;
-  padding: 0.5rem 2rem 0.5rem 0.75rem;
+  padding: 0.375rem 1.75rem 0.375rem 0.625rem;
   background: hsl(var(--muted) / 0.5);
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   color: hsl(var(--foreground));
   cursor: pointer;
-  min-width: 200px;
+  min-width: 160px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 0.5rem center;
-  background-size: 1.25rem;
+  background-position: right 0.375rem center;
+  background-size: 1rem;
 }
 
 .session-select:hover {
@@ -422,10 +416,9 @@ async function sendMessage(content: string) {
   box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
 }
 
-.session-info {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+.session-select optgroup {
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
 }
 
 .session-title {
@@ -433,69 +426,35 @@ async function sendMessage(content: string) {
   color: hsl(var(--muted-foreground));
 }
 
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: var(--radius);
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid hsl(var(--border));
-}
-
-.btn .icon {
-  width: 1rem;
-  height: 1rem;
-}
-
-.btn-new {
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
-  border-color: hsl(var(--primary));
-}
-
-.btn-new:hover {
-  opacity: 0.9;
-}
-
-.btn-delete {
-  background: transparent;
-  color: hsl(var(--muted-foreground));
-}
-
-.btn-delete:hover {
-  background: hsl(var(--destructive) / 0.1);
-  color: hsl(var(--destructive));
-  border-color: hsl(var(--destructive) / 0.5);
-}
-
 .chat-footer {
-  padding: 1rem;
-  background: hsl(var(--background) / 0.8);
-  backdrop-filter: blur(10px);
+  padding: 0.75rem 1rem;
+  background: linear-gradient(to bottom, transparent, hsl(var(--background)) 20%);
   border-top: 1px solid hsl(var(--border));
+  flex-shrink: 0;
+}
+
+.input-hint {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.375rem;
+}
+
+.input-hint span {
+  font-size: 0.6875rem;
+  color: hsl(var(--muted-foreground));
 }
 
 @media (max-width: 768px) {
   .chat-header {
-    flex-direction: column;
-    gap: 0.5rem;
-    align-items: stretch;
-  }
-  
-  .chat-controls {
-    flex-wrap: wrap;
+    padding: 0.375rem 0.75rem;
   }
   
   .session-select {
-    min-width: 150px;
-    flex: 1;
+    min-width: 120px;
+    font-size: 0.75rem;
   }
   
-  .btn-new span {
+  .session-title {
     display: none;
   }
 }
