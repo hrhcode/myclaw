@@ -3,19 +3,23 @@
  * Channels 通道管理页面
  * 显示和管理所有通道，支持配置功能
  */
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { channelApi, type ChannelStatus } from '@/api/gateway'
 import { channelConfigApi } from '@/api/settings'
-import type { AppConfig } from '@/api/settings'
 import { get } from '@/utils/request'
+import { Card, Button, Badge, Modal, Input, Toggle, Skeleton } from '@/components/ui'
+import { useToast } from '@/composables/useToast'
+import type { AppConfig } from '@/api/settings'
+
+const toast = useToast()
 
 const channels = ref<Record<string, ChannelStatus>>({})
 const config = ref<AppConfig | null>(null)
 const loading = ref(false)
 const configLoading = ref(false)
 const error = ref<string | null>(null)
-const message = ref<{ type: 'success' | 'error'; text: string } | null>(null)
 const editingChannel = ref<string | null>(null)
+const saving = ref(false)
 
 const qqConfig = ref({
   enabled: false,
@@ -32,8 +36,17 @@ const wechatConfig = ref({
   encoding_aes_key: '',
 })
 
+let refreshInterval: number | null = null
+
 onMounted(async () => {
   await Promise.all([loadChannels(), loadConfig()])
+  refreshInterval = window.setInterval(loadChannels, 10000)
+})
+
+onUnmounted(() => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+  }
 })
 
 async function loadChannels() {
@@ -80,42 +93,48 @@ async function loadConfig() {
 async function startChannel(name: string) {
   try {
     await channelApi.start(name)
-    showMessage('success', `通道 ${name} 已启动`)
+    toast.success(`通道 ${name} 已启动`)
     await loadChannels()
   } catch (e) {
-    showMessage('error', '启动失败')
+    toast.error('启动失败')
   }
 }
 
 async function stopChannel(name: string) {
   try {
     await channelApi.stop(name)
-    showMessage('success', `通道 ${name} 已停止`)
+    toast.success(`通道 ${name} 已停止`)
     await loadChannels()
   } catch (e) {
-    showMessage('error', '停止失败')
+    toast.error('停止失败')
   }
 }
 
 async function saveQQConfig() {
+  saving.value = true
   try {
     await channelConfigApi.update('qq', qqConfig.value)
-    showMessage('success', 'QQ 通道配置已保存')
+    toast.success('QQ 通道配置已保存')
     editingChannel.value = null
     await loadConfig()
   } catch (e) {
-    showMessage('error', '保存配置失败')
+    toast.error('保存配置失败')
+  } finally {
+    saving.value = false
   }
 }
 
 async function saveWechatConfig() {
+  saving.value = true
   try {
     await channelConfigApi.update('wechat', wechatConfig.value)
-    showMessage('success', '微信通道配置已保存')
+    toast.success('微信通道配置已保存')
     editingChannel.value = null
     await loadConfig()
   } catch (e) {
-    showMessage('error', '保存配置失败')
+    toast.error('保存配置失败')
+  } finally {
+    saving.value = false
   }
 }
 
@@ -128,6 +147,15 @@ function getChannelIcon(name: string): string {
   return icons[name] || icons.web
 }
 
+function getChannelTitle(name: string): string {
+  const titles: Record<string, string> = {
+    web: 'Web',
+    qq: 'QQ',
+    wechat: '企业微信',
+  }
+  return titles[name] || name
+}
+
 function getChannelDescription(name: string): string {
   const descriptions: Record<string, string> = {
     web: 'Web 端聊天接口，支持 REST API 和 SSE 流式输出',
@@ -136,224 +164,274 @@ function getChannelDescription(name: string): string {
   }
   return descriptions[name] || '消息通道'
 }
-
-function showMessage(type: 'success' | 'error', text: string) {
-  message.value = { type, text }
-  setTimeout(() => {
-    message.value = null
-  }, 3000)
-}
 </script>
 
 <template>
   <div class="channels-page">
     <div class="page-header">
-      <h1>通道管理</h1>
-      <button @click="loadChannels" class="btn btn-secondary" :disabled="loading">
+      <div class="header-content">
+        <h1>通道管理</h1>
+        <p class="header-subtitle">管理和配置消息通道</p>
+      </div>
+      <Button variant="secondary" :loading="loading" @click="loadChannels">
         <svg class="icon" :class="{ spinning: loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>
         刷新
-      </button>
-    </div>
-
-    <div v-if="message" class="message" :class="message.type">
-      {{ message.text }}
+      </Button>
     </div>
 
     <div v-if="error" class="error-message">
-      {{ error }}
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <span>{{ error }}</span>
     </div>
 
-    <div class="channels-grid">
-      <!-- Web 通道 -->
-      <div class="channel-card">
+    <div v-if="loading && Object.keys(channels).length === 0" class="loading-skeleton">
+      <div v-for="i in 3" :key="i" class="skeleton-card">
+        <div class="skeleton-header">
+          <Skeleton width="48px" height="48px" />
+          <div class="skeleton-info">
+            <Skeleton width="80px" height="1.25rem" />
+            <Skeleton width="200px" height="0.875rem" />
+          </div>
+        </div>
+        <div class="skeleton-actions">
+          <Skeleton width="60px" height="2rem" />
+          <Skeleton width="60px" height="2rem" />
+        </div>
+      </div>
+    </div>
+
+    <div v-else class="channels-grid">
+      <Card class="channel-card">
         <div class="channel-header">
-          <div class="channel-icon">
+          <div class="channel-icon web">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getChannelIcon('web')" />
             </svg>
           </div>
           <div class="channel-info">
-            <h3>Web</h3>
-            <p>{{ getChannelDescription('web') }}</p>
+            <h3 class="channel-title">{{ getChannelTitle('web') }}</h3>
+            <p class="channel-desc">{{ getChannelDescription('web') }}</p>
           </div>
-          <div class="channel-status" :class="{ running: channels.web?.running }">
-            <span class="status-dot"></span>
-            <span>{{ channels.web?.running ? '运行中' : '已停止' }}</span>
+          <div class="channel-status">
+            <Badge :variant="channels.web?.running ? 'success' : 'default'">
+              {{ channels.web?.running ? '运行中' : '已停止' }}
+            </Badge>
           </div>
         </div>
-        <div class="channel-meta">
-          <span :class="{ active: channels.web?.connected }">
-            {{ channels.web?.connected ? '已连接' : '未连接' }}
-          </span>
+        
+        <div class="channel-stats">
+          <div class="stat-item">
+            <span class="stat-label">连接状态</span>
+            <Badge :variant="channels.web?.connected ? 'success' : 'default'" size="sm">
+              {{ channels.web?.connected ? '已连接' : '未连接' }}
+            </Badge>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">API 端点</span>
+            <code class="stat-value">/v1/chat/completions</code>
+          </div>
         </div>
+        
         <div class="channel-actions">
-          <button 
+          <Button 
             v-if="channels.web?.running"
+            variant="danger"
+            size="sm"
             @click="stopChannel('web')"
-            class="btn btn-danger"
           >
             停止
-          </button>
-          <button 
+          </Button>
+          <Button 
             v-else
+            variant="primary"
+            size="sm"
             @click="startChannel('web')"
-            class="btn btn-primary"
           >
             启动
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
 
-      <!-- QQ 通道 -->
-      <div class="channel-card">
+      <Card class="channel-card">
         <div class="channel-header">
-          <div class="channel-icon">
+          <div class="channel-icon qq">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getChannelIcon('qq')" />
             </svg>
           </div>
           <div class="channel-info">
-            <h3>QQ</h3>
-            <p>{{ getChannelDescription('qq') }}</p>
+            <h3 class="channel-title">{{ getChannelTitle('qq') }}</h3>
+            <p class="channel-desc">{{ getChannelDescription('qq') }}</p>
           </div>
-          <div class="channel-status" :class="{ running: channels.qq?.running }">
-            <span class="status-dot"></span>
-            <span>{{ channels.qq?.running ? '运行中' : '已停止' }}</span>
-          </div>
-        </div>
-        
-        <div v-if="editingChannel === 'qq'" class="channel-config">
-          <div class="form-group">
-            <label>启用</label>
-            <label class="toggle">
-              <input type="checkbox" v-model="qqConfig.enabled" />
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="form-group">
-            <label>API 地址</label>
-            <input v-model="qqConfig.api_url" type="text" class="form-control" placeholder="http://localhost:6099" />
-          </div>
-          <div class="form-group">
-            <label>Access Token</label>
-            <input v-model="qqConfig.access_token" type="password" class="form-control" placeholder="访问令牌" />
-          </div>
-          <div class="config-actions">
-            <button @click="editingChannel = null" class="btn btn-secondary">取消</button>
-            <button @click="saveQQConfig" class="btn btn-primary">保存</button>
+          <div class="channel-status">
+            <Badge :variant="channels.qq?.running ? 'success' : 'default'">
+              {{ channels.qq?.running ? '运行中' : '已停止' }}
+            </Badge>
           </div>
         </div>
         
-        <template v-else>
-          <div class="channel-meta">
-            <span :class="{ active: qqConfig.enabled }">
+        <div class="channel-stats">
+          <div class="stat-item">
+            <span class="stat-label">启用状态</span>
+            <Badge :variant="qqConfig.enabled ? 'success' : 'default'" size="sm">
               {{ qqConfig.enabled ? '已启用' : '未启用' }}
-            </span>
-            <span v-if="qqConfig.api_url" class="muted">{{ qqConfig.api_url }}</span>
+            </Badge>
           </div>
-          <div class="channel-actions">
-            <button @click="editingChannel = 'qq'" class="btn btn-secondary">配置</button>
-            <button 
-              v-if="channels.qq?.running"
-              @click="stopChannel('qq')"
-              class="btn btn-danger"
-            >
-              停止
-            </button>
-            <button 
-              v-else-if="qqConfig.enabled"
-              @click="startChannel('qq')"
-              class="btn btn-primary"
-            >
-              启动
-            </button>
+          <div class="stat-item">
+            <span class="stat-label">API 地址</span>
+            <code class="stat-value">{{ qqConfig.api_url || '-' }}</code>
           </div>
-        </template>
-      </div>
+        </div>
+        
+        <div class="channel-actions">
+          <Button variant="secondary" size="sm" @click="editingChannel = 'qq'">
+            配置
+          </Button>
+          <Button 
+            v-if="channels.qq?.running"
+            variant="danger"
+            size="sm"
+            @click="stopChannel('qq')"
+          >
+            停止
+          </Button>
+          <Button 
+            v-else-if="qqConfig.enabled"
+            variant="primary"
+            size="sm"
+            @click="startChannel('qq')"
+          >
+            启动
+          </Button>
+        </div>
+      </Card>
 
-      <!-- 微信通道 -->
-      <div class="channel-card">
+      <Card class="channel-card">
         <div class="channel-header">
-          <div class="channel-icon">
+          <div class="channel-icon wechat">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getChannelIcon('wechat')" />
             </svg>
           </div>
           <div class="channel-info">
-            <h3>企业微信</h3>
-            <p>{{ getChannelDescription('wechat') }}</p>
+            <h3 class="channel-title">{{ getChannelTitle('wechat') }}</h3>
+            <p class="channel-desc">{{ getChannelDescription('wechat') }}</p>
           </div>
-          <div class="channel-status" :class="{ running: channels.wechat?.running }">
-            <span class="status-dot"></span>
-            <span>{{ channels.wechat?.running ? '运行中' : '已停止' }}</span>
-          </div>
-        </div>
-        
-        <div v-if="editingChannel === 'wechat'" class="channel-config">
-          <div class="form-group">
-            <label>启用</label>
-            <label class="toggle">
-              <input type="checkbox" v-model="wechatConfig.enabled" />
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>企业ID</label>
-              <input v-model="wechatConfig.corp_id" type="text" class="form-control" />
-            </div>
-            <div class="form-group">
-              <label>AgentId</label>
-              <input v-model="wechatConfig.agent_id" type="text" class="form-control" />
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Secret</label>
-            <input v-model="wechatConfig.secret" type="password" class="form-control" />
-          </div>
-          <div class="form-group">
-            <label>Token</label>
-            <input v-model="wechatConfig.token" type="text" class="form-control" />
-          </div>
-          <div class="form-group">
-            <label>EncodingAESKey</label>
-            <input v-model="wechatConfig.encoding_aes_key" type="text" class="form-control" />
-          </div>
-          <div class="config-actions">
-            <button @click="editingChannel = null" class="btn btn-secondary">取消</button>
-            <button @click="saveWechatConfig" class="btn btn-primary">保存</button>
+          <div class="channel-status">
+            <Badge :variant="channels.wechat?.running ? 'success' : 'default'">
+              {{ channels.wechat?.running ? '运行中' : '已停止' }}
+            </Badge>
           </div>
         </div>
         
-        <template v-else>
-          <div class="channel-meta">
-            <span :class="{ active: wechatConfig.enabled }">
+        <div class="channel-stats">
+          <div class="stat-item">
+            <span class="stat-label">启用状态</span>
+            <Badge :variant="wechatConfig.enabled ? 'success' : 'default'" size="sm">
               {{ wechatConfig.enabled ? '已启用' : '未启用' }}
-            </span>
-            <span v-if="wechatConfig.corp_id" class="muted">{{ wechatConfig.corp_id }}</span>
+            </Badge>
           </div>
-          <div class="channel-actions">
-            <button @click="editingChannel = 'wechat'" class="btn btn-secondary">配置</button>
-            <button 
-              v-if="channels.wechat?.running"
-              @click="stopChannel('wechat')"
-              class="btn btn-danger"
-            >
-              停止
-            </button>
-            <button 
-              v-else-if="wechatConfig.enabled"
-              @click="startChannel('wechat')"
-              class="btn btn-primary"
-            >
-              启动
-            </button>
+          <div class="stat-item">
+            <span class="stat-label">企业ID</span>
+            <code class="stat-value">{{ wechatConfig.corp_id || '-' }}</code>
           </div>
-        </template>
-      </div>
+        </div>
+        
+        <div class="channel-actions">
+          <Button variant="secondary" size="sm" @click="editingChannel = 'wechat'">
+            配置
+          </Button>
+          <Button 
+            v-if="channels.wechat?.running"
+            variant="danger"
+            size="sm"
+            @click="stopChannel('wechat')"
+          >
+            停止
+          </Button>
+          <Button 
+            v-else-if="wechatConfig.enabled"
+            variant="primary"
+            size="sm"
+            @click="startChannel('wechat')"
+          >
+            启动
+          </Button>
+        </div>
+      </Card>
     </div>
+
+    <Modal v-model="editingChannel === 'qq'" title="QQ 通道配置" size="md">
+      <div class="config-form">
+        <div class="form-group">
+          <label class="form-label">启用通道</label>
+          <Toggle v-model="qqConfig.enabled" />
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">NapCat API 地址</label>
+          <Input v-model="qqConfig.api_url" placeholder="http://localhost:6099" />
+          <p class="form-hint">NapCat 或 go-cqhttp 的 HTTP API 地址</p>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">Access Token</label>
+          <Input v-model="qqConfig.access_token" type="password" placeholder="访问令牌" />
+          <p class="form-hint">API 访问令牌（可选）</p>
+        </div>
+      </div>
+      
+      <template #footer>
+        <Button variant="secondary" @click="editingChannel = null">取消</Button>
+        <Button variant="primary" :loading="saving" @click="saveQQConfig">保存</Button>
+      </template>
+    </Modal>
+
+    <Modal v-model="editingChannel === 'wechat'" title="企业微信通道配置" size="md">
+      <div class="config-form">
+        <div class="form-group">
+          <label class="form-label">启用通道</label>
+          <Toggle v-model="wechatConfig.enabled" />
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">企业ID</label>
+            <Input v-model="wechatConfig.corp_id" placeholder="CorpID" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">AgentId</label>
+            <Input v-model="wechatConfig.agent_id" placeholder="应用ID" />
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">应用 Secret</label>
+          <Input v-model="wechatConfig.secret" type="password" placeholder="应用密钥" />
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">Token</label>
+          <Input v-model="wechatConfig.token" placeholder="回调 Token" />
+          <p class="form-hint">企业微信回调配置中的 Token</p>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">EncodingAESKey</label>
+          <Input v-model="wechatConfig.encoding_aes_key" placeholder="消息加密密钥" />
+          <p class="form-hint">企业微信回调配置中的 EncodingAESKey</p>
+        </div>
+      </div>
+      
+      <template #footer>
+        <Button variant="secondary" @click="editingChannel = null">取消</Button>
+        <Button variant="primary" :loading="saving" @click="saveWechatConfig">保存</Button>
+      </template>
+    </Modal>
   </div>
 </template>
 
@@ -366,41 +444,69 @@ function showMessage(type: 'success' | 'error', text: string) {
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 1.5rem;
 }
 
-.page-header h1 {
+.header-content h1 {
   font-size: 1.75rem;
   font-weight: 800;
   margin: 0;
 }
 
-.message {
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius);
-  margin-bottom: 1rem;
-}
-
-.message.success {
-  background: hsl(var(--chart-2) / 0.1);
-  color: hsl(var(--chart-2));
-  border: 1px solid hsl(var(--chart-2) / 0.3);
-}
-
-.message.error {
-  background: hsl(var(--destructive) / 0.1);
-  color: hsl(var(--destructive));
-  border: 1px solid hsl(var(--destructive) / 0.3);
+.header-subtitle {
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+  margin: 0.25rem 0 0 0;
 }
 
 .error-message {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   padding: 1rem;
   background: hsl(var(--destructive) / 0.1);
   border: 1px solid hsl(var(--destructive));
   border-radius: var(--radius);
   color: hsl(var(--destructive));
   margin-bottom: 1rem;
+}
+
+.error-message svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+}
+
+.loading-skeleton {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 1.5rem;
+}
+
+.skeleton-card {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+}
+
+.skeleton-header {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.skeleton-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.skeleton-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .channels-grid {
@@ -410,17 +516,16 @@ function showMessage(type: 'success' | 'error', text: string) {
 }
 
 .channel-card {
-  background: hsl(var(--card));
-  border: 1px solid hsl(var(--border));
-  border-radius: var(--radius-lg);
-  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
 }
 
 .channel-header {
   display: flex;
   align-items: flex-start;
   gap: 1rem;
-  margin-bottom: 1rem;
+  padding: 1.25rem;
 }
 
 .channel-icon {
@@ -429,7 +534,6 @@ function showMessage(type: 'success' | 'error', text: string) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: hsl(var(--muted) / 0.5);
   border-radius: var(--radius);
   flex-shrink: 0;
 }
@@ -437,7 +541,21 @@ function showMessage(type: 'success' | 'error', text: string) {
 .channel-icon svg {
   width: 24px;
   height: 24px;
+}
+
+.channel-icon.web {
+  background: hsl(var(--primary) / 0.1);
   color: hsl(var(--primary));
+}
+
+.channel-icon.qq {
+  background: hsl(200 100% 47% / 0.1);
+  color: hsl(200 100% 47%);
+}
+
+.channel-icon.wechat {
+  background: hsl(142 71% 45% / 0.1);
+  color: hsl(142 71% 45%);
 }
 
 .channel-info {
@@ -445,202 +563,85 @@ function showMessage(type: 'success' | 'error', text: string) {
   min-width: 0;
 }
 
-.channel-info h3 {
+.channel-title {
   font-size: 1rem;
   font-weight: 600;
   margin: 0 0 0.25rem 0;
 }
 
-.channel-info p {
+.channel-desc {
   font-size: 0.75rem;
   color: hsl(var(--muted-foreground));
   margin: 0;
 }
 
 .channel-status {
+  flex-shrink: 0;
+}
+
+.channel-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: hsl(var(--muted) / 0.3);
+  border-top: 1px solid hsl(var(--border));
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.stat-item {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
+  justify-content: space-between;
+}
+
+.stat-label {
   font-size: 0.75rem;
   color: hsl(var(--muted-foreground));
 }
 
-.channel-status.running {
-  color: hsl(var(--chart-2));
-}
-
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: hsl(var(--destructive));
-}
-
-.channel-status.running .status-dot {
-  background: hsl(var(--chart-2));
-}
-
-.channel-meta {
-  display: flex;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
+.stat-value {
   font-size: 0.75rem;
-  color: hsl(var(--muted-foreground));
-}
-
-.channel-meta .active {
-  color: hsl(var(--chart-2));
-}
-
-.channel-meta .muted {
-  opacity: 0.6;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background: hsl(var(--muted));
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius);
 }
 
 .channel-actions {
   display: flex;
   gap: 0.5rem;
+  padding: 1rem 1.25rem;
 }
 
-.channel-config {
-  border-top: 1px solid hsl(var(--border));
-  padding-top: 1rem;
-  margin-top: 0.5rem;
+.config-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .form-group {
-  margin-bottom: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.form-group:last-child {
-  margin-bottom: 0;
-}
-
-.form-group label {
-  display: block;
-  font-size: 0.75rem;
-  font-weight: 500;
-  margin-bottom: 0.25rem;
-  color: hsl(var(--muted-foreground));
-}
-
-.form-control {
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  background: hsl(var(--background));
-  border: 1px solid hsl(var(--border));
-  border-radius: var(--radius);
+.form-label {
   font-size: 0.875rem;
+  font-weight: 500;
   color: hsl(var(--foreground));
 }
 
-.form-control:focus {
-  outline: none;
-  border-color: hsl(var(--primary));
+.form-hint {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  margin: 0;
 }
 
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-}
-
-.config-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.toggle {
-  position: relative;
-  display: inline-block;
-  width: 44px;
-  height: 24px;
-}
-
-.toggle input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle-slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: hsl(var(--muted));
-  transition: 0.3s;
-  border-radius: 24px;
-}
-
-.toggle-slider:before {
-  position: absolute;
-  content: "";
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  bottom: 3px;
-  background-color: white;
-  transition: 0.3s;
-  border-radius: 50%;
-}
-
-.toggle input:checked + .toggle-slider {
-  background-color: hsl(var(--primary));
-}
-
-.toggle input:checked + .toggle-slider:before {
-  transform: translateX(20px);
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  border-radius: var(--radius);
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid transparent;
-}
-
-.btn-primary {
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: hsl(var(--primary) / 0.9);
-}
-
-.btn-secondary {
-  background: hsl(var(--secondary));
-  color: hsl(var(--secondary-foreground));
-  border-color: hsl(var(--border));
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: hsl(var(--accent));
-}
-
-.btn-danger {
-  background: hsl(var(--destructive));
-  color: white;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: hsl(var(--destructive) / 0.9);
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  gap: 1rem;
 }
 
 .icon {
