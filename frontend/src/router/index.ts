@@ -34,6 +34,24 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/Sessions.vue'),
     meta: { title: '会话', icon: 'session' },
   },
+  {
+    path: '/tools',
+    name: 'tools',
+    component: () => import('@/views/Tools.vue'),
+    meta: { title: '工具', icon: 'tool' },
+  },
+  {
+    path: '/memories',
+    name: 'memories',
+    component: () => import('@/views/Memories.vue'),
+    meta: { title: '记忆', icon: 'memory' },
+  },
+  {
+    path: '/settings',
+    name: 'settings',
+    component: () => import('@/views/Settings.vue'),
+    meta: { title: '设置', icon: 'settings' },
+  },
 ]
 
 const router = createRouter({
