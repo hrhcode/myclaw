@@ -1,54 +1,83 @@
 <script setup lang="ts">
-import { ref, nextTick, onMounted, watch } from 'vue'
-import { marked } from 'marked'
-import './highlight.css'
-
-interface Message {
-  id: number
-  role: string
-  content: string
-  timestamp?: string
-}
-
-interface Session {
-  id: string
-  channel: string
-  message_count: number
-  created_at: string
-  updated_at: string
-}
+import { ref, onMounted, onUnmounted } from 'vue'
+import type { Message, Session } from './types'
+import Sidebar from './components/sidebar/Sidebar.vue'
+import MessageList from './components/chat/MessageList.vue'
+import MessageInput from './components/input/MessageInput.vue'
+import ThemeToggle from './components/common/ThemeToggle.vue'
+import { useKeyboard } from './composables/useKeyboard'
 
 const messages = ref<Message[]>([])
-const inputMessage = ref('')
 const isLoading = ref(false)
-const messagesContainer = ref<HTMLElement | null>(null)
 const sidebarOpen = ref(true)
 
 const sessions = ref<Session[]>([])
 const currentSessionId = ref<string>('')
 const isLoadingSessions = ref(false)
 
+let abortController: AbortController | null = null
+const inputRef = ref<InstanceType<typeof MessageInput> | null>(null)
+
 const STORAGE_KEY = 'myclaw_session_id'
 
-/**
- * 从 localStorage 恢复或创建会话
- */
+const { registerShortcut } = useKeyboard()
+
+onMounted(() => {
+  initSession()
+  
+  registerShortcut({
+    key: 'n',
+    ctrl: true,
+    handler: createNewSession,
+    description: '新建会话'
+  })
+  
+  registerShortcut({
+    key: 'b',
+    ctrl: true,
+    handler: () => { sidebarOpen.value = !sidebarOpen.value },
+    description: '切换侧边栏'
+  })
+  
+  registerShortcut({
+    key: '/',
+    ctrl: true,
+    handler: () => { inputRef.value?.focus() },
+    description: '聚焦输入框'
+  })
+})
+
+onUnmounted(() => {
+  if (abortController) {
+    abortController.abort()
+    abortController = null
+  }
+})
+
 async function initSession() {
+  await loadSessions()
+  
   const savedSessionId = localStorage.getItem(STORAGE_KEY)
   
   if (savedSessionId) {
-    currentSessionId.value = savedSessionId
+    const sessionExists = sessions.value.some(s => s.id === savedSessionId)
+    if (sessionExists) {
+      currentSessionId.value = savedSessionId
+      await loadMessages()
+      return
+    }
+  }
+  
+  const validSession = sessions.value.find(s => s.message_count > 0)
+  if (validSession) {
+    currentSessionId.value = validSession.id
+    localStorage.setItem(STORAGE_KEY, validSession.id)
     await loadMessages()
   } else {
     await createNewSession()
   }
-  
-  await loadSessions()
 }
 
-/**
- * 创建新会话
- */
 async function createNewSession() {
   try {
     const response = await fetch('/v1/sessions', {
@@ -66,9 +95,6 @@ async function createNewSession() {
   }
 }
 
-/**
- * 切换会话
- */
 async function switchSession(sessionId: string) {
   if (sessionId === currentSessionId.value) return
   
@@ -77,12 +103,7 @@ async function switchSession(sessionId: string) {
   await loadMessages()
 }
 
-/**
- * 删除会话
- */
-async function deleteSession(sessionId: string, event: Event) {
-  event.stopPropagation()
-  
+async function deleteSession(sessionId: string) {
   if (!confirm('确定要删除这个会话吗？')) return
   
   try {
@@ -90,315 +111,386 @@ async function deleteSession(sessionId: string, event: Event) {
     
     if (sessionId === currentSessionId.value) {
       localStorage.removeItem(STORAGE_KEY)
-      await createNewSession()
+      await initSession()
+    } else {
+      await loadSessions()
     }
-    
-    await loadSessions()
   } catch (error) {
     console.error('删除会话失败:', error)
   }
 }
 
-/**
- * 加载会话列表
- */
 async function loadSessions() {
   isLoadingSessions.value = true
   try {
     const response = await fetch('/v1/sessions?limit=20')
     const data = await response.json()
-    sessions.value = data.sessions
+    sessions.value = (data.sessions || []).filter((s: Session) => s.message_count > 0)
   } catch (error) {
     console.error('加载会话列表失败:', error)
+    sessions.value = []
   } finally {
     isLoadingSessions.value = false
   }
 }
 
-/**
- * 加载当前会话的消息
- */
 async function loadMessages() {
   if (!currentSessionId.value) return
   
   try {
     const response = await fetch(`/v1/sessions/${currentSessionId.value}/messages`)
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        messages.value = []
+        localStorage.removeItem(STORAGE_KEY)
+        await initSession()
+      }
+      return
+    }
+    
     const data = await response.json()
-    messages.value = data.messages.map((m: Message) => ({
-      id: m.id,
-      role: m.role,
-      content: m.content,
-      timestamp: m.timestamp,
-    }))
-    scrollToBottom()
+    const processedMessages: Message[] = []
+    const toolResults: Record<string, string> = {}
+    
+    // 第一遍：收集所有工具结果
+    for (const m of data.messages || []) {
+      if (m.role === 'tool' && m.tool_call_id) {
+        toolResults[m.tool_call_id] = m.content
+      }
+    }
+    
+    // 第二遍：处理消息
+    for (const m of data.messages || []) {
+      if (m.role === 'tool') {
+        // 跳过独立的 tool 消息，它们会被合并到 assistant 消息中
+        continue
+      }
+      
+      const message: Message = {
+        id: m.id,
+        role: m.role,
+        content: m.content || '',
+        timestamp: m.timestamp,
+      }
+      
+      // 处理工具调用
+      if (m.tool_calls && m.tool_calls.length > 0) {
+        message.toolCalls = m.tool_calls.map((tc: any) => ({
+          id: tc.id,
+          name: tc.function?.name || tc.name,
+          arguments: tc.function?.arguments ? JSON.parse(tc.function.arguments) : (tc.arguments || {}),
+          status: toolResults[tc.id] ? 'success' : 'running',
+          result: toolResults[tc.id],
+          startTime: Date.now(),
+          endTime: toolResults[tc.id] ? Date.now() : undefined,
+        }))
+      }
+      
+      processedMessages.push(message)
+    }
+    
+    messages.value = processedMessages
   } catch (error) {
     console.error('加载消息失败:', error)
     messages.value = []
   }
 }
 
-/**
- * 发送消息
- */
-async function sendMessage() {
-  if (!inputMessage.value.trim() || isLoading.value) return
+async function sendMessage(content: string) {
+  if (!content.trim()) return
   
-  const userMessage = inputMessage.value.trim()
-  inputMessage.value = ''
+  if (isLoading.value) {
+    if (abortController) {
+      abortController.abort()
+      abortController = null
+    }
+    isLoading.value = false
+  }
+  
+  if (!currentSessionId.value) {
+    await createNewSession()
+    if (!currentSessionId.value) {
+      console.error('无法创建会话')
+      return
+    }
+  }
   
   messages.value.push({
     id: Date.now(),
     role: 'user',
-    content: userMessage,
+    content: content,
     timestamp: new Date().toISOString(),
   })
   
-  scrollToBottom()
-  
   isLoading.value = true
+  abortController = new AbortController()
+  
+  const assistantMessageId = Date.now() + 1
+  messages.value.push({
+    id: assistantMessageId,
+    role: 'assistant',
+    content: '',
+    timestamp: new Date().toISOString(),
+  })
   
   try {
     const response = await fetch('/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
       },
       body: JSON.stringify({
-        messages: [{ role: 'user', content: userMessage }],
+        messages: [{ role: 'user', content }],
         session_id: currentSessionId.value,
+        stream: true,
       }),
+      signal: abortController.signal,
     })
     
-    const data = await response.json()
-    const assistantMessage = data.choices[0].message.content
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
     
-    messages.value.push({
-      id: Date.now() + 1,
-      role: 'assistant',
-      content: assistantMessage,
-      timestamp: new Date().toISOString(),
-    })
+    const reader = response.body?.getReader()
+    if (!reader) {
+      throw new Error('No reader available')
+    }
     
-    scrollToBottom()
-    await loadSessions()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    
+    while (true) {
+      const { done, value } = await reader.read()
+      
+      if (done) break
+      
+      buffer += decoder.decode(value, { stream: true })
+      
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6)
+          
+          if (data === '[DONE]') {
+            continue
+          }
+          
+          try {
+            const parsed = JSON.parse(data)
+            
+            if (parsed.choices && parsed.choices[0]?.delta) {
+              const delta = parsed.choices[0].delta
+              const msgIndex = messages.value.findIndex(m => m.id === assistantMessageId)
+              
+              if (delta.content) {
+                if (msgIndex !== -1) {
+                  messages.value[msgIndex].content += delta.content
+                }
+              }
+              
+              if (delta.tool_calls && delta.tool_calls.length > 0) {
+                const toolCall = delta.tool_calls[0]
+                
+                if (msgIndex !== -1) {
+                  if (!messages.value[msgIndex].toolCalls) {
+                    messages.value[msgIndex].toolCalls = []
+                  }
+                  
+                  const existingToolIndex = messages.value[msgIndex].toolCalls!.findIndex(
+                    t => t.id === toolCall.id
+                  )
+                  
+                  if (existingToolIndex === -1) {
+                    messages.value[msgIndex].toolCalls!.push({
+                      id: toolCall.id,
+                      name: toolCall.name,
+                      arguments: toolCall.arguments || {},
+                      status: toolCall.status || 'running',
+                      result: toolCall.result,
+                      startTime: Date.now(),
+                    })
+                  } else {
+                    const existingTool = messages.value[msgIndex].toolCalls![existingToolIndex]
+                    if (toolCall.status) {
+                      existingTool.status = toolCall.status
+                    }
+                    if (toolCall.result !== undefined) {
+                      existingTool.result = toolCall.result
+                      existingTool.endTime = Date.now()
+                    }
+                  }
+                }
+              }
+            }
+          } catch {
+            // 忽略解析错误
+          }
+        }
+      }
+    }
   } catch (error) {
-    console.error('发送消息失败:', error)
-    messages.value.push({
-      id: Date.now() + 1,
-      role: 'assistant',
-      content: '抱歉，发生了错误，请稍后再试。',
-      timestamp: new Date().toISOString(),
-    })
+    if (error instanceof Error && error.name === 'AbortError') {
+      // 请求被中止是正常行为（用户发送新消息或组件卸载）
+      // 不需要显示错误信息
+    } else {
+      console.error('发送消息失败:', error)
+      const msgIndex = messages.value.findIndex(m => m.id === assistantMessageId)
+      if (msgIndex !== -1 && !messages.value[msgIndex].content) {
+        messages.value[msgIndex].content = '抱歉，发生了错误，请稍后再试。'
+      }
+    }
   } finally {
     isLoading.value = false
+    abortController = null
+    loadSessions().catch(() => {})
   }
 }
 
-/**
- * 滚动到底部
- */
-function scrollToBottom() {
-  nextTick(() => {
-    if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-    }
-  })
-}
-
-/**
- * 格式化时间
- */
-function formatTime(timestamp?: string) {
-  if (!timestamp) return ''
-  const date = new Date(timestamp)
-  return date.toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-/**
- * 格式化会话时间
- */
-function formatSessionTime(timestamp: string) {
-  const date = new Date(timestamp)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-  
-  if (days === 0) {
-    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-  } else if (days === 1) {
-    return '昨天'
-  } else if (days < 7) {
-    return `${days}天前`
-  } else {
-    return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
+function handleEdit(messageId: number) {
+  const message = messages.value.find(m => m.id === messageId)
+  if (message && message.role === 'user') {
+    // TODO: 实现编辑功能
+    console.log('编辑消息:', messageId)
   }
 }
 
-onMounted(() => {
-  initSession()
-})
+function handleRegenerate(messageId: number) {
+  // TODO: 实现重新生成功能
+  console.log('重新生成:', messageId)
+}
 </script>
 
 <template>
-  <div class="flex h-screen bg-gray-100">
-    <aside
-      :class="[
-        'bg-white border-r border-gray-200 flex flex-col transition-all duration-300',
-        sidebarOpen ? 'w-64' : 'w-0 overflow-hidden'
-      ]"
-    >
-      <div class="p-4 border-b border-gray-200">
-        <button
-          @click="createNewSession"
-          class="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center space-x-2"
-        >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-          </svg>
-          <span>新对话</span>
-        </button>
-      </div>
-      
-      <div class="flex-1 overflow-y-auto">
-        <div v-if="isLoadingSessions" class="p-4 text-center text-gray-500">
-          加载中...
-        </div>
-        <div v-else-if="sessions.length === 0" class="p-4 text-center text-gray-400">
-          暂无对话记录
-        </div>
-        <div v-else>
-          <div
-            v-for="session in sessions"
-            :key="session.id"
-            @click="switchSession(session.id)"
-            :class="[
-              'p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors group',
-              session.id === currentSessionId ? 'bg-blue-50 border-l-2 border-l-blue-500' : ''
-            ]"
-          >
-            <div class="flex items-center justify-between">
-              <div class="flex-1 min-w-0">
-                <div class="text-sm font-medium text-gray-800 truncate">
-                  对话 {{ session.id.slice(0, 8) }}
-                </div>
-                <div class="text-xs text-gray-500 mt-1">
-                  {{ session.message_count }} 条消息 · {{ formatSessionTime(session.updated_at) }}
-                </div>
-              </div>
-              <button
-                @click="deleteSession(session.id, $event)"
-                class="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all"
-                title="删除对话"
-              >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </aside>
+  <div class="app-container">
+    <Sidebar
+      v-model:open="sidebarOpen"
+      :sessions="sessions"
+      :current-session-id="currentSessionId"
+      :is-loading="isLoadingSessions"
+      @create="createNewSession"
+      @select="switchSession"
+      @delete="deleteSession"
+    />
 
-    <div class="flex-1 flex flex-col">
-      <header class="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-3">
-            <button
-              @click="sidebarOpen = !sidebarOpen"
-              class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-            <h1 class="text-xl font-bold text-gray-800">MyClaw</h1>
-          </div>
-          <span class="text-sm text-gray-500">AI 助手</span>
+    <div class="main-content">
+      <header class="header">
+        <div class="header-left">
+          <button
+            @click="sidebarOpen = !sidebarOpen"
+            class="menu-btn"
+          >
+            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <h1 class="title">MyClaw</h1>
+        </div>
+        <div class="header-right">
+          <ThemeToggle />
         </div>
       </header>
 
-      <main ref="messagesContainer" class="flex-1 overflow-y-auto p-6">
-        <div class="max-w-4xl mx-auto space-y-4">
-          <div v-if="messages.length === 0" class="flex items-center justify-center h-full">
-            <div class="text-center text-gray-400">
-              <svg class="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              <p>开始一段新对话吧</p>
-            </div>
-          </div>
-          
-          <div
-            v-for="message in messages"
-            :key="message.id"
-            :class="[
-              'flex',
-              message.role === 'user' ? 'justify-end' : 'justify-start'
-            ]"
-          >
-            <div
-              :class="[
-                'max-w-[80%] rounded-lg px-4 py-3',
-                message.role === 'user'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-white text-gray-800 shadow-sm border border-gray-200'
-              ]"
-            >
-              <div
-                v-if="message.role === 'assistant'"
-                class="prose prose-sm max-w-none"
-                v-html="marked(message.content)"
-              ></div>
-              <div v-else class="whitespace-pre-wrap">{{ message.content }}</div>
-              <div
-                :class="[
-                  'text-xs mt-2',
-                  message.role === 'user' ? 'text-blue-100' : 'text-gray-400'
-                ]"
-              >
-                {{ formatTime(message.timestamp) }}
-              </div>
-            </div>
-          </div>
-          
-          <div v-if="isLoading" class="flex justify-start">
-            <div class="bg-white text-gray-800 shadow-sm border border-gray-200 rounded-lg px-4 py-3">
-              <div class="flex items-center space-x-2">
-                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0s"></div>
-                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
-                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
+      <MessageList
+        :messages="messages"
+        :is-loading="isLoading"
+        @edit="handleEdit"
+        @regenerate="handleRegenerate"
+      />
 
-      <footer class="bg-white border-t border-gray-200 px-6 py-4">
-        <div class="max-w-4xl mx-auto">
-          <form @submit.prevent="sendMessage" class="flex space-x-4">
-            <input
-              v-model="inputMessage"
-              type="text"
-              placeholder="输入消息..."
-              class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              :disabled="isLoading"
-            />
-            <button
-              type="submit"
-              class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              :disabled="isLoading || !inputMessage.trim()"
-            >
-              发送
-            </button>
-          </form>
-        </div>
+      <footer class="footer">
+        <MessageInput
+          ref="inputRef"
+          :disabled="isLoading"
+          @submit="sendMessage"
+        />
       </footer>
     </div>
   </div>
 </template>
+
+<style scoped>
+.app-container {
+  display: flex;
+  height: 100vh;
+  background: var(--color-bg-secondary);
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  background: var(--color-header-bg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.menu-btn {
+  padding: 0.5rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  transition: all 0.2s;
+}
+
+.menu-btn:hover {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+}
+
+.icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.footer {
+  padding: 1rem 1.5rem;
+  background: var(--color-bg-primary);
+  border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 768px) {
+  .header {
+    padding: 0.75rem 1rem;
+  }
+  
+  .footer {
+    padding: 0.75rem 1rem;
+  }
+  
+  .subtitle {
+    display: none;
+  }
+}
+</style>

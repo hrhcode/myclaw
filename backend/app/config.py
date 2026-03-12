@@ -82,6 +82,15 @@ class ToolsConfig(BaseModel):
     search: SearchToolConfig = Field(default_factory=SearchToolConfig)
 
 
+class AgentConfig(BaseModel):
+    """Agent 配置"""
+
+    system_prompt: str = Field(
+        default="你是一个有用的 AI 助手。你可以使用各种工具来帮助用户解决问题。",
+        description="系统提示词"
+    )
+
+
 class AppConfig(BaseModel):
     """应用配置"""
 
@@ -90,6 +99,7 @@ class AppConfig(BaseModel):
     wechat: WechatConfig = Field(default_factory=WechatConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
+    agent: AgentConfig = Field(default_factory=AgentConfig)
 
 
 ENV_VAR_PATTERN = re.compile(r"\$\{([^}]+)\}")

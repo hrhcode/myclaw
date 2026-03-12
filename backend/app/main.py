@@ -76,6 +76,14 @@ class SessionListResponse(BaseModel):
     total: int
 
 
+class ToolCallInfo(BaseModel):
+    """工具调用信息模型"""
+
+    id: str
+    type: str = "function"
+    function: dict[str, Any] = Field(default_factory=dict)
+
+
 class MessageInfo(BaseModel):
     """消息信息模型"""
 
@@ -83,6 +91,8 @@ class MessageInfo(BaseModel):
     role: str
     content: str
     timestamp: str
+    tool_calls: Optional[list[ToolCallInfo]] = None
+    tool_call_id: Optional[str] = None
 
 
 class MessageListResponse(BaseModel):
@@ -263,6 +273,15 @@ async def get_session_messages(
                 role=m["role"],
                 content=m["content"],
                 timestamp=m["timestamp"] or "",
+                tool_calls=[
+                    ToolCallInfo(
+                        id=tc["id"],
+                        type=tc.get("type", "function"),
+                        function=tc.get("function", {}),
+                    )
+                    for tc in m["tool_calls"]
+                ] if m["tool_calls"] else None,
+                tool_call_id=m.get("tool_call_id"),
             )
             for m in messages
         ],
@@ -318,6 +337,11 @@ async def chat_completions(request: ChatRequest) -> ChatResponse:
         return StreamingResponse(
             _stream_response(session_id, last_message.content, config.llm.model),
             media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
         )
     
     response_text = await agent.process_message(session_id, last_message.content)
@@ -356,20 +380,56 @@ async def _stream_response(
     agent = get_agent()
     
     async for chunk in agent.process_message_stream(session_id, message):
-        data = {
-            "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",
-            "object": "chat.completion.chunk",
-            "created": int(time.time()),
-            "model": model,
-            "choices": [
-                {
-                    "index": 0,
-                    "delta": {"content": chunk},
-                    "finish_reason": None,
+        if isinstance(chunk, dict):
+            if chunk.get("type") == "tool_call":
+                data = {
+                    "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",
+                    "object": "chat.completion.chunk",
+                    "created": int(time.time()),
+                    "model": model,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {
+                                "tool_calls": [chunk["tool_call"]]
+                            },
+                            "finish_reason": None,
+                        }
+                    ],
                 }
-            ],
-        }
-        yield f"data: {json.dumps(data)}\n\n"
+                yield f"data: {json.dumps(data)}\n\n"
+            elif chunk.get("type") == "tool_result":
+                data = {
+                    "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",
+                    "object": "chat.completion.chunk",
+                    "created": int(time.time()),
+                    "model": model,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {
+                                "tool_calls": [chunk["tool_call"]]
+                            },
+                            "finish_reason": None,
+                        }
+                    ],
+                }
+                yield f"data: {json.dumps(data)}\n\n"
+        else:
+            data = {
+                "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"content": chunk},
+                        "finish_reason": None,
+                    }
+                ],
+            }
+            yield f"data: {json.dumps(data)}\n\n"
     
     final_data = {
         "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",

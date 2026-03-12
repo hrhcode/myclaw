@@ -3,8 +3,9 @@ LLM 客户端模块
 封装智谱 AI API 调用，支持流式输出和工具调用
 """
 
+import asyncio
 import logging
-from typing import Any, AsyncGenerator, Optional
+from typing import Any, AsyncGenerator, Iterator, Optional
 
 from zhipuai import ZhipuAI
 
@@ -77,14 +78,14 @@ class LLMClient:
         response = client.chat.completions.create(**params)
         return self._parse_response(response)
 
-    async def chat_stream(
+    def _stream_sync(
         self,
         messages: list[dict[str, str]],
         tools: Optional[list[dict[str, Any]]] = None,
         **kwargs,
-    ) -> AsyncGenerator[str, None]:
+    ) -> Iterator[Any]:
         """
-        流式聊天接口
+        同步流式聊天接口（内部方法）
         
         Args:
             messages: 消息列表
@@ -92,7 +93,7 @@ class LLMClient:
             **kwargs: 其他参数
             
         Yields:
-            流式输出的文本块
+            流式输出的文本块或工具调用信息
         """
         client = self._ensure_client()
         
@@ -109,8 +110,71 @@ class LLMClient:
         response = client.chat.completions.create(**params)
         
         for chunk in response:
-            if chunk.choices and chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
+            if not chunk.choices:
+                continue
+            
+            delta = chunk.choices[0].delta
+            
+            if delta.content:
+                yield delta.content
+            
+            if hasattr(delta, 'tool_calls') and delta.tool_calls:
+                for tc in delta.tool_calls:
+                    tool_info = {
+                        "id": tc.id,
+                        "type": getattr(tc, 'type', 'function'),
+                        "function": {
+                            "name": getattr(tc.function, 'name', '') if hasattr(tc, 'function') else '',
+                            "arguments": getattr(tc.function, 'arguments', '') if hasattr(tc, 'function') else '',
+                        },
+                    }
+                    yield {"tool_calls": [tool_info]}
+
+    async def chat_stream(
+        self,
+        messages: list[dict[str, str]],
+        tools: Optional[list[dict[str, Any]]] = None,
+        **kwargs,
+    ) -> AsyncGenerator[Any, None]:
+        """
+        流式聊天接口
+        
+        Args:
+            messages: 消息列表
+            tools: 工具定义列表
+            **kwargs: 其他参数
+            
+        Yields:
+            流式输出的文本块或工具调用信息
+        """
+        import threading
+        
+        queue: asyncio.Queue = asyncio.Queue()
+        loop = asyncio.get_running_loop()
+        exception_holder = []
+        
+        def sync_producer():
+            try:
+                for chunk in self._stream_sync(messages, tools, **kwargs):
+                    loop.call_soon_threadsafe(queue.put_nowait, chunk)
+            except Exception as e:
+                exception_holder.append(e)
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, None)
+        
+        thread = threading.Thread(target=sync_producer, daemon=True)
+        thread.start()
+        
+        try:
+            while True:
+                chunk = await queue.get()
+                if chunk is None:
+                    break
+                yield chunk
+        finally:
+            thread.join(timeout=1.0)
+            if exception_holder:
+                raise exception_holder[0]
 
     def chat_with_tools(
         self,

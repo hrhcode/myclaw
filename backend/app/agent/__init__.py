@@ -1,6 +1,6 @@
 """
-Agent 核心模块
-提供 LLM 调用、工具执行、会话管理等核心功能
+Agent 模块
+提供智能体功能，包括 LLM 调用、工具执行、记忆管理等
 """
 
 import json
@@ -17,47 +17,29 @@ logger = logging.getLogger(__name__)
 
 class Agent:
     """
-    Agent 运行时类
-    整合 LLM、工具和会话管理，提供完整的对话处理能力
+    智能体类
+    整合 LLM、工具、记忆等功能，提供完整的对话处理能力
     """
 
     def __init__(
         self,
-        llm_client: Optional[LLMClient] = None,
-        session_manager: Optional[SessionManager] = None,
-        tool_registry: Optional[ToolRegistry] = None,
-        system_prompt: Optional[str] = None,
+        llm: Optional[LLMClient] = None,
+        sessions: Optional[SessionManager] = None,
+        tools: Optional[ToolRegistry] = None,
     ):
         """
         初始化 Agent
-        
+
         Args:
-            llm_client: LLM 客户端
-            session_manager: 会话管理器
-            tool_registry: 工具注册表
-            system_prompt: 系统提示词
+            llm: LLM 客户端实例
+            sessions: 会话管理器实例
+            tools: 工具注册表实例
         """
-        self.llm = llm_client or get_llm_client()
-        self.sessions = session_manager or get_session_manager()
-        self.tools = tool_registry or get_tool_registry()
-        self.system_prompt = system_prompt or self._default_system_prompt()
-
-    def _default_system_prompt(self) -> str:
-        """
-        默认系统提示词
-        
-        Returns:
-            系统提示词字符串
-        """
-        return """你是 MyClaw，一个友好、智能的 AI 助手。
-
-你的特点：
-- 回答简洁明了，避免冗长
-- 善于使用工具获取最新信息
-- 对技术问题给出实用的解决方案
-- 保持友好和专业的态度
-
-当需要搜索信息或获取网页内容时，请使用提供的工具。"""
+        config = get_config()
+        self.llm = llm or get_llm_client()
+        self.sessions = sessions or get_session_manager()
+        self.tools = tools or get_tool_registry()
+        self.system_prompt = config.agent.system_prompt
 
     async def process_message(
         self,
@@ -66,59 +48,62 @@ class Agent:
         channel: str = "web",
     ) -> str:
         """
-        处理用户消息
-        
+        处理用户消息（非流式）
+
         Args:
             session_id: 会话 ID
             user_message: 用户消息
             channel: 通道来源
-            
+
         Returns:
-            AI 回复
+            助手回复内容
         """
         await self._ensure_session(session_id, channel)
-        
+
         await self.sessions.add_message(session_id, "user", user_message)
-        
+
         messages = await self._build_messages(session_id, user_message)
-        
+
         max_iterations = 5
         iteration = 0
-        
+        assistant_message = ""
+        all_tool_calls = []
+        all_tool_results = []
+
         while iteration < max_iterations:
             iteration += 1
-            
+
             response = self.llm.chat_with_tools(
                 messages=messages,
                 tools=self.tools.get_openai_tools(),
             )
-            
+
             if "tool_calls" not in response:
                 assistant_message = response["content"]
-                await self.sessions.add_message(session_id, "assistant", assistant_message)
-                
+                await self.sessions.add_message(
+                    session_id,
+                    "assistant",
+                    assistant_message,
+                    tool_calls=all_tool_calls if all_tool_calls else None,
+                )
                 return assistant_message
-            
-            await self.sessions.add_message(
-                session_id,
-                "assistant",
-                response["content"] or "",
-                tool_calls=response["tool_calls"],
-            )
-            
-            messages.append({
-                "role": "assistant",
-                "content": response["content"] or "",
-                "tool_calls": response["tool_calls"],
-            })
-            
-            for tool_call in response["tool_calls"]:
+
+            tool_calls = response["tool_calls"]
+            all_tool_calls.extend(tool_calls)
+
+            for tool_call in tool_calls:
                 func_name = tool_call["function"]["name"]
                 func_args = json.loads(tool_call["function"]["arguments"])
-                
+
                 logger.info(f"执行工具: {func_name}({func_args})")
                 result = await self.tools.execute(func_name, func_args)
-                
+                logger.info(f"工具执行成功: {func_name}")
+
+                all_tool_results.append({
+                    "tool_call_id": tool_call["id"],
+                    "result": result,
+                })
+
                 await self.sessions.add_message(
                     session_id,
                     "tool",
@@ -126,64 +111,132 @@ class Agent:
                     tool_call_id=tool_call["id"],
                     generate_embedding=False,
                 )
-                
+
                 messages.append({
                     "role": "tool",
                     "content": result,
                     "tool_call_id": tool_call["id"],
                 })
-        
-        return "抱歉，处理过程中遇到了一些问题，请稍后再试。"
+
+        assistant_message = response.get("content", "")
+        await self.sessions.add_message(
+            session_id,
+            "assistant",
+            assistant_message,
+            tool_calls=all_tool_calls if all_tool_calls else None,
+        )
+        return assistant_message
 
     async def process_message_stream(
         self,
         session_id: str,
         user_message: str,
         channel: str = "web",
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[dict | str, None]:
         """
         流式处理用户消息
-        
+
         Args:
             session_id: 会话 ID
             user_message: 用户消息
             channel: 通道来源
-            
+
         Yields:
-            流式输出的文本块
+            流式输出的文本块或工具调用事件
         """
         await self._ensure_session(session_id, channel)
-        
+
         await self.sessions.add_message(session_id, "user", user_message)
-        
+
         messages = await self._build_messages(session_id, user_message)
-        
-        response = self.llm.chat_with_tools(
-            messages=messages,
-            tools=self.tools.get_openai_tools(),
-        )
-        
-        if "tool_calls" in response:
-            await self.sessions.add_message(
-                session_id,
-                "assistant",
-                response["content"] or "",
-                tool_calls=response["tool_calls"],
-            )
-            
+
+        max_iterations = 5
+        iteration = 0
+        assistant_message = ""
+        all_tool_calls = []
+
+        while iteration < max_iterations:
+            iteration += 1
+
+            has_tool_calls = False
+            tool_calls_list = []
+
+            async for chunk in self.llm.chat_stream(
+                messages=messages,
+                tools=self.tools.get_openai_tools(),
+            ):
+                if isinstance(chunk, dict):
+                    if "tool_calls" in chunk:
+                        has_tool_calls = True
+                        for tc in chunk["tool_calls"]:
+                            existing_tc = next(
+                                (t for t in tool_calls_list if t["id"] == tc["id"]),
+                                None
+                            )
+                            if existing_tc:
+                                if tc["function"].get("arguments"):
+                                    existing_tc["function"]["arguments"] += tc["function"]["arguments"]
+                            else:
+                                tool_calls_list.append({
+                                    "id": tc["id"],
+                                    "type": tc["type"],
+                                    "function": {
+                                        "name": tc["function"]["name"],
+                                        "arguments": tc["function"].get("arguments", ""),
+                                    },
+                                })
+                else:
+                    if chunk:
+                        assistant_message += chunk
+                        yield chunk
+
+            if not has_tool_calls:
+                # 没有工具调用，直接存储最终回复
+                await self.sessions.add_message(
+                    session_id,
+                    "assistant",
+                    assistant_message,
+                    tool_calls=all_tool_calls if all_tool_calls else None,
+                )
+                return
+
+            # 保存工具调用信息
+            all_tool_calls.extend(tool_calls_list)
+
             messages.append({
                 "role": "assistant",
-                "content": response["content"] or "",
-                "tool_calls": response["tool_calls"],
+                "content": assistant_message,
+                "tool_calls": tool_calls_list,
             })
-            
-            for tool_call in response["tool_calls"]:
+
+            for tool_call in tool_calls_list:
                 func_name = tool_call["function"]["name"]
                 func_args = json.loads(tool_call["function"]["arguments"])
-                
+
+                yield {
+                    "type": "tool_call",
+                    "tool_call": {
+                        "id": tool_call["id"],
+                        "name": func_name,
+                        "arguments": func_args,
+                        "status": "running",
+                    }
+                }
+
                 logger.info(f"执行工具: {func_name}({func_args})")
                 result = await self.tools.execute(func_name, func_args)
-                
+                logger.info(f"工具执行成功: {func_name}")
+
+                yield {
+                    "type": "tool_result",
+                    "tool_call": {
+                        "id": tool_call["id"],
+                        "name": func_name,
+                        "status": "success",
+                        "result": result,
+                    }
+                }
+
                 await self.sessions.add_message(
                     session_id,
                     "tool",
@@ -191,27 +244,28 @@ class Agent:
                     tool_call_id=tool_call["id"],
                     generate_embedding=False,
                 )
-                
+
                 messages.append({
                     "role": "tool",
                     "content": result,
                     "tool_call_id": tool_call["id"],
                 })
-            
-            messages = await self._build_messages(session_id, user_message)
-            response = self.llm.chat(messages=messages)
-        
-        assistant_message = response["content"]
-        await self.sessions.add_message(session_id, "assistant", assistant_message)
-        
-        chunk_size = 10
-        for i in range(0, len(assistant_message), chunk_size):
-            yield assistant_message[i:i + chunk_size]
+
+            assistant_message = ""
+
+        # 循环结束，存储最终回复（包含所有工具调用）
+        if assistant_message:
+            await self.sessions.add_message(
+                session_id,
+                "assistant",
+                assistant_message,
+                tool_calls=all_tool_calls if all_tool_calls else None,
+            )
 
     async def _ensure_session(self, session_id: str, channel: str) -> None:
         """
         确保会话存在
-        
+
         Args:
             session_id: 会话 ID
             channel: 通道来源
@@ -223,23 +277,23 @@ class Agent:
     async def _build_messages(self, session_id: str, current_query: str) -> list[dict[str, Any]]:
         """
         构建发送给 LLM 的消息列表
-        
+
         Args:
             session_id: 会话 ID
             current_query: 当前用户查询
-            
+
         Returns:
             消息列表
         """
         history = await self.sessions.get_messages_for_llm(session_id)
-        
+
         messages = [{"role": "system", "content": self.system_prompt}]
-        
+
         config = get_config()
         if config.memory.enabled and current_query:
             try:
                 related_memories = await self.sessions.search_memories(
-                    current_query, session_id=session_id, limit=3
+                    current_query, session_id=None, limit=3
                 )
                 if related_memories:
                     memory_context = "相关历史记忆：\n"
@@ -252,9 +306,9 @@ class Agent:
                     })
             except Exception as e:
                 logger.warning(f"搜索记忆失败: {e}")
-        
+
         messages.extend(history)
-        
+
         return messages
 
 
@@ -264,7 +318,7 @@ _agent: Optional[Agent] = None
 def get_agent() -> Agent:
     """
     获取全局 Agent 实例（单例模式）
-    
+
     Returns:
         Agent 实例
     """
