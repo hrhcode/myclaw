@@ -5,6 +5,7 @@ Agent 模块
 
 import json
 import logging
+import time
 from typing import Any, AsyncGenerator, Optional
 
 from app.agent.llm import LLMClient, get_llm_client
@@ -213,6 +214,7 @@ class Agent:
                 func_name = tool_call["function"]["name"]
                 func_args = json.loads(tool_call["function"]["arguments"])
 
+                start_time = time.time()
                 yield {
                     "type": "tool_call",
                     "tool_call": {
@@ -225,7 +227,10 @@ class Agent:
 
                 logger.info(f"执行工具: {func_name}({func_args})")
                 result = await self.tools.execute(func_name, func_args)
-                logger.info(f"工具执行成功: {func_name}")
+                duration_ms = int((time.time() - start_time) * 1000)
+                logger.info(f"工具执行成功: {func_name}, 耗时: {duration_ms}ms")
+
+                tool_call["duration_ms"] = duration_ms
 
                 yield {
                     "type": "tool_result",
@@ -234,6 +239,7 @@ class Agent:
                         "name": func_name,
                         "status": "success",
                         "result": result,
+                        "duration_ms": duration_ms,
                     }
                 }
 

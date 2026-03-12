@@ -1,6 +1,6 @@
 """
 MyClaw 主入口
-FastAPI 应用启动和路由配置
+FastAPI 应用启动和路由配置，集成 Gateway 架构
 """
 
 import logging
@@ -15,8 +15,11 @@ from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.agent import get_agent, get_session_manager
+from app.channels.qq import QQChannel
+from app.channels.web import get_web_channel
 from app.channels.wechat import WechatChannel
 from app.config import get_config
+from app.gateway import get_gateway
 
 logging.basicConfig(
     level=logging.INFO,
@@ -82,6 +85,7 @@ class ToolCallInfo(BaseModel):
     id: str
     type: str = "function"
     function: dict[str, Any] = Field(default_factory=dict)
+    duration_ms: Optional[int] = None
 
 
 class MessageInfo(BaseModel):
@@ -117,6 +121,11 @@ class SessionCreateResponse(BaseModel):
     created: bool
 
 
+_gateway_instance = None
+_wechat_channel: Optional[WechatChannel] = None
+_qq_channel: Optional[QQChannel] = None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
@@ -125,6 +134,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Args:
         app: FastAPI 应用实例
     """
+    global _gateway_instance, _wechat_channel, _qq_channel
+    
     config = get_config()
     
     session_manager = get_session_manager()
@@ -134,18 +145,46 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(f"服务地址: http://{config.server.host}:{config.server.port}")
     logger.info(f"LLM 提供商: {config.llm.provider}")
     logger.info(f"LLM 模型: {config.llm.model}")
-    logger.info(f"微信通道: {'启用' if config.wechat.enabled else '禁用'}")
+    
+    if config.gateway.enabled:
+        gateway = get_gateway()
+        _gateway_instance = gateway
+        
+        agent = get_agent()
+        gateway.set_agent(agent)
+        gateway.set_session_manager(session_manager)
+        
+        if config.channels.web.enabled:
+            web_channel = get_web_channel()
+            await gateway.register_channel(web_channel)
+            logger.info("Web 通道已注册")
+        
+        if config.channels.qq.enabled:
+            _qq_channel = QQChannel(
+                api_url=config.channels.qq.api_url,
+                access_token=config.channels.qq.access_token,
+            )
+            await gateway.register_channel(_qq_channel)
+            logger.info("QQ 通道已注册")
+        
+        await gateway.start()
+        logger.info("Gateway 已启动")
+    
     logger.info(f"记忆系统: {'启用' if config.memory.enabled else '禁用'}")
-
+    
     yield
-
+    
+    if _gateway_instance:
+        await _gateway_instance.stop()
+        logger.info("Gateway 已停止")
+    
     logger.info("MyClaw 关闭中...")
 
 
 app = FastAPI(
     title="MyClaw",
-    description="极简 AI 助手 - 面向个人用户的微信 AI 机器人",
-    version="0.1.0",
+    description="极简 AI 助手 - 面向个人用户的 AI 机器人",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
@@ -166,7 +205,7 @@ async def health_check() -> dict:
     Returns:
         健康状态信息
     """
-    return {"status": "ok", "service": "myclaw", "version": "0.1.0"}
+    return {"status": "ok", "service": "myclaw", "version": "0.2.0"}
 
 
 @app.get("/")
@@ -181,7 +220,211 @@ async def root() -> dict:
         "message": "Welcome to MyClaw",
         "docs": "/docs",
         "health": "/health",
+        "gateway": "/api/gateway/status",
     }
+
+
+@app.get("/api/gateway/status")
+async def get_gateway_status() -> dict:
+    """
+    获取 Gateway 状态
+    
+    Returns:
+        Gateway 状态信息
+    """
+    if not _gateway_instance:
+        return {"running": False, "error": "Gateway 未启用"}
+    
+    return _gateway_instance.status.to_dict()
+
+
+@app.get("/api/gateway/info")
+async def get_gateway_info() -> dict:
+    """
+    获取 Gateway 详细信息
+    
+    Returns:
+        Gateway 详细信息
+    """
+    if not _gateway_instance:
+        return {"error": "Gateway 未启用"}
+    
+    status = _gateway_instance.status
+    return {
+        "version": "0.2.0",
+        "uptime_seconds": status.uptime_seconds,
+        "started_at": status.started_at.isoformat() if status.started_at else None,
+        "channels": list(status.channels.keys()),
+        "sessions_count": status.sessions_count,
+    }
+
+
+@app.get("/api/channels")
+async def list_channels() -> dict:
+    """
+    获取所有通道列表
+    
+    Returns:
+        通道列表
+    """
+    if not _gateway_instance:
+        return {"channels": [], "error": "Gateway 未启用"}
+    
+    channels = _gateway_instance.get_all_channels_status()
+    return {
+        "channels": [
+            {
+                "name": name,
+                "status": status.to_dict(),
+            }
+            for name, status in channels.items()
+        ]
+    }
+
+
+@app.get("/api/channels/{channel_name}")
+async def get_channel_status(channel_name: str) -> dict:
+    """
+    获取指定通道状态
+    
+    Args:
+        channel_name: 通道名称
+        
+    Returns:
+        通道状态
+    """
+    if not _gateway_instance:
+        raise HTTPException(status_code=503, detail="Gateway 未启用")
+    
+    status = _gateway_instance.get_channel_status(channel_name)
+    if not status:
+        raise HTTPException(status_code=404, detail="通道不存在")
+    
+    return status.to_dict()
+
+
+@app.post("/api/channels/{channel_name}/start")
+async def start_channel(channel_name: str) -> dict:
+    """
+    启动指定通道
+    
+    Args:
+        channel_name: 通道名称
+        
+    Returns:
+        操作结果
+    """
+    if not _gateway_instance:
+        raise HTTPException(status_code=503, detail="Gateway 未启用")
+    
+    if channel_name not in _gateway_instance.channels:
+        raise HTTPException(status_code=404, detail="通道不存在")
+    
+    channel = _gateway_instance.channels[channel_name]
+    await channel.start()
+    return {"status": "ok", "message": f"通道 {channel_name} 已启动"}
+
+
+@app.post("/api/channels/{channel_name}/stop")
+async def stop_channel(channel_name: str) -> dict:
+    """
+    停止指定通道
+    
+    Args:
+        channel_name: 通道名称
+        
+    Returns:
+        操作结果
+    """
+    if not _gateway_instance:
+        raise HTTPException(status_code=503, detail="Gateway 未启用")
+    
+    if channel_name not in _gateway_instance.channels:
+        raise HTTPException(status_code=404, detail="通道不存在")
+    
+    channel = _gateway_instance.channels[channel_name]
+    await channel.stop()
+    return {"status": "ok", "message": f"通道 {channel_name} 已停止"}
+
+
+@app.get("/api/sessions")
+async def list_sessions_api(
+    channel: str = Query(default="", description="通道过滤"),
+    limit: int = Query(default=50, ge=1, le=100),
+) -> dict:
+    """
+    获取会话列表
+    
+    Args:
+        channel: 通道过滤
+        limit: 返回数量限制
+        
+    Returns:
+        会话列表
+    """
+    from app.storage.database import get_database
+    
+    db = get_database()
+    sessions = await db.list_sessions(limit=limit)
+    total = await db.count_sessions()
+    
+    result_sessions = []
+    for s in sessions:
+        if channel and s.get("channel") != channel:
+            continue
+        result_sessions.append({
+            "id": s["id"],
+            "channel": s.get("channel") or "web",
+            "message_count": s.get("message_count") or 0,
+            "created_at": s.get("created_at") or "",
+            "updated_at": s.get("updated_at") or "",
+        })
+    
+    return {
+        "sessions": result_sessions,
+        "total": total,
+    }
+
+
+@app.get("/api/sessions/{session_id}")
+async def get_session_api(session_id: str) -> dict:
+    """
+    获取会话详情
+    
+    Args:
+        session_id: 会话 ID
+        
+    Returns:
+        会话详情
+    """
+    session_manager = get_session_manager()
+    session = await session_manager.get_session(session_id)
+    
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    
+    return session
+
+
+@app.delete("/api/sessions/{session_id}")
+async def delete_session_api(session_id: str) -> dict:
+    """
+    删除会话
+    
+    Args:
+        session_id: 会话 ID
+        
+    Returns:
+        删除结果
+    """
+    session_manager = get_session_manager()
+    
+    session = await session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    
+    await session_manager.clear_session(session_id)
+    return {"status": "ok", "message": "会话已删除"}
 
 
 @app.get("/v1/sessions", response_model=SessionListResponse)
@@ -190,7 +433,7 @@ async def list_sessions(
     offset: int = Query(default=0, ge=0),
 ) -> SessionListResponse:
     """
-    获取会话列表
+    获取会话列表 (兼容旧 API)
     
     Args:
         limit: 返回数量限制
@@ -278,6 +521,7 @@ async def get_session_messages(
                         id=tc["id"],
                         type=tc.get("type", "function"),
                         function=tc.get("function", {}),
+                        duration_ms=tc.get("duration_ms"),
                     )
                     for tc in m["tool_calls"]
                 ] if m["tool_calls"] else None,
@@ -448,9 +692,6 @@ async def _stream_response(
     yield "data: [DONE]\n\n"
 
 
-_wechat_channel: Optional[WechatChannel] = None
-
-
 def get_wechat_channel() -> WechatChannel:
     """
     获取微信通道实例
@@ -484,7 +725,7 @@ async def wechat_verify(
         echostr 原样返回
     """
     config = get_config()
-    if not config.wechat.enabled:
+    if not config.channels.wechat.enabled:
         raise HTTPException(status_code=403, detail="微信通道未启用")
     
     channel = get_wechat_channel()
@@ -517,7 +758,7 @@ async def wechat_message(
         处理结果
     """
     config = get_config()
-    if not config.wechat.enabled:
+    if not config.channels.wechat.enabled:
         raise HTTPException(status_code=403, detail="微信通道未启用")
     
     channel = get_wechat_channel()

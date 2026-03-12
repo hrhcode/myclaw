@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Session } from '../../types'
+import { cn } from '@/lib/utils'
 
 const props = defineProps<{
   session: Session
@@ -36,10 +37,13 @@ function handleDelete(event: Event) {
 
 <template>
   <div
-    class="session-item"
-    :class="{ active: isActive }"
+    :class="cn(
+      'session-item group',
+      isActive && 'active'
+    )"
     @click="emit('select', session.id)"
   >
+    <div class="session-indicator" />
     <div class="session-info">
       <div class="session-title">
         对话 {{ session.id.slice(0, 8) }}
@@ -62,33 +66,68 @@ function handleDelete(event: Event) {
 
 <style scoped>
 .session-item {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem;
-  border-bottom: 1px solid var(--color-border-light);
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s ease;
+}
+
+.session-item::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, hsl(var(--primary) / 0.1) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.session-item:hover::before {
+  opacity: 1;
 }
 
 .session-item:hover {
-  background: var(--color-bg-secondary);
+  background: hsl(var(--accent) / 0.5);
+}
+
+.session-indicator {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 0;
+  background: linear-gradient(180deg, hsl(var(--primary)), hsl(var(--primary) / 0.5));
+  border-radius: 0 2px 2px 0;
+  transition: height 0.2s ease;
+}
+
+.session-item.active .session-indicator {
+  height: 60%;
 }
 
 .session-item.active {
-  background: rgba(59, 130, 246, 0.1);
-  border-left: 2px solid var(--color-accent);
+  background: hsl(var(--primary) / 0.1);
+}
+
+.session-item.active::before {
+  opacity: 1;
 }
 
 .session-info {
   flex: 1;
   min-width: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .session-title {
   font-size: 0.875rem;
   font-weight: 500;
-  color: var(--color-text-primary);
+  color: hsl(var(--foreground));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -96,18 +135,21 @@ function handleDelete(event: Event) {
 
 .session-meta {
   font-size: 0.75rem;
-  color: var(--color-text-tertiary);
+  color: hsl(var(--muted-foreground));
   margin-top: 0.25rem;
 }
 
 .delete-btn {
-  padding: 0.25rem;
+  position: relative;
+  z-index: 1;
+  padding: 0.375rem;
   background: transparent;
   border: none;
   cursor: pointer;
-  color: var(--color-text-tertiary);
+  color: hsl(var(--muted-foreground));
   opacity: 0;
-  transition: all 0.2s;
+  border-radius: var(--radius);
+  transition: all 0.2s ease;
 }
 
 .session-item:hover .delete-btn {
@@ -115,7 +157,8 @@ function handleDelete(event: Event) {
 }
 
 .delete-btn:hover {
-  color: var(--color-error);
+  background: hsl(var(--destructive) / 0.1);
+  color: hsl(var(--destructive));
 }
 
 .icon {

@@ -1,19 +1,29 @@
 server:
-  port: 18789
+  port: 18790
   host: "127.0.0.1"
+
+gateway:
+  enabled: true
+
+channels:
+  web:
+    enabled: true
+  qq:
+    enabled: false
+    api_url: "http://localhost:6099"
+    access_token: ""
+  wechat:
+    enabled: false
+    corp_id: "${WECHAT_CORP_ID}"
+    agent_id: "${WECHAT_AGENT_ID}"
+    secret: "${WECHAT_SECRET}"
+    token: "${WECHAT_TOKEN}"
+    encoding_aes_key: "${WECHAT_ENCODING_AES_KEY}"
 
 llm:
   provider: zhipu
   model: glm-4-flash
   api_key: "${ZHIPU_API_KEY}"
-
-wechat:
-  enabled: false
-  corp_id: "${WECHAT_CORP_ID}"
-  agent_id: "${WECHAT_AGENT_ID}"
-  secret: "${WECHAT_SECRET}"
-  token: "${WECHAT_TOKEN}"
-  encoding_aes_key: "${WECHAT_ENCODING_AES_KEY}"
 
 memory:
   enabled: true

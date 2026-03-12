@@ -21,6 +21,5 @@ export interface ToolCall {
   status: 'pending' | 'running' | 'success' | 'error'
   result?: unknown
   error?: string
-  startTime: number
-  endTime?: number
+  durationMs?: number
 }

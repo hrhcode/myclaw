@@ -5,14 +5,16 @@ type Theme = 'light' | 'dark'
 const STORAGE_KEY = 'myclaw_theme'
 
 /**
- * 主题切换composable
+ * 主题切换 composable
  * 支持浅色、深色两种模式
+ * 使用 Tailwind CSS 的 selector 模式
  */
 export function useTheme() {
   const theme = ref<Theme>(getStoredTheme())
   const isDark = ref(false)
 
   function getStoredTheme(): Theme {
+    if (typeof window === 'undefined') return 'light'
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored === 'dark') {
       return 'dark'
@@ -25,8 +27,10 @@ export function useTheme() {
     isDark.value = dark
     
     if (dark) {
+      document.documentElement.classList.add('dark')
       document.documentElement.setAttribute('data-theme', 'dark')
     } else {
+      document.documentElement.classList.remove('dark')
       document.documentElement.removeAttribute('data-theme')
     }
   }
@@ -47,6 +51,6 @@ export function useTheme() {
     theme: readonly(theme),
     isDark: readonly(isDark),
     setTheme,
-    toggleTheme
+    toggleTheme,
   }
 }

@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 class ServerConfig(BaseModel):
     """服务器配置"""
 
-    port: int = Field(default=18789, description="服务端口")
+    port: int = Field(default=18790, description="服务端口")
     host: str = Field(default="127.0.0.1", description="绑定地址")
 
 
@@ -27,8 +27,28 @@ class LLMConfig(BaseModel):
     api_key: str = Field(default="", description="API Key")
 
 
-class WechatConfig(BaseModel):
-    """企业微信配置"""
+class GatewayConfig(BaseModel):
+    """Gateway 配置"""
+
+    enabled: bool = Field(default=True, description="是否启用 Gateway")
+
+
+class WebChannelConfig(BaseModel):
+    """Web 通道配置"""
+
+    enabled: bool = Field(default=True, description="是否启用 Web 通道")
+
+
+class QQChannelConfig(BaseModel):
+    """QQ 通道配置"""
+
+    enabled: bool = Field(default=False, description="是否启用 QQ 通道")
+    api_url: str = Field(default="http://localhost:6099", description="NapCat API 地址")
+    access_token: str = Field(default="", description="访问令牌")
+
+
+class WechatChannelConfig(BaseModel):
+    """企业微信通道配置"""
 
     enabled: bool = Field(default=False, description="是否启用微信")
     corp_id: str = Field(default="", description="企业ID")
@@ -36,6 +56,14 @@ class WechatConfig(BaseModel):
     secret: str = Field(default="", description="应用Secret")
     token: str = Field(default="", description="回调Token")
     encoding_aes_key: str = Field(default="", description="加密Key")
+
+
+class ChannelsConfig(BaseModel):
+    """通道配置"""
+
+    web: WebChannelConfig = Field(default_factory=WebChannelConfig)
+    qq: QQChannelConfig = Field(default_factory=QQChannelConfig)
+    wechat: WechatChannelConfig = Field(default_factory=WechatChannelConfig)
 
 
 class EmbeddingConfig(BaseModel):
@@ -95,8 +123,9 @@ class AppConfig(BaseModel):
     """应用配置"""
 
     server: ServerConfig = Field(default_factory=ServerConfig)
+    gateway: GatewayConfig = Field(default_factory=GatewayConfig)
+    channels: ChannelsConfig = Field(default_factory=ChannelsConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
-    wechat: WechatConfig = Field(default_factory=WechatConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     agent: AgentConfig = Field(default_factory=AgentConfig)

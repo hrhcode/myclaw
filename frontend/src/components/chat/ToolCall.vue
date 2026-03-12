@@ -23,8 +23,8 @@ const statusClass = computed(() => {
 })
 
 const duration = computed(() => {
-  if (!props.toolCall.endTime) return null
-  const ms = props.toolCall.endTime - props.toolCall.startTime
+  if (props.toolCall.durationMs === undefined || props.toolCall.durationMs === null) return null
+  const ms = props.toolCall.durationMs
   if (ms < 1000) return `${ms}ms`
   return `${(ms / 1000).toFixed(1)}s`
 })
@@ -55,7 +55,7 @@ const duration = computed(() => {
       
       <div v-if="toolCall.result !== undefined" class="section">
         <div class="section-label">结果</div>
-        <pre class="section-content">{{ JSON.stringify(toolCall.result, null, 2) }}</pre>
+        <pre class="section-content">{{ typeof toolCall.result === 'string' ? toolCall.result : JSON.stringify(toolCall.result, null, 2) }}</pre>
       </div>
       
       <div v-if="toolCall.error" class="section error">
@@ -68,61 +68,68 @@ const duration = computed(() => {
 
 <style scoped>
 .tool-call {
-  margin: 0.5rem 0;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
+  margin: 0.25rem 0;
+  border-radius: 8px;
+  border: 1px solid hsl(var(--border));
   overflow: hidden;
+  background: hsl(var(--card));
 }
 
 .tool-call.status-pending {
-  background: var(--color-tool-pending);
+  border-color: hsl(var(--primary) / 0.3);
+  background: hsl(var(--primary) / 0.05);
 }
 
 .tool-call.status-running {
-  background: var(--color-tool-pending);
+  border-color: hsl(var(--primary) / 0.3);
+  background: hsl(var(--primary) / 0.05);
 }
 
 .tool-call.status-success {
-  background: var(--color-tool-success);
+  border-color: hsl(var(--primary) / 0.2);
 }
 
 .tool-call.status-error {
-  background: var(--color-tool-error);
+  border-color: hsl(var(--destructive) / 0.3);
+  background: hsl(var(--destructive) / 0.05);
 }
 
 .tool-header {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 0.75rem;
   cursor: pointer;
   user-select: none;
+  transition: background 0.2s;
 }
 
 .tool-header:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: hsl(var(--muted) / 0.3);
 }
 
 .status-icon {
-  font-size: 0.875rem;
+  font-size: 0.75rem;
 }
 
 .tool-name {
   flex: 1;
   font-weight: 500;
-  font-size: 0.875rem;
-  color: var(--color-text-primary);
+  font-size: 0.75rem;
+  color: hsl(var(--foreground));
+  font-family: ui-monospace, monospace;
 }
 
 .duration {
-  font-size: 0.75rem;
-  color: var(--color-text-tertiary);
+  font-size: 0.625rem;
+  color: hsl(var(--muted-foreground));
+  font-family: ui-monospace, monospace;
 }
 
 .expand-icon {
-  width: 1rem;
-  height: 1rem;
-  color: var(--color-text-tertiary);
+  width: 0.875rem;
+  height: 0.875rem;
+  color: hsl(var(--muted-foreground));
   transition: transform 0.2s;
 }
 
@@ -131,32 +138,38 @@ const duration = computed(() => {
 }
 
 .tool-body {
-  padding: 0 1rem 1rem;
+  padding: 0 0.75rem 0.5rem;
 }
 
 .section {
-  margin-top: 0.5rem;
+  margin-top: 0.375rem;
 }
 
 .section-label {
-  font-size: 0.75rem;
+  font-size: 0.625rem;
   font-weight: 500;
-  color: var(--color-text-tertiary);
-  margin-bottom: 0.25rem;
+  color: hsl(var(--muted-foreground));
+  margin-bottom: 0.125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .section-content {
   margin: 0;
-  padding: 0.75rem;
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: var(--radius-sm);
-  font-size: 0.75rem;
+  padding: 0.5rem;
+  background: hsl(var(--muted) / 0.3);
+  border-radius: 6px;
+  font-size: 0.6875rem;
   overflow-x: auto;
   white-space: pre-wrap;
-  word-break: break-all;
+  word-break: break-word;
+  font-family: ui-monospace, monospace;
+  color: hsl(var(--foreground));
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 .section.error .section-content {
-  color: var(--color-error);
+  color: hsl(var(--destructive));
 }
 </style>
