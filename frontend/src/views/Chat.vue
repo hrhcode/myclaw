@@ -20,23 +20,9 @@ const isLoadingSessions = ref(false)
 
 let abortController: AbortController | null = null
 const inputRef = ref<InstanceType<typeof MessageInput> | null>(null)
-
 const STORAGE_KEY = 'myclaw_session_id'
-const MAIN_SESSION_ID = 'main'
 
 const { registerShortcut } = useKeyboard()
-
-const sessionDisplayName = computed(() => {
-  if (currentSessionId.value === MAIN_SESSION_ID) {
-    return 'Main Session'
-  }
-  const session = sessions.value.find(s => s.id === currentSessionId.value)
-  if (session) {
-    const count = session.message_count || 0
-    return `对话 ${currentSessionId.value.slice(0, 8)} (${count} 条消息)`
-  }
-  return `对话 ${currentSessionId.value.slice(0, 8)}`
-})
 
 onMounted(() => {
   initSession()
@@ -73,7 +59,7 @@ async function initSession() {
   
   const savedSessionId = localStorage.getItem(STORAGE_KEY)
   
-  if (savedSessionId && savedSessionId !== MAIN_SESSION_ID) {
+  if (savedSessionId) {
     const sessionExists = sessions.value.some(s => s.id === savedSessionId)
     if (sessionExists) {
       currentSessionId.value = savedSessionId
@@ -82,8 +68,15 @@ async function initSession() {
     }
   }
   
-  currentSessionId.value = MAIN_SESSION_ID
-  await loadMessages()
+  if (sessions.value.length > 0) {
+    const data = await post(API_ENDPOINTS.SESSIONS, { channel: 'web' })
+    currentSessionId.value = data.session_id
+    localStorage.setItem(STORAGE_KEY, data.session_id)
+    messages.value = []
+  } else {
+    currentSessionId.value = sessions.value[0].id
+    await loadMessages()
+  }
 }
 
 async function loadSessions() {
@@ -203,7 +196,7 @@ async function sendMessage(content: string) {
 
 async function sendMessageInternal(content: string) {
   if (!content.trim()) return
-
+  
   if (isLoading.value) {
     if (abortController) {
       abortController.abort()
@@ -211,12 +204,13 @@ async function sendMessageInternal(content: string) {
     }
     isLoading.value = false
   }
-
+  
   if (!currentSessionId.value) {
     const data = await post(API_ENDPOINTS.SESSIONS, { channel: 'web' })
     currentSessionId.value = data.session_id
     localStorage.setItem(STORAGE_KEY, data.session_id)
     messages.value = []
+    await loadSessions()
   }
 
   messages.value.push({
@@ -327,19 +321,15 @@ async function sendMessageInternal(content: string) {
           @change="switchSession(($event.target as HTMLSelectElement).value)"
           class="session-select"
         >
-          <option :value="MAIN_SESSION_ID">Main Session</option>
-          <optgroup label="其他会话">
-            <option
-              v-for="session in sessions"
-              :key="session.id"
-              :value="session.id"
-            >
-              对话 {{ session.id.slice(0, 8) }} ({{ session.message_count }} 条消息)
-            </option>
-          </optgroup>
+          <option
+            v-for="session in sessions"
+            :key="session.id"
+            :value="session.id"
+          >
+            对话 {{ session.id.slice(0, 8) }} ({{ session.message_count }} 条消息)
+          </option>
         </select>
       </div>
-      <span class="session-title">{{ sessionDisplayName }}</span>
     </div>
     
     <MessageList
@@ -371,7 +361,6 @@ async function sendMessageInternal(content: string) {
   min-height: 0;
   overflow: hidden;
   background: hsl(var(--card) / 0.5);
-  border: 1px solid hsl(var(--border));
   border-radius: var(--radius-lg);
 }
 
@@ -414,16 +403,6 @@ async function sendMessageInternal(content: string) {
   outline: none;
   border-color: hsl(var(--primary));
   box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
-}
-
-.session-select optgroup {
-  font-weight: 600;
-  color: hsl(var(--muted-foreground));
-}
-
-.session-title {
-  font-size: 0.75rem;
-  color: hsl(var(--muted-foreground));
 }
 
 .chat-footer {

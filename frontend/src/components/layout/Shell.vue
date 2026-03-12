@@ -58,8 +58,9 @@ function toggleSidebar() {
 
 .content {
   grid-area: content;
-  overflow: auto;
-  padding: 1.5rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 @media (max-width: 768px) {
