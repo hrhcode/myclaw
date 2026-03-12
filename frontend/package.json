@@ -14,7 +14,8 @@
     "axios": "^1.13.6",
     "highlight.js": "^11.9.0",
     "marked": "^12.0.0",
-    "vue": "^3.4.0"
+    "vue": "^3.4.0",
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
     "@inspira-ui/plugins": "latest",
