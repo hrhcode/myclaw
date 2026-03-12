@@ -84,6 +84,7 @@ function onInput(event: Event) {
   box-shadow: 0 0 0 3px hsl(var(--destructive) / 0.1);
 }
 
+.input-container:not(.sm):not(.md):not(.lg) .input,
 .md .input {
   padding: 0.625rem 0.875rem;
   font-size: 0.875rem;

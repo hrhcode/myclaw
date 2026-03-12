@@ -39,22 +39,27 @@ const { theme, toggleTheme } = useTheme()
 
 .theme-btn {
   position: relative;
-  padding: 0.625rem;
-  border-radius: var(--radius);
+  padding: 0.375rem;
+  border-radius: 50%;
   background: hsl(var(--card));
   border: 1px solid hsl(var(--border));
   cursor: pointer;
   color: hsl(var(--muted-foreground));
   transition: all 0.2s ease;
   overflow: hidden;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .theme-btn:hover {
   background: hsl(var(--accent));
   color: hsl(var(--accent-foreground));
   border-color: hsl(var(--primary) / 0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 20px -5px hsl(var(--primary) / 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 12px -2px hsl(var(--primary) / 0.2);
 }
 
 .btn-glow {
@@ -71,16 +76,16 @@ const { theme, toggleTheme } = useTheme()
 
 .icon-container {
   position: relative;
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1rem;
+  height: 1rem;
 }
 
 .icon {
   position: absolute;
   top: 0;
   left: 0;
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1rem;
+  height: 1rem;
   display: block;
 }
 

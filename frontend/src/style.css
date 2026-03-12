@@ -258,12 +258,12 @@ body {
   }
   
   .hover-lift {
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    transition: transform 0.2s ease, border-color 0.2s ease;
   }
   
   .hover-lift:hover {
     transform: translateY(-2px);
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    border-color: hsl(var(--primary) / 0.2);
   }
 }
 
@@ -272,18 +272,18 @@ body {
     width: 100%;
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 1rem;
   }
   
   .page-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
   }
   
   .page-title {
-    font-size: 1.75rem;
+    font-size: 1.5rem;
     font-weight: 700;
     margin: 0;
     letter-spacing: -0.025em;
@@ -294,14 +294,14 @@ body {
   }
   
   .page-subtitle {
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     color: hsl(var(--muted-foreground));
-    margin: 0.25rem 0 0 0;
+    margin: 0.125rem 0 0 0;
   }
   
   .card-grid {
     display: grid;
-    gap: 1rem;
+    gap: 0.75rem;
   }
   
   .card-grid-2 {
@@ -318,23 +318,6 @@ body {
   
   .stat-card {
     position: relative;
-    overflow: hidden;
-  }
-  
-  .stat-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--chart-3)));
-    opacity: 0;
-    transition: opacity 0.3s;
-  }
-  
-  .stat-card:hover::before {
-    opacity: 1;
   }
   
   .icon-box {

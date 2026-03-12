@@ -80,6 +80,23 @@ defineEmits<{
 
 .btn-icon {
   padding: 0.5rem;
+  border-radius: var(--radius);
+}
+
+.btn-icon.sm {
+  padding: 0.5rem;
+  width: 32px;
+  height: 32px;
+}
+
+.btn-icon .icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.btn-icon.sm .icon {
+  width: 1rem;
+  height: 1rem;
 }
 
 .btn-block {
@@ -119,6 +136,16 @@ defineEmits<{
   color: hsl(var(--secondary-foreground));
   border-color: hsl(var(--border));
   box-shadow: var(--shadow-sm);
+}
+
+.secondary.btn-icon {
+  background: hsl(var(--secondary));
+  border-color: hsl(var(--border));
+}
+
+.secondary.btn-icon:hover:not(:disabled) {
+  background: hsl(var(--accent));
+  border-color: hsl(var(--border));
 }
 
 .secondary:hover:not(:disabled) {

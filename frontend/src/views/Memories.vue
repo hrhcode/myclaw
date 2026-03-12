@@ -2,12 +2,11 @@
 /**
  * Memories 记忆管理页面
  * 提供记忆浏览、搜索和删除功能
- * 使用科技感组件优化视觉效果
  */
 import { ref, onMounted, computed, watch } from 'vue'
 import { memoriesApi, type Memory, type MemoryStats } from '@/api/settings'
 import { get } from '@/utils/request'
-import { Card, Button, Badge, Modal, Select, Empty, Skeleton, GlowCard, AnimatedList, AnimatedListItem } from '@/components/ui'
+import { Card, Button, Badge, Modal, Select, Empty, Skeleton } from '@/components/ui'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
@@ -25,7 +24,6 @@ const total = ref(0)
 const showDetailModal = ref(false)
 const selectedMemory = ref<Memory | null>(null)
 const showClearConfirm = ref(false)
-const listVisible = ref(false)
 
 const totalPages = computed(() => Math.ceil(total.value / pageSize))
 
@@ -39,9 +37,6 @@ const sessionOptions = computed(() => {
 
 onMounted(async () => {
   await Promise.all([loadMemories(), loadStats(), loadSessions()])
-  setTimeout(() => {
-    listVisible.value = true
-  }, 100)
 })
 
 watch([searchQuery, selectedSession], () => {
@@ -149,16 +144,6 @@ function getRoleVariant(role: string): 'default' | 'primary' | 'success' | 'warn
   return variants[role] || 'default'
 }
 
-function getRoleGlowColor(role: string): string {
-  const colors: Record<string, string> = {
-    user: 'rgba(59, 130, 246, 0.4)',
-    assistant: 'rgba(16, 185, 129, 0.4)',
-    system: 'rgba(139, 92, 246, 0.4)',
-    tool: 'rgba(245, 158, 11, 0.4)',
-  }
-  return colors[role] || 'rgba(59, 130, 246, 0.4)'
-}
-
 function formatTime(timestamp: string): string {
   if (!timestamp) return '-'
   return new Date(timestamp).toLocaleString('zh-CN')
@@ -175,10 +160,7 @@ function truncateContent(content: string, maxLength: number = 200): string {
   <div class="memories-page page-container">
     <div class="page-header">
       <div class="header-content">
-        <h1 class="page-title">
-          <span class="title-text">记忆管理</span>
-          <span class="title-glow" />
-        </h1>
+        <h1 class="page-title">记忆管理</h1>
         <p class="page-subtitle">浏览和搜索对话记忆</p>
       </div>
       <div v-if="stats" class="header-stats">
@@ -223,7 +205,6 @@ function truncateContent(content: string, maxLength: number = 200): string {
         <Select
           v-model="selectedSession"
           :options="sessionOptions"
-          placeholder="选择会话"
         />
       </div>
       <Button variant="danger" size="sm" @click="showClearConfirm = true">
@@ -252,32 +233,37 @@ function truncateContent(content: string, maxLength: number = 200): string {
       :description="searchQuery ? '没有匹配的记忆' : '还没有任何记忆记录'"
     />
 
-    <AnimatedList v-else class="memories-list" :visible="listVisible" :stagger="60">
-      <AnimatedListItem v-for="(memory, index) in memories" :key="memory.id" :index="index" :visible="listVisible">
-        <GlowCard class="memory-card" :glow-color="getRoleGlowColor(memory.role)" hover-glow>
-          <div class="memory-header" @click="viewMemoryDetail(memory)">
-            <Badge :variant="getRoleVariant(memory.role)" size="sm">
-              {{ getRoleLabel(memory.role) }}
-            </Badge>
-            <code class="memory-session">{{ memory.session_id?.slice(0, 8) }}</code>
-            <span class="memory-time">{{ formatTime(memory.timestamp) }}</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              @click.stop="deleteMemory(memory.id)"
-            >
-              删除
-            </Button>
-          </div>
-          <div class="memory-content">
-            {{ truncateContent(memory.content) }}
-          </div>
-          <div v-if="memory.tool_calls && memory.tool_calls.length > 0" class="memory-tools">
-            <Badge variant="warning" size="sm">工具调用: {{ memory.tool_calls.length }}</Badge>
-          </div>
-        </GlowCard>
-      </AnimatedListItem>
-    </AnimatedList>
+    <div v-else class="memories-list">
+      <Card
+        v-for="memory in memories"
+        :key="memory.id"
+        class="memory-card"
+        hoverable
+        no-padding
+        @click="viewMemoryDetail(memory)"
+      >
+        <div class="memory-header">
+          <Badge :variant="getRoleVariant(memory.role)" size="sm">
+            {{ getRoleLabel(memory.role) }}
+          </Badge>
+          <code class="memory-session">{{ memory.session_id?.slice(0, 8) }}</code>
+          <span class="memory-time">{{ formatTime(memory.timestamp) }}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            @click.stop="deleteMemory(memory.id)"
+          >
+            删除
+          </Button>
+        </div>
+        <div class="memory-content">
+          {{ truncateContent(memory.content) }}
+        </div>
+        <div v-if="memory.tool_calls && memory.tool_calls.length > 0" class="memory-tools">
+          <Badge variant="warning" size="sm">工具调用: {{ memory.tool_calls.length }}</Badge>
+        </div>
+      </Card>
+    </div>
 
     <div v-if="totalPages > 1" class="pagination">
       <Button
@@ -334,8 +320,8 @@ function truncateContent(content: string, maxLength: number = 200): string {
       </div>
 
       <template #footer>
-        <Button variant="secondary" @click="showDetailModal = false">关闭</Button>
-        <Button variant="danger" @click="deleteMemory(selectedMemory!.id); showDetailModal = false">
+        <Button variant="secondary" size="sm" @click="showDetailModal = false">关闭</Button>
+        <Button variant="danger" size="sm" @click="deleteMemory(selectedMemory!.id); showDetailModal = false">
           删除
         </Button>
       </template>
@@ -363,25 +349,6 @@ function truncateContent(content: string, maxLength: number = 200): string {
   width: 100%;
 }
 
-.page-title {
-  position: relative;
-  display: inline-block;
-}
-
-.title-text {
-  background: linear-gradient(135deg, hsl(var(--foreground)) 0%, hsl(var(--foreground) / 0.7) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.title-glow {
-  position: absolute;
-  inset: -10px -20px;
-  background: radial-gradient(ellipse at center, hsl(var(--primary) / 0.1) 0%, transparent 70%);
-  pointer-events: none;
-}
-
 .header-stats {
   display: flex;
   gap: 1rem;
@@ -395,18 +362,6 @@ function truncateContent(content: string, maxLength: number = 200): string {
   background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--muted) / 0.3) 100%);
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius-lg);
-  position: relative;
-  overflow: hidden;
-}
-
-.stat-badge::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.3), transparent);
 }
 
 .stat-icon {
@@ -515,45 +470,52 @@ function truncateContent(content: string, maxLength: number = 200): string {
 .memories-list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .memory-card {
-  padding: 1.25rem;
+  padding: 0.75rem 1rem;
   cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.memory-card:hover {
+  transform: translateY(-2px);
+  border-color: hsl(var(--primary) / 0.2);
 }
 
 .memory-header {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
+  gap: 0.5rem;
+  margin-bottom: 0.375rem;
 }
 
 .memory-session {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   background: hsl(var(--muted) / 0.5);
-  padding: 0.25rem 0.5rem;
+  padding: 0.125rem 0.375rem;
   border-radius: var(--radius);
 }
 
 .memory-time {
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   color: hsl(var(--muted-foreground));
   margin-left: auto;
 }
 
 .memory-content {
-  font-size: 0.875rem;
-  line-height: 1.6;
-  color: hsl(var(--foreground));
-  white-space: pre-wrap;
-  word-break: break-word;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: hsl(var(--foreground) / 0.85);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .memory-tools {
-  margin-top: 0.75rem;
+  margin-top: 0.5rem;
 }
 
 .pagination {
@@ -563,7 +525,7 @@ function truncateContent(content: string, maxLength: number = 200): string {
   gap: 1rem;
   margin-top: 1.5rem;
   padding: 1rem;
-  background: linear-gradient(135deg, hsl(var(--muted) / 0.3) 0%, hsl(var(--muted) / 0.1) 100%);
+  background: hsl(var(--muted) / 0.2);
   border-radius: var(--radius-lg);
 }
 

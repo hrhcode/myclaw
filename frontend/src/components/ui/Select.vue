@@ -50,6 +50,12 @@ function onChange(event: Event) {
   display: inline-flex;
 }
 
+.select-wrapper:not(.sm):not(.md):not(.lg) .select {
+  padding: 0.625rem 2.5rem 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  height: 40px;
+}
+
 .select-wrapper.disabled {
   opacity: 0.5;
   cursor: not-allowed;

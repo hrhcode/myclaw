@@ -2,11 +2,10 @@
 /**
  * Settings 系统设置页面
  * 提供配置管理功能
- * 使用科技感组件优化视觉效果
  */
 import { ref, reactive, onMounted } from 'vue'
 import { configApi, type AppConfig } from '@/api/settings'
-import { Card, Button, Input, Toggle, Textarea, Badge, Modal, Skeleton, GlowCard } from '@/components/ui'
+import { Card, Button, Input, Toggle, Textarea, Badge, Modal, Skeleton } from '@/components/ui'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
@@ -55,11 +54,11 @@ const formData = reactive({
 const errors = reactive<Record<string, string>>({})
 
 const tabs = [
-  { id: 'llm', label: 'LLM 配置', icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z', color: 'primary' },
-  { id: 'memory', label: '记忆系统', icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4', color: 'success' },
-  { id: 'agent', label: 'Agent 配置', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z', color: 'purple' },
-  { id: 'gateway', label: 'Gateway', icon: 'M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01', color: 'primary' },
-  { id: 'server', label: '服务器', icon: 'M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2', color: 'warning' },
+  { id: 'llm', label: 'LLM 配置', icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
+  { id: 'memory', label: '记忆系统', icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4' },
+  { id: 'agent', label: 'Agent 配置', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z' },
+  { id: 'gateway', label: 'Gateway', icon: 'M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01' },
+  { id: 'server', label: '服务器', icon: 'M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2' },
 ]
 
 onMounted(async () => {
@@ -214,26 +213,13 @@ function importConfig() {
     toast.error('配置格式错误')
   }
 }
-
-function getTabColorClass(color: string): string {
-  const classes: Record<string, string> = {
-    primary: 'icon-box-primary',
-    success: 'icon-box-success',
-    purple: 'icon-box-purple',
-    warning: 'icon-box-warning',
-  }
-  return classes[color] || 'icon-box-primary'
-}
 </script>
 
 <template>
   <div class="settings-page page-container">
     <div class="page-header">
       <div class="header-content">
-        <h1 class="page-title">
-          <span class="title-text">系统设置</span>
-          <span class="title-glow" />
-        </h1>
+        <h1 class="page-title">系统设置</h1>
         <p class="page-subtitle">配置 LLM、记忆系统和 Agent 参数</p>
       </div>
       <div class="header-actions">
@@ -267,17 +253,14 @@ function getTabColorClass(color: string): string {
           :class="{ active: activeTab === tab.id }"
           @click="activeTab = tab.id as any"
         >
-          <div class="tab-icon" :class="getTabColorClass(tab.color)">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="tab.icon" />
-            </svg>
-          </div>
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="tab.icon" />
+          </svg>
           <span>{{ tab.label }}</span>
-          <div class="tab-glow" />
         </button>
       </div>
 
-      <GlowCard class="settings-content" glow-color="rgba(59, 130, 246, 0.2)">
+      <Card class="settings-content">
         <div v-if="loading" class="loading-skeleton">
           <Skeleton :rows="5" />
         </div>
@@ -492,11 +475,11 @@ function getTabColorClass(color: string): string {
           </div>
 
           <div class="form-actions">
-            <Button variant="secondary" @click="loadConfig">重置</Button>
-            <Button variant="primary" :loading="saving" @click="saveConfig">保存配置</Button>
+            <Button variant="secondary" size="sm" @click="loadConfig">重置</Button>
+            <Button variant="primary" size="sm" :loading="saving" @click="saveConfig">保存配置</Button>
           </div>
         </template>
-      </GlowCard>
+      </Card>
     </div>
 
     <Modal v-model="showImportModal" title="导入配置" size="md">
@@ -517,25 +500,6 @@ function getTabColorClass(color: string): string {
   width: 100%;
 }
 
-.page-title {
-  position: relative;
-  display: inline-block;
-}
-
-.title-text {
-  background: linear-gradient(135deg, hsl(var(--foreground)) 0%, hsl(var(--foreground) / 0.7) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.title-glow {
-  position: absolute;
-  inset: -10px -20px;
-  background: radial-gradient(ellipse at center, hsl(var(--primary) / 0.1) 0%, transparent 70%);
-  pointer-events: none;
-}
-
 .header-actions {
   display: flex;
   gap: 0.5rem;
@@ -549,30 +513,18 @@ function getTabColorClass(color: string): string {
 
 .settings-tabs {
   display: flex;
-  gap: 0.5rem;
-  padding: 0.5rem;
-  background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--muted) / 0.3) 100%);
+  gap: 0.25rem;
+  padding: 0.375rem;
+  background: linear-gradient(135deg, hsl(var(--muted) / 0.4) 0%, hsl(var(--muted) / 0.2) 100%);
   border-radius: var(--radius-lg);
   flex-wrap: wrap;
   border: 1px solid hsl(var(--border));
-  position: relative;
-  overflow: hidden;
-}
-
-.settings-tabs::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.5), transparent);
 }
 
 .tab-button {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
   padding: 0.75rem 1.25rem;
   background: transparent;
   border: none;
@@ -582,25 +534,11 @@ function getTabColorClass(color: string): string {
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
-  position: relative;
-  overflow: hidden;
-}
-
-.tab-glow {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 30% 50%, hsl(var(--primary) / 0.1) 0%, transparent 50%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
 }
 
 .tab-button:hover {
   background: hsl(var(--muted) / 0.5);
   color: hsl(var(--foreground));
-}
-
-.tab-button:hover .tab-glow {
-  opacity: 1;
 }
 
 .tab-button.active {
@@ -610,28 +548,14 @@ function getTabColorClass(color: string): string {
   box-shadow: var(--shadow-sm);
 }
 
-.tab-button.active .tab-glow {
-  opacity: 1;
-}
-
-.tab-icon {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius);
+.tab-button svg {
+  width: 1.125rem;
+  height: 1.125rem;
   flex-shrink: 0;
-}
-
-.tab-icon svg {
-  width: 16px;
-  height: 16px;
 }
 
 .settings-content {
   min-height: 400px;
-  padding: 1.5rem;
 }
 
 .loading-skeleton {

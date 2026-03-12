@@ -47,9 +47,8 @@ defineProps<{
 }
 
 .card.hoverable:hover {
-  border-color: hsl(var(--primary) / 0.3);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  border-color: hsl(var(--primary) / 0.2);
 }
 
 .card-header {

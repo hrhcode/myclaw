@@ -2,11 +2,10 @@
 /**
  * Tools 工具管理页面
  * 提供工具列表查看和启用/禁用功能
- * 使用科技感组件优化视觉效果
  */
 import { ref, onMounted, computed } from 'vue'
 import { toolsApi, type Tool } from '@/api/settings'
-import { Card, Button, Badge, Toggle, Empty, Skeleton, GlowCard, AnimatedList, AnimatedListItem } from '@/components/ui'
+import { Card, Button, Badge, Toggle, Input, Empty, Skeleton } from '@/components/ui'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
@@ -14,7 +13,6 @@ const toast = useToast()
 const tools = ref<Tool[]>([])
 const loading = ref(false)
 const searchQuery = ref('')
-const listVisible = ref(false)
 
 const filteredTools = computed(() => {
   if (!searchQuery.value) return tools.value
@@ -29,9 +27,6 @@ const enabledCount = computed(() => tools.value.filter(t => t.enabled).length)
 
 onMounted(async () => {
   await loadTools()
-  setTimeout(() => {
-    listVisible.value = true
-  }, 100)
 })
 
 async function loadTools() {
@@ -83,15 +78,6 @@ function getToolCategoryVariant(name: string): 'default' | 'primary' | 'success'
   return variants[name] || 'default'
 }
 
-function getToolGlowColor(name: string): string {
-  const colors: Record<string, string> = {
-    web_search: 'rgba(59, 130, 246, 0.4)',
-    web_fetch: 'rgba(16, 185, 129, 0.4)',
-    current_time: 'rgba(245, 158, 11, 0.4)',
-  }
-  return colors[name] || 'rgba(139, 92, 246, 0.4)'
-}
-
 function getParamTypeColor(type: string): string {
   const colors: Record<string, string> = {
     string: 'hsl(var(--primary))',
@@ -109,10 +95,7 @@ function getParamTypeColor(type: string): string {
   <div class="tools-page page-container">
     <div class="page-header">
       <div class="header-content">
-        <h1 class="page-title">
-          <span class="title-text">工具管理</span>
-          <span class="title-glow" />
-        </h1>
+        <h1 class="page-title">工具管理</h1>
         <p class="page-subtitle">配置 AI 可用的工具</p>
       </div>
       <Button variant="secondary" :loading="loading" @click="loadTools">
@@ -126,11 +109,6 @@ function getParamTypeColor(type: string): string {
     <div class="stats-bar">
       <div class="stats-group">
         <div class="stat-item">
-          <div class="stat-icon icon-box icon-box-primary">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            </svg>
-          </div>
           <div class="stat-content">
             <span class="stat-value">{{ tools.length }}</span>
             <span class="stat-label">个工具</span>
@@ -138,25 +116,15 @@ function getParamTypeColor(type: string): string {
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
-          <div class="stat-icon icon-box icon-box-success">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
           <div class="stat-content">
-            <span class="stat-value">{{ enabledCount }}</span>
+            <span class="stat-value enabled">{{ enabledCount }}</span>
             <span class="stat-label">已启用</span>
           </div>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
-          <div class="stat-icon icon-box icon-box-danger">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-            </svg>
-          </div>
           <div class="stat-content">
-            <span class="stat-value">{{ tools.length - enabledCount }}</span>
+            <span class="stat-value disabled">{{ tools.length - enabledCount }}</span>
             <span class="stat-label">已禁用</span>
           </div>
         </div>
@@ -196,94 +164,78 @@ function getParamTypeColor(type: string): string {
       :description="searchQuery ? '没有匹配的工具' : '暂无可用工具'"
     />
 
-    <AnimatedList v-else class="tools-list" :visible="listVisible" :stagger="100">
-      <AnimatedListItem v-for="(tool, index) in filteredTools" :key="tool.name" :index="index" :visible="listVisible">
-        <GlowCard class="tool-card" :class="{ disabled: !tool.enabled }" :glow-color="getToolGlowColor(tool.name)">
-          <div class="tool-header">
-            <div class="tool-icon icon-box icon-box-primary">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getToolIcon(tool.name)" />
-              </svg>
-            </div>
-            <div class="tool-info">
-              <div class="tool-title-row">
-                <h3 class="tool-name">{{ tool.name }}</h3>
-                <Badge :variant="getToolCategoryVariant(tool.name)" size="sm">{{ getToolCategory(tool.name) }}</Badge>
-              </div>
-              <p class="tool-description">{{ tool.description }}</p>
-            </div>
-            <Toggle v-model="tool.enabled" @update:model-value="toggleTool(tool)" />
+    <div v-else class="tools-list">
+      <Card
+        v-for="tool in filteredTools"
+        :key="tool.name"
+        class="tool-card"
+        :class="{ disabled: !tool.enabled }"
+      >
+        <div class="tool-header">
+          <div class="tool-icon icon-box icon-box-primary">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getToolIcon(tool.name)" />
+            </svg>
           </div>
-          
-          <div class="tool-parameters">
-            <h4>参数定义</h4>
-            <div v-if="Object.keys(tool.parameters.properties || {}).length > 0" class="params-table">
-              <div class="params-header">
-                <span class="param-col param-name">参数名</span>
-                <span class="param-col param-type">类型</span>
-                <span class="param-col param-desc">说明</span>
-                <span class="param-col param-req">必填</span>
-              </div>
-              <div
-                v-for="(param, key) in tool.parameters.properties"
-                :key="key"
-                class="params-row"
-              >
-                <span class="param-col param-name">
-                  <code>{{ key }}</code>
-                </span>
-                <span class="param-col param-type">
-                  <Badge
-                    size="sm"
-                    :style="{ background: getParamTypeColor(param.type) + '20', color: getParamTypeColor(param.type), border: '1px solid ' + getParamTypeColor(param.type) + '30' }"
-                  >
-                    {{ param.type }}
-                  </Badge>
-                </span>
-                <span class="param-col param-desc">{{ param.description || '-' }}</span>
-                <span class="param-col param-req">
-                  <Badge v-if="tool.parameters.required?.includes(key)" variant="danger" size="sm">
-                    必填
-                  </Badge>
-                  <span v-else class="muted">可选</span>
-                </span>
-              </div>
+          <div class="tool-info">
+            <div class="tool-title-row">
+              <h3 class="tool-name">{{ tool.name }}</h3>
+              <Badge :variant="getToolCategoryVariant(tool.name)" size="sm">{{ getToolCategory(tool.name) }}</Badge>
             </div>
-            <div v-else class="no-params">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-              </svg>
-              <span>无参数</span>
+            <p class="tool-description">{{ tool.description }}</p>
+          </div>
+          <Toggle v-model="tool.enabled" @update:model-value="toggleTool(tool)" />
+        </div>
+        
+        <div class="tool-parameters">
+          <h4>参数定义</h4>
+          <div v-if="Object.keys(tool.parameters.properties || {}).length > 0" class="params-table">
+            <div class="params-header">
+              <span class="param-col param-name">参数名</span>
+              <span class="param-col param-type">类型</span>
+              <span class="param-col param-desc">说明</span>
+              <span class="param-col param-req">必填</span>
+            </div>
+            <div
+              v-for="(param, key) in tool.parameters.properties"
+              :key="key"
+              class="params-row"
+            >
+              <span class="param-col param-name">
+                <code>{{ key }}</code>
+              </span>
+              <span class="param-col param-type">
+                <Badge
+                  size="sm"
+                  :style="{ background: getParamTypeColor(param.type) + '20', color: getParamTypeColor(param.type), border: '1px solid ' + getParamTypeColor(param.type) + '30' }"
+                >
+                  {{ param.type }}
+                </Badge>
+              </span>
+              <span class="param-col param-desc">{{ param.description || '-' }}</span>
+              <span class="param-col param-req">
+                <Badge v-if="tool.parameters.required?.includes(key)" variant="danger" size="sm">
+                  必填
+                </Badge>
+                <span v-else class="muted">可选</span>
+              </span>
             </div>
           </div>
-        </GlowCard>
-      </AnimatedListItem>
-    </AnimatedList>
+          <div v-else class="no-params">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+            </svg>
+            <span>无参数</span>
+          </div>
+        </div>
+      </Card>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .tools-page {
   width: 100%;
-}
-
-.page-title {
-  position: relative;
-  display: inline-block;
-}
-
-.title-text {
-  background: linear-gradient(135deg, hsl(var(--foreground)) 0%, hsl(var(--foreground) / 0.7) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.title-glow {
-  position: absolute;
-  inset: -10px -20px;
-  background: radial-gradient(ellipse at center, hsl(var(--primary) / 0.1) 0%, transparent 70%);
-  pointer-events: none;
 }
 
 .stats-bar {
@@ -295,18 +247,7 @@ function getParamTypeColor(type: string): string {
   background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--muted) / 0.3) 100%);
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius-lg);
-  position: relative;
-  overflow: hidden;
-}
-
-.stats-bar::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.5), transparent);
+  box-shadow: var(--shadow-sm);
 }
 
 .stats-group {
@@ -341,6 +282,14 @@ function getParamTypeColor(type: string): string {
   font-weight: 700;
   color: hsl(var(--foreground));
   letter-spacing: -0.02em;
+}
+
+.stat-value.enabled {
+  color: hsl(var(--chart-2));
+}
+
+.stat-value.disabled {
+  color: hsl(var(--destructive));
 }
 
 .stat-label {
@@ -434,7 +383,12 @@ function getParamTypeColor(type: string): string {
 
 .tool-card {
   padding: 0;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tool-card:hover {
+  transform: translateY(-2px);
+  border-color: hsl(var(--primary) / 0.2);
 }
 
 .tool-card.disabled {
