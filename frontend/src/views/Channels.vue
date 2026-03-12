@@ -18,7 +18,8 @@ const config = ref<AppConfig | null>(null)
 const loading = ref(false)
 const configLoading = ref(false)
 const error = ref<string | null>(null)
-const editingChannel = ref<string | null>(null)
+const showQQModal = ref(false)
+const showWechatModal = ref(false)
 const saving = ref(false)
 
 const qqConfig = ref({
@@ -115,7 +116,7 @@ async function saveQQConfig() {
   try {
     await channelConfigApi.update('qq', qqConfig.value)
     toast.success('QQ 通道配置已保存')
-    editingChannel.value = null
+    showQQModal.value = false
     await loadConfig()
   } catch (e) {
     toast.error('保存配置失败')
@@ -129,7 +130,7 @@ async function saveWechatConfig() {
   try {
     await channelConfigApi.update('wechat', wechatConfig.value)
     toast.success('微信通道配置已保存')
-    editingChannel.value = null
+    showWechatModal.value = false
     await loadConfig()
   } catch (e) {
     toast.error('保存配置失败')
@@ -288,7 +289,7 @@ function getChannelDescription(name: string): string {
         </div>
         
         <div class="channel-actions">
-          <Button variant="secondary" size="sm" @click="editingChannel = 'qq'">
+          <Button variant="secondary" size="sm" @click="showQQModal = true">
             配置
           </Button>
           <Button 
@@ -342,7 +343,7 @@ function getChannelDescription(name: string): string {
         </div>
         
         <div class="channel-actions">
-          <Button variant="secondary" size="sm" @click="editingChannel = 'wechat'">
+          <Button variant="secondary" size="sm" @click="showWechatModal = true">
             配置
           </Button>
           <Button 
@@ -365,7 +366,7 @@ function getChannelDescription(name: string): string {
       </Card>
     </div>
 
-    <Modal v-model="editingChannel === 'qq'" title="QQ 通道配置" size="md">
+    <Modal v-model="showQQModal" title="QQ 通道配置" size="md">
       <div class="config-form">
         <div class="form-group">
           <label class="form-label">启用通道</label>
@@ -386,12 +387,12 @@ function getChannelDescription(name: string): string {
       </div>
       
       <template #footer>
-        <Button variant="secondary" @click="editingChannel = null">取消</Button>
+        <Button variant="secondary" @click="showQQModal = false">取消</Button>
         <Button variant="primary" :loading="saving" @click="saveQQConfig">保存</Button>
       </template>
     </Modal>
 
-    <Modal v-model="editingChannel === 'wechat'" title="企业微信通道配置" size="md">
+    <Modal v-model="showWechatModal" title="企业微信通道配置" size="md">
       <div class="config-form">
         <div class="form-group">
           <label class="form-label">启用通道</label>
@@ -428,7 +429,7 @@ function getChannelDescription(name: string): string {
       </div>
       
       <template #footer>
-        <Button variant="secondary" @click="editingChannel = null">取消</Button>
+        <Button variant="secondary" @click="showWechatModal = false">取消</Button>
         <Button variant="primary" :loading="saving" @click="saveWechatConfig">保存</Button>
       </template>
     </Modal>
