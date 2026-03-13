@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { Message } from '../../types'
 import CodeBlock from '../common/CodeBlock.vue'
 import ToolCall from './ToolCall.vue'
-import ThinkingProcess from './ThinkingProcess.vue'
 import LoadingDots from '../common/LoadingDots.vue'
 import { cn } from '@/lib/utils'
 
 const props = defineProps<{
   message: Message
+  isGenerating?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -19,7 +19,43 @@ const emit = defineEmits<{
 
 const isUser = computed(() => props.message.role === 'user')
 const isAssistant = computed(() => props.message.role === 'assistant')
-const isEmpty = computed(() => !props.message.content && !props.message.toolCalls?.length)
+const isEmpty = computed(() => !props.message.content && !props.message.toolCalls?.length && !props.message.thoughts)
+
+/**
+ * 是否正在思考中
+ * 条件：正在生成中 && 有思考内容 && 正文内容为空
+ * 当正文开始输出时，思考过程就结束了
+ */
+const isThinking = computed(() => {
+  return props.isGenerating && props.message.thoughts && !props.message.content
+})
+
+/**
+ * 思考内容是否展开
+ * 思考中时展开，思考结束后折叠
+ */
+const isThoughtsExpanded = ref(false)
+
+/**
+ * 监听思考状态变化
+ * 思考开始时展开，思考结束时折叠
+ */
+watch(isThinking, (newValue, oldValue) => {
+  if (newValue && !oldValue) {
+    // 思考开始，展开
+    isThoughtsExpanded.value = true
+  } else if (!newValue && oldValue) {
+    // 思考结束，折叠
+    isThoughtsExpanded.value = false
+  }
+}, { immediate: true })
+
+/**
+ * 切换思考内容展开/折叠
+ */
+function toggleThoughts() {
+  isThoughtsExpanded.value = !isThoughtsExpanded.value
+}
 
 const expandedTools = defineModel<Record<string, boolean>>('expandedTools', { default: () => ({}) })
 
@@ -97,8 +133,30 @@ function renderContent(content: string) {
             <img :src="message.image" alt="用户上传的图片" />
           </div>
           
-          <div v-if="message.thoughts" class="thinking-wrapper">
-            <ThinkingProcess :thoughts="message.thoughts" />
+          <div v-if="message.thoughts || isGenerating" class="thinking-wrapper">
+            <div class="thinking-process" :class="{ 'is-thinking': isThinking }">
+              <div class="thinking-header" @click="toggleThoughts">
+                <div class="thinking-title">
+                  <svg class="thinking-icon" :class="{ 'animate-pulse': isThinking }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                  <span>思考过程</span>
+                  <span v-if="isThinking" class="thinking-status">思考中...</span>
+                </div>
+                <svg 
+                  class="expand-icon" 
+                  :class="{ expanded: isThoughtsExpanded }"
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+              <div v-if="isThoughtsExpanded && message.thoughts" class="thinking-body">
+                <div class="thinking-content" v-html="message.thoughts"></div>
+              </div>
+            </div>
           </div>
           
           <div v-if="message.toolCalls?.length" class="tool-calls">
@@ -243,21 +301,12 @@ function renderContent(content: string) {
 }
 
 .message-item.assistant .message-content {
-  background: hsl(var(--card));
+  background: transparent;
   color: hsl(var(--foreground));
-  border: 1px solid hsl(var(--border));
-  border-bottom-left-radius: 4px;
-}
-
-.message-item.assistant .message-content::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: linear-gradient(180deg, hsl(var(--primary)), hsl(var(--primary) / 0.3));
-  border-radius: 2px 0 0 2px;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
 }
 
 .text-content {
@@ -285,6 +334,94 @@ function renderContent(content: string) {
 
 .thinking-wrapper {
   margin-bottom: 0.5rem;
+}
+
+.thinking-process {
+  margin: 0.5rem 0;
+  overflow: hidden;
+}
+
+.thinking-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.thinking-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.thinking-icon {
+  width: 1rem;
+  height: 1rem;
+  color: hsl(var(--primary));
+}
+
+.thinking-icon.animate-pulse {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 0px transparent);
+  }
+  50% {
+    opacity: 0.8;
+    filter: drop-shadow(0 0 4px hsl(var(--primary) / 0.6));
+  }
+}
+
+.thinking-title span {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: hsl(var(--primary));
+}
+
+.thinking-status {
+  font-size: 0.625rem;
+  color: hsl(var(--primary) / 0.7);
+  animation: fade-pulse 1.5s ease-in-out infinite;
+}
+
+.expand-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: hsl(var(--muted-foreground));
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.expand-icon.expanded {
+  transform: rotate(90deg);
+}
+
+@keyframes fade-pulse {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.thinking-body {
+  padding: 0.25rem 0;
+}
+
+.thinking-content {
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: hsl(var(--muted-foreground));
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
 }
 
 .message-actions {

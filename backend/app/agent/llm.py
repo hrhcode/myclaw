@@ -113,9 +113,6 @@ class LLMClient:
         actual_model = model or self.model
         actual_enable_thinking = enable_thinking if enable_thinking is not None else self.enable_thinking
         
-        if actual_enable_thinking or 'thinking' in actual_model.lower():
-            actual_enable_thinking = True
-        
         params = {
             "model": actual_model,
             "messages": messages,
@@ -124,6 +121,16 @@ class LLMClient:
         
         if tools:
             params["tools"] = tools
+        
+        if actual_enable_thinking:
+            params["thinking"] = {
+                "type": "enabled",
+                "clear_thinking": False
+            }
+        else:
+            params["thinking"] = {
+                "type": "disabled"
+            }
 
         response = client.chat.completions.create(**params)
         
@@ -160,9 +167,6 @@ class LLMClient:
         actual_model = model or self.model
         actual_enable_thinking = enable_thinking if enable_thinking is not None else self.enable_thinking
         
-        if actual_enable_thinking or 'thinking' in actual_model.lower():
-            actual_enable_thinking = True
-        
         params = {
             "model": actual_model,
             "messages": messages,
@@ -172,6 +176,16 @@ class LLMClient:
         
         if tools:
             params["tools"] = tools
+        
+        if actual_enable_thinking:
+            params["thinking"] = {
+                "type": "enabled",
+                "clear_thinking": False
+            }
+        else:
+            params["thinking"] = {
+                "type": "disabled"
+            }
 
         response = client.chat.completions.create(**params)
         
@@ -181,11 +195,11 @@ class LLMClient:
             
             delta = chunk.choices[0].delta
             
-            if delta.content:
-                yield delta.content
-            
             if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
                 yield {"thoughts": delta.reasoning_content}
+            
+            if delta.content:
+                yield delta.content
             
             if hasattr(delta, 'tool_calls') and delta.tool_calls:
                 for tc in delta.tool_calls:

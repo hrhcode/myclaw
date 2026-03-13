@@ -164,6 +164,7 @@ class Agent:
         max_iterations = 5
         iteration = 0
         assistant_message = ""
+        assistant_thoughts = ""
         all_tool_calls = []
 
         while iteration < max_iterations:
@@ -199,6 +200,7 @@ class Agent:
                                     },
                                 })
                     elif "thoughts" in chunk:
+                        assistant_thoughts += chunk["thoughts"]
                         yield {"thoughts": chunk["thoughts"]}
                 else:
                     if chunk:
@@ -210,6 +212,7 @@ class Agent:
                     session_id,
                     "assistant",
                     assistant_message,
+                    thoughts=assistant_thoughts if assistant_thoughts else None,
                     tool_calls=all_tool_calls if all_tool_calls else None,
                 )
                 return

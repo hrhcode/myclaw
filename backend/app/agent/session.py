@@ -63,6 +63,7 @@ class SessionManager:
         session_id: str,
         role: str,
         content: str,
+        thoughts: Optional[str] = None,
         tool_calls: Optional[list[dict[str, Any]]] = None,
         tool_call_id: Optional[str] = None,
         generate_embedding: bool = True,
@@ -74,6 +75,7 @@ class SessionManager:
             session_id: 会话 ID
             role: 消息角色
             content: 消息内容
+            thoughts: 思考过程
             tool_calls: 工具调用列表
             tool_call_id: 工具调用 ID
             generate_embedding: 是否生成嵌入向量
@@ -85,6 +87,7 @@ class SessionManager:
             session_id=session_id,
             role=role,
             content=content,
+            thoughts=thoughts,
             tool_calls=tool_calls,
             tool_call_id=tool_call_id,
             generate_embedding=generate_embedding,

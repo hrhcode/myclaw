@@ -72,6 +72,7 @@ class Database:
                     session_id TEXT,
                     role TEXT NOT NULL,
                     content TEXT NOT NULL,
+                    thoughts TEXT,
                     tool_calls TEXT,
                     tool_call_id TEXT,
                     embedding BLOB,
@@ -132,6 +133,13 @@ class Database:
                     ("main", "web", None, datetime.now(), datetime.now()),
                 )
                 logger.info("已创建默认主会话: main")
+            
+            try:
+                await db.execute("ALTER TABLE messages ADD COLUMN thoughts TEXT")
+                logger.info("已添加 thoughts 字段到 messages 表")
+            except Exception as e:
+                if "duplicate column name" not in str(e).lower():
+                    logger.warning(f"添加 thoughts 字段失败: {e}")
             
             await db.commit()
         logger.info(f"数据库初始化完成: {self.db_path}")
@@ -197,6 +205,7 @@ class Database:
         session_id: str,
         role: str,
         content: str,
+        thoughts: Optional[str] = None,
         tool_calls: Optional[list[dict[str, Any]]] = None,
         tool_call_id: Optional[str] = None,
         generate_embedding: bool = True,
@@ -208,6 +217,7 @@ class Database:
             session_id: 会话 ID
             role: 消息角色
             content: 消息内容
+            thoughts: 思考过程
             tool_calls: 工具调用列表
             tool_call_id: 工具调用 ID
             generate_embedding: 是否生成嵌入向量
@@ -233,15 +243,16 @@ class Database:
             cursor = await db.execute(
                 """
                 INSERT INTO messages (
-                    session_id, role, content, tool_calls, tool_call_id,
+                    session_id, role, content, thoughts, tool_calls, tool_call_id,
                     embedding, embedding_model, content_hash, timestamp
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     session_id,
                     role,
                     content,
+                    thoughts,
                     json.dumps(tool_calls) if tool_calls else None,
                     tool_call_id,
                     embedding,
@@ -357,6 +368,7 @@ class Database:
                     "session_id": row["session_id"],
                     "role": row["role"],
                     "content": row["content"],
+                    "thoughts": row["thoughts"],
                     "tool_calls": json.loads(row["tool_calls"]) if row["tool_calls"] else None,
                     "tool_call_id": row["tool_call_id"],
                     "timestamp": row["timestamp"],

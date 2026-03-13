@@ -3,12 +3,11 @@
  * Chat 聊天页面
  * 参考 OpenClaw 设计，简洁的聊天界面
  */
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import type { Message, Session, Model } from '@/types'
 import MessageList from '@/components/chat/MessageList.vue'
 import MessageInput from '@/components/input/MessageInput.vue'
 import CustomSelect from '@/components/ui/CustomSelect.vue'
-import Toggle from '@/components/ui/Toggle.vue'
 import { useKeyboard } from '@/composables/useKeyboard'
 import { useSystem } from '@/composables/useSystem'
 import { post, del, get, stream } from '@/utils/request'
@@ -50,8 +49,7 @@ const THINKING_STORAGE_KEY = 'myclaw_thinking_enabled'
 const enableThinking = ref<boolean>(false)
 
 const shouldShowThinkingToggle = computed(() => {
-  const currentModel = systemInfo.value?.llm?.model || ''
-  return currentModel.toLowerCase().includes('thinking')
+  return currentModel.value.toLowerCase().includes('thinking')
 })
 
 function isVisionSupported(model: string): boolean {
@@ -190,6 +188,10 @@ async function loadMessages() {
         timestamp: m.timestamp,
       }
 
+      if (m.thoughts) {
+        message.thoughts = m.thoughts
+      }
+
       if (m.tool_calls && m.tool_calls.length > 0) {
         message.toolCalls = m.tool_calls.map((tc: any) => ({
           id: tc.id,
@@ -315,6 +317,7 @@ async function sendMessageInternal(content: string, image?: string) {
     role: 'assistant',
     content: '',
     timestamp: new Date().toISOString(),
+    thoughts: '',
   })
 
   const handleStreamError = (error: Error) => {
@@ -357,53 +360,51 @@ async function sendMessageInternal(content: string, image?: string) {
           const delta = parsed.choices[0].delta
           const msgIndex = messages.value.findIndex(m => m.id === assistantMessageId)
 
+          if (msgIndex === -1) return
+          
+          const msg = messages.value[msgIndex]
+
           if (delta.content) {
-            if (msgIndex !== -1) {
-              messages.value[msgIndex].content += delta.content
-            }
+            console.log('[流式内容]', delta.content)
+            msg.content += delta.content
           }
 
           if (delta.thoughts) {
-            if (msgIndex !== -1) {
-              if (!messages.value[msgIndex].thoughts) {
-                messages.value[msgIndex].thoughts = ''
-              }
-              messages.value[msgIndex].thoughts += delta.thoughts
-            }
+            console.log('[流式思考]', delta.thoughts)
+            // 使用与正文相同的方式更新
+            msg.thoughts = (msg.thoughts || '') + delta.thoughts
           }
 
           if (delta.tool_calls && delta.tool_calls.length > 0) {
             const toolCall = delta.tool_calls[0]
 
-            if (msgIndex !== -1) {
-              if (!messages.value[msgIndex].toolCalls) {
-                messages.value[msgIndex].toolCalls = []
+            if (!msg.toolCalls) {
+              msg.toolCalls = []
+            }
+
+            const existingToolIndex = msg.toolCalls.findIndex(
+              t => t.id === toolCall.id
+            )
+
+            if (existingToolIndex === -1) {
+              msg.toolCalls.push({
+                id: toolCall.id,
+                name: toolCall.name,
+                arguments: toolCall.arguments || {},
+                status: toolCall.status || 'running',
+                result: toolCall.result,
+                durationMs: toolCall.duration_ms,
+              })
+            } else {
+              const existingTool = msg.toolCalls[existingToolIndex]
+              if (toolCall.status) {
+                existingTool.status = toolCall.status
               }
-
-              const existingToolIndex = messages.value[msgIndex].toolCalls!.findIndex(
-                t => t.id === toolCall.id
-              )
-
-              if (existingToolIndex === -1) {
-                messages.value[msgIndex].toolCalls!.push({
-                  id: toolCall.id,
-                  name: toolCall.name,
-                  arguments: toolCall.arguments || {},
-                  status: toolCall.status || 'running',
-                  result: toolCall.result,
-                  durationMs: toolCall.duration_ms,
-                })
-              } else {
-                const existingTool = messages.value[msgIndex].toolCalls![existingToolIndex]
-                if (toolCall.status) {
-                  existingTool.status = toolCall.status
-                }
-                if (toolCall.result !== undefined) {
-                  existingTool.result = toolCall.result
-                }
-                if (toolCall.duration_ms !== undefined) {
-                  existingTool.durationMs = toolCall.duration_ms
-                }
+              if (toolCall.result !== undefined) {
+                existingTool.result = toolCall.result
+              }
+              if (toolCall.duration_ms !== undefined) {
+                existingTool.durationMs = toolCall.duration_ms
               }
             }
           }
@@ -437,9 +438,19 @@ async function sendMessageInternal(content: string, image?: string) {
           @update:model-value="switchModel"
         />
       </div>
-      <div v-if="shouldShowThinkingToggle" class="thinking-toggle">
-        <Toggle v-model="enableThinking" label="深度思考" size="sm" />
-      </div>
+      <button
+        v-if="shouldShowThinkingToggle"
+        class="thinking-btn"
+        :class="{ active: enableThinking }"
+        @click="enableThinking = !enableThinking"
+        title="深度思考"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"/>
+          <path d="M9 21h6"/>
+          <path d="M12 17v4"/>
+        </svg>
+      </button>
     </div>
     
     <MessageList
@@ -475,6 +486,7 @@ async function sendMessageInternal(content: string, image?: string) {
 }
 
 .chat-header {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -483,6 +495,7 @@ async function sendMessageInternal(content: string, image?: string) {
   backdrop-filter: blur(10px);
   border-bottom: 1px solid hsl(var(--border));
   flex-shrink: 0;
+  z-index: 100;
 }
 
 .session-selector {
@@ -495,6 +508,40 @@ async function sendMessageInternal(content: string, image?: string) {
 
 .thinking-toggle {
   margin-left: auto;
+}
+
+.thinking-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  margin-left: auto;
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: hsl(var(--muted-foreground));
+}
+
+.thinking-btn:hover {
+  background: hsl(var(--muted) / 0.5);
+  border-color: hsl(var(--muted-foreground) / 0.3);
+  color: hsl(var(--foreground));
+}
+
+.thinking-btn.active {
+  background: hsl(var(--primary) / 0.1);
+  border-color: hsl(var(--primary) / 0.5);
+  color: hsl(var(--primary));
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1);
+}
+
+.thinking-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
 .chat-footer {

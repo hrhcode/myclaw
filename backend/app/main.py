@@ -96,6 +96,7 @@ class MessageInfo(BaseModel):
     role: str
     content: str
     timestamp: str
+    thoughts: Optional[str] = None
     tool_calls: Optional[list[ToolCallInfo]] = None
     tool_call_id: Optional[str] = None
 
@@ -477,6 +478,7 @@ async def update_app_config(request: ConfigUpdateRequest) -> dict:
         config.llm.provider = request.llm_provider
     if request.llm_model is not None:
         config.llm.model = request.llm_model
+        config.llm.default_model = request.llm_model
     if request.llm_api_key is not None:
         config.llm.api_key = request.llm_api_key
     if request.memory_enabled is not None:
@@ -837,6 +839,7 @@ async def get_session_messages(
                 role=m["role"],
                 content=m["content"],
                 timestamp=m["timestamp"] or "",
+                thoughts=m.get("thoughts"),
                 tool_calls=[
                     ToolCallInfo(
                         id=tc["id"],

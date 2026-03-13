@@ -23,12 +23,12 @@ class LLMConfig(BaseModel):
     """LLM 配置"""
 
     provider: str = Field(default="zhipu", description="LLM 提供商")
-    model: str = Field(default="glm-4-flash", description="模型名称（向后兼容，建议使用 default_model）")
+    model: str = Field(default="glm-4.1v-thinking-flash", description="模型名称（向后兼容，建议使用 default_model）")
     models: list[str] = Field(
-        default=["glm-4-flash", "glm-4-plus", "glm-4v-flash", "glm-4v-plus"],
+        default=["glm-4-flash", "glm-4.1v-thinking-flash"],
         description="可用模型列表"
     )
-    default_model: str = Field(default="glm-4-flash", description="默认模型名称")
+    default_model: str = Field(default="glm-4.1v-thinking-flash", description="默认模型名称")
     api_key: str = Field(default="", description="API Key")
 
 

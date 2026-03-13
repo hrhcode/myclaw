@@ -150,6 +150,8 @@ export function stream(
 ): AbortController {
   const abortController = new AbortController()
 
+  console.log('[SSE] 开始请求:', url, data)
+
   fetch(url, {
     method: 'POST',
     headers: {
@@ -161,6 +163,8 @@ export function stream(
     signal: abortController.signal,
   })
     .then((response) => {
+      console.log('[SSE] 收到响应:', response.status, response.headers.get('content-type'))
+      
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
@@ -172,12 +176,17 @@ export function stream(
 
       const decoder = new TextDecoder()
       let buffer = ''
+      let chunkCount = 0
 
       const read = async () => {
         try {
           const { done, value } = await reader.read()
+          
+          chunkCount++
+          console.log(`[SSE] 读取 chunk ${chunkCount}, done: ${done}, size: ${value?.length || 0}`)
 
           if (done) {
+            console.log('[SSE] 读取完成')
             onComplete?.()
             return
           }
@@ -191,20 +200,23 @@ export function stream(
               const data = line.slice(6)
 
               if (data === '[DONE]') {
+                console.log('[SSE] 收到 [DONE]')
                 continue
               }
 
               try {
                 const parsed = JSON.parse(data)
+                console.log('[SSE] 解析数据:', parsed.choices?.[0]?.delta)
                 onMessage(parsed)
               } catch (e) {
-                // 忽略解析错误
+                console.log('[SSE] 解析失败:', data.substring(0, 100))
               }
             }
           }
 
           read()
         } catch (error) {
+          console.log('[SSE] 读取错误:', error)
           onError?.(error as Error)
         }
       }
@@ -213,6 +225,7 @@ export function stream(
     })
     .catch((error) => {
       if (error.name !== 'AbortError') {
+        console.log('[SSE] 请求错误:', error)
         onError?.(error)
       }
     })

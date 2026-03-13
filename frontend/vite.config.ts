@@ -13,17 +13,23 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:18888',
+        target: 'http://127.0.0.1:18790',
         changeOrigin: true,
       },
       '/v1': {
-        target: 'http://127.0.0.1:18888',
+        target: 'http://127.0.0.1:18790',
         changeOrigin: true,
         timeout: 300000,
         proxyTimeout: 300000,
         configure: (proxy) => {
           proxy.on('proxyReq', (proxyReq, req) => {
             proxyReq.setHeader('Connection', 'keep-alive')
+            proxyReq.setHeader('Accept', 'text/event-stream')
+            proxyReq.setHeader('Cache-Control', 'no-cache')
+          })
+          proxy.on('proxyRes', (proxyRes, req, res) => {
+            proxyRes.headers['cache-control'] = 'no-cache'
+            proxyRes.headers['x-accel-buffering'] = 'no'
           })
           proxy.on('error', (err, req, res) => {
             if (err.code === 'ECONNRESET') {
@@ -34,7 +40,7 @@ export default defineConfig({
         },
       },
       '/health': {
-        target: 'http://127.0.0.1:18888',
+        target: 'http://127.0.0.1:18790',
         changeOrigin: true,
       },
     },
