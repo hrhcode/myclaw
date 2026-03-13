@@ -20,17 +20,25 @@ class LLMClient:
     封装智谱 AI API 调用
     """
 
-    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
+        enable_thinking: Optional[bool] = None,
+    ):
         """
         初始化 LLM 客户端
         
         Args:
             api_key: 智谱 AI API Key，默认从配置读取
             model: 模型名称，默认从配置读取
+            enable_thinking: 是否启用深度思考功能，默认从配置读取
         """
         config = get_config()
         self.api_key = api_key or config.llm.api_key
         self.model = model or config.llm.model
+        self.enable_thinking = enable_thinking if enable_thinking is not None else False
+        self.available_models = config.llm.models
         self.client = ZhipuAI(api_key=self.api_key) if self.api_key else None
 
     def _ensure_client(self) -> ZhipuAI:
@@ -47,10 +55,44 @@ class LLMClient:
             raise ValueError("API Key 未配置，请设置 ZHIPU_API_KEY 环境变量")
         return self.client
 
+    def get_available_models(self) -> list[str]:
+        """
+        获取可用模型列表
+        
+        Returns:
+            可用模型名称列表
+        """
+        return self.available_models
+
+    def set_model(self, model: str) -> None:
+        """
+        设置当前模型
+        
+        Args:
+            model: 模型名称
+            
+        Raises:
+            ValueError: 模型不在可用列表中
+        """
+        if model not in self.available_models:
+            raise ValueError(f"模型 '{model}' 不在可用列表中: {self.available_models}")
+        self.model = model
+
+    def get_current_model(self) -> str:
+        """
+        获取当前模型名称
+        
+        Returns:
+            当前模型名称
+        """
+        return self.model
+
     def chat(
         self,
         messages: list[dict[str, str]],
         tools: Optional[list[dict[str, Any]]] = None,
+        enable_thinking: Optional[bool] = None,
+        model: Optional[str] = None,
         **kwargs,
     ) -> dict[str, Any]:
         """
@@ -59,6 +101,8 @@ class LLMClient:
         Args:
             messages: 消息列表
             tools: 工具定义列表
+            enable_thinking: 是否启用深度思考功能，默认使用实例配置
+            model: 模型名称，默认使用实例配置
             **kwargs: 其他参数
             
         Returns:
@@ -66,8 +110,14 @@ class LLMClient:
         """
         client = self._ensure_client()
         
+        actual_model = model or self.model
+        actual_enable_thinking = enable_thinking if enable_thinking is not None else self.enable_thinking
+        
+        if actual_enable_thinking or 'thinking' in actual_model.lower():
+            actual_enable_thinking = True
+        
         params = {
-            "model": self.model,
+            "model": actual_model,
             "messages": messages,
             **kwargs,
         }
@@ -76,12 +126,20 @@ class LLMClient:
             params["tools"] = tools
 
         response = client.chat.completions.create(**params)
-        return self._parse_response(response)
+        
+        parsed_response = self._parse_response(response)
+        
+        if actual_enable_thinking and 'thoughts' not in parsed_response:
+            parsed_response['thinking_enabled'] = True
+        
+        return parsed_response
 
     def _stream_sync(
         self,
         messages: list[dict[str, str]],
         tools: Optional[list[dict[str, Any]]] = None,
+        enable_thinking: Optional[bool] = None,
+        model: Optional[str] = None,
         **kwargs,
     ) -> Iterator[Any]:
         """
@@ -90,6 +148,8 @@ class LLMClient:
         Args:
             messages: 消息列表
             tools: 工具定义列表
+            enable_thinking: 是否启用深度思考功能，默认使用实例配置
+            model: 模型名称，默认使用实例配置
             **kwargs: 其他参数
             
         Yields:
@@ -97,8 +157,14 @@ class LLMClient:
         """
         client = self._ensure_client()
         
+        actual_model = model or self.model
+        actual_enable_thinking = enable_thinking if enable_thinking is not None else self.enable_thinking
+        
+        if actual_enable_thinking or 'thinking' in actual_model.lower():
+            actual_enable_thinking = True
+        
         params = {
-            "model": self.model,
+            "model": actual_model,
             "messages": messages,
             "stream": True,
             **kwargs,
@@ -118,6 +184,9 @@ class LLMClient:
             if delta.content:
                 yield delta.content
             
+            if hasattr(delta, 'thoughts') and delta.thoughts:
+                yield {"thoughts": delta.thoughts}
+            
             if hasattr(delta, 'tool_calls') and delta.tool_calls:
                 for tc in delta.tool_calls:
                     tool_info = {
@@ -134,6 +203,8 @@ class LLMClient:
         self,
         messages: list[dict[str, str]],
         tools: Optional[list[dict[str, Any]]] = None,
+        enable_thinking: Optional[bool] = None,
+        model: Optional[str] = None,
         **kwargs,
     ) -> AsyncGenerator[Any, None]:
         """
@@ -142,6 +213,8 @@ class LLMClient:
         Args:
             messages: 消息列表
             tools: 工具定义列表
+            enable_thinking: 是否启用深度思考功能，默认使用实例配置
+            model: 模型名称，默认使用实例配置
             **kwargs: 其他参数
             
         Yields:
@@ -155,7 +228,7 @@ class LLMClient:
         
         def sync_producer():
             try:
-                for chunk in self._stream_sync(messages, tools, **kwargs):
+                for chunk in self._stream_sync(messages, tools, enable_thinking, model, **kwargs):
                     loop.call_soon_threadsafe(queue.put_nowait, chunk)
             except Exception as e:
                 exception_holder.append(e)
@@ -180,6 +253,8 @@ class LLMClient:
         self,
         messages: list[dict[str, str]],
         tools: list[dict[str, Any]],
+        enable_thinking: Optional[bool] = None,
+        model: Optional[str] = None,
         **kwargs,
     ) -> dict[str, Any]:
         """
@@ -188,12 +263,14 @@ class LLMClient:
         Args:
             messages: 消息列表
             tools: 工具定义列表
+            enable_thinking: 是否启用深度思考功能，默认使用实例配置
+            model: 模型名称，默认使用实例配置
             **kwargs: 其他参数
             
         Returns:
             响应结果，包含可能的工具调用
         """
-        return self.chat(messages, tools=tools, **kwargs)
+        return self.chat(messages, tools=tools, enable_thinking=enable_thinking, model=model, **kwargs)
 
     def _parse_response(self, response: Any) -> dict[str, Any]:
         """
@@ -211,6 +288,9 @@ class LLMClient:
             "role": choice.message.role,
             "finish_reason": choice.finish_reason,
         }
+        
+        if hasattr(choice.message, 'thoughts') and choice.message.thoughts:
+            result["thoughts"] = choice.message.thoughts
         
         if choice.message.tool_calls:
             result["tool_calls"] = [
