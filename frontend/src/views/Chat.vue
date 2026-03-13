@@ -49,7 +49,8 @@ const THINKING_STORAGE_KEY = 'myclaw_thinking_enabled'
 const enableThinking = ref<boolean>(false)
 
 const shouldShowThinkingToggle = computed(() => {
-  return currentModel.value.toLowerCase().includes('thinking')
+  const modelLower = currentModel.value.toLowerCase()
+  return modelLower.includes('glm-4') && !modelLower.includes('thinking')
 })
 
 function isVisionSupported(model: string): boolean {
