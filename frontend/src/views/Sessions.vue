@@ -5,7 +5,8 @@
  */
 import { ref, computed, onMounted, watch } from 'vue'
 import { get, del } from '@/utils/request'
-import { Card, Button, Badge, Modal, Select, Empty, Skeleton } from '@/components/ui'
+import { Card, Button, Badge, Modal, Empty, Skeleton } from '@/components/ui'
+import CustomSelect from '@/components/ui/CustomSelect.vue'
 import { useToast } from '@/composables/useToast'
 
 interface SessionInfo {
@@ -193,7 +194,7 @@ async function nextPage() {
     <div class="filters-bar">
       <div class="filter-item">
         <label class="filter-label">通道筛选</label>
-        <Select
+        <CustomSelect
           v-model="filters.channel"
           :options="channelOptions"
           placeholder="选择通道"

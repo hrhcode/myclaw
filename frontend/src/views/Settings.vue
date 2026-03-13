@@ -4,7 +4,7 @@
  * 提供配置管理功能
  */
 import { ref, reactive, onMounted } from 'vue'
-import { configApi, type AppConfig } from '@/api/settings'
+import { configApi, modelsApi, type AppConfig, type Model, type ModelsResponse } from '@/api/settings'
 import { Card, Button, Input, Toggle, Textarea, Badge, Modal, Skeleton } from '@/components/ui'
 import { useToast } from '@/composables/useToast'
 
@@ -16,6 +16,10 @@ const config = ref<AppConfig | null>(null)
 const activeTab = ref<'llm' | 'memory' | 'agent' | 'gateway' | 'server'>('llm')
 const showImportModal = ref(false)
 const importJson = ref('')
+
+const models = ref<Model[]>([])
+const loadingModels = ref(false)
+const defaultModel = ref('')
 
 const formData = reactive({
   llm: {
@@ -63,7 +67,21 @@ const tabs = [
 
 onMounted(async () => {
   await loadConfig()
+  await loadModels()
 })
+
+async function loadModels() {
+  loadingModels.value = true
+  try {
+    const response: ModelsResponse = await modelsApi.list()
+    models.value = response.models
+    defaultModel.value = response.default_model
+  } catch (error) {
+    toast.error('加载模型列表失败')
+  } finally {
+    loadingModels.value = false
+  }
+}
 
 async function loadConfig() {
   loading.value = true
@@ -172,10 +190,22 @@ async function saveConfig() {
     })
     toast.success('配置已保存')
     await loadConfig()
+    await loadModels()
   } catch (error) {
     toast.error('保存配置失败')
   } finally {
     saving.value = false
+  }
+}
+
+async function setDefaultModel(modelId: string) {
+  try {
+    await modelsApi.setDefault(modelId)
+    toast.success('默认模型已设置')
+    await loadModels()
+    await loadConfig()
+  } catch (error) {
+    toast.error('设置默认模型失败')
   }
 }
 
@@ -296,6 +326,43 @@ function importConfig() {
               <Input v-model="formData.llm.api_key" type="password" placeholder="sk-..." />
               <p v-if="errors['llm.api_key']" class="form-error">{{ errors['llm.api_key'] }}</p>
               <p class="form-hint">API Key 将被安全存储，不会在前端明文显示</p>
+            </div>
+
+            <div class="models-section">
+              <h4 class="subsection-title">
+                <span class="subsection-dot"></span>
+                可用模型列表
+              </h4>
+              
+              <div v-if="loadingModels" class="models-loading">
+                <Skeleton :rows="3" />
+              </div>
+              
+              <div v-else-if="models.length === 0" class="models-empty">
+                <p>暂无可用模型，请先配置 LLM 提供商和 API Key</p>
+              </div>
+              
+              <div v-else class="models-list">
+                <div
+                  v-for="model in models"
+                  :key="model.id"
+                  class="model-item"
+                  :class="{ 'is-default': model.default }"
+                >
+                  <div class="model-info">
+                    <div class="model-name">{{ model.name }}</div>
+                    <Badge v-if="model.default" variant="success" size="sm">默认</Badge>
+                  </div>
+                  <Button
+                    v-if="!model.default"
+                    variant="secondary"
+                    size="sm"
+                    @click="setDefaultModel(model.id)"
+                  >
+                    设为默认
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -713,6 +780,60 @@ function importConfig() {
   font-size: 0.875rem;
   color: hsl(var(--muted-foreground));
   margin: 0;
+}
+
+.models-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid hsl(var(--border));
+}
+
+.models-loading {
+  padding: 1rem;
+}
+
+.models-empty {
+  padding: 2rem;
+  text-align: center;
+  color: hsl(var(--muted-foreground));
+}
+
+.models-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.model-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  background: linear-gradient(135deg, hsl(var(--muted) / 0.2) 0%, hsl(var(--muted) / 0.1) 100%);
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
+  transition: all 0.2s ease;
+}
+
+.model-item:hover {
+  background: linear-gradient(135deg, hsl(var(--muted) / 0.3) 0%, hsl(var(--muted) / 0.2) 100%);
+}
+
+.model-item.is-default {
+  border-color: hsl(var(--primary) / 0.3);
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.1) 0%, hsl(var(--primary) / 0.05) 100%);
+}
+
+.model-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.model-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: hsl(var(--foreground));
 }
 
 @media (max-width: 768px) {

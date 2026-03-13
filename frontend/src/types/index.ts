@@ -4,6 +4,8 @@ export interface Message {
   content: string
   timestamp?: string
   toolCalls?: ToolCall[]
+  thoughts?: string
+  image?: string
 }
 
 export interface Session {
@@ -22,4 +24,10 @@ export interface ToolCall {
   result?: unknown
   error?: string
   durationMs?: number
+}
+
+export interface Model {
+  id: string
+  name: string
+  default: boolean
 }

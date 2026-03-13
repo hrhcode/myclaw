@@ -184,7 +184,7 @@ function getParamTypeColor(type: string): string {
             </div>
             <p class="tool-description">{{ tool.description }}</p>
           </div>
-          <Toggle v-model="tool.enabled" @update:model-value="toggleTool(tool)" />
+          <Toggle v-model="tool.enabled" size="sm" @update:model-value="toggleTool(tool)" />
         </div>
         
         <div class="tool-parameters">
@@ -398,19 +398,19 @@ function getParamTypeColor(type: string): string {
 .tool-header {
   display: flex;
   align-items: flex-start;
-  gap: 1rem;
-  padding: 1.5rem;
+  gap: 0.875rem;
+  padding: 1rem 1.25rem;
 }
 
 .tool-icon {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   flex-shrink: 0;
 }
 
 .tool-icon svg {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
 }
 
 .tool-info {
@@ -422,34 +422,34 @@ function getParamTypeColor(type: string): string {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 0.375rem;
+  margin-bottom: 0.25rem;
 }
 
 .tool-name {
-  font-size: 1rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   margin: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .tool-description {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   color: hsl(var(--muted-foreground));
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 .tool-parameters {
-  padding: 1.25rem 1.5rem;
+  padding: 0.875rem 1.25rem;
   border-top: 1px solid hsl(var(--border));
-  background: linear-gradient(180deg, hsl(var(--muted) / 0.2) 0%, hsl(var(--muted) / 0.1) 100%);
+  background: linear-gradient(180deg, hsl(var(--muted) / 0.15) 0%, hsl(var(--muted) / 0.08) 100%);
 }
 
 .tool-parameters h4 {
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   font-weight: 600;
   color: hsl(var(--muted-foreground));
-  margin: 0 0 0.75rem 0;
+  margin: 0 0 0.5rem 0;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -464,10 +464,10 @@ function getParamTypeColor(type: string): string {
 
 .params-header {
   display: grid;
-  grid-template-columns: 1fr 80px 2fr 60px;
+  grid-template-columns: 1fr 70px 1.8fr 55px;
   gap: 0.5rem;
-  padding: 0.625rem 0.875rem;
-  background: linear-gradient(180deg, hsl(var(--muted) / 0.5) 0%, hsl(var(--muted) / 0.3) 100%);
+  padding: 0.5rem 0.75rem;
+  background: linear-gradient(180deg, hsl(var(--muted) / 0.4) 0%, hsl(var(--muted) / 0.25) 100%);
   font-size: 0.6875rem;
   font-weight: 600;
   color: hsl(var(--muted-foreground));
@@ -477,16 +477,16 @@ function getParamTypeColor(type: string): string {
 
 .params-row {
   display: grid;
-  grid-template-columns: 1fr 80px 2fr 60px;
+  grid-template-columns: 1fr 70px 1.8fr 55px;
   gap: 0.5rem;
-  padding: 0.625rem 0.875rem;
+  padding: 0.5rem 0.75rem;
   border-top: 1px solid hsl(var(--border));
   font-size: 0.8125rem;
-  transition: background 0.2s;
+  transition: background 0.15s;
 }
 
 .params-row:hover {
-  background: hsl(var(--muted) / 0.3);
+  background: hsl(var(--muted) / 0.25);
 }
 
 .param-col {
@@ -496,18 +496,20 @@ function getParamTypeColor(type: string): string {
 
 .param-name code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.8125rem;
-  background: hsl(var(--muted) / 0.5);
-  padding: 0.125rem 0.5rem;
-  border-radius: var(--radius);
+  font-size: 0.75rem;
+  background: hsl(var(--muted) / 0.4);
+  padding: 0.125rem 0.375rem;
+  border-radius: calc(var(--radius) * 0.75);
 }
 
 .param-desc {
   color: hsl(var(--muted-foreground));
+  font-size: 0.8125rem;
+  line-height: 1.4;
 }
 
 .muted {
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   color: hsl(var(--muted-foreground));
 }
 
@@ -516,16 +518,16 @@ function getParamTypeColor(type: string): string {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  padding: 1.5rem;
+  padding: 1rem;
   color: hsl(var(--muted-foreground));
-  font-size: 0.875rem;
-  background: hsl(var(--muted) / 0.2);
+  font-size: 0.8125rem;
+  background: hsl(var(--muted) / 0.15);
   border-radius: var(--radius);
 }
 
 .no-params svg {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1.125rem;
+  height: 1.125rem;
 }
 
 .icon {

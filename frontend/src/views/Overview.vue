@@ -239,7 +239,7 @@ function getChannelLabel(name: string): string {
         </Card>
       </div>
 
-      <Card title="快速操作">
+      <Card title="快速操作" hoverable>
         <div class="quick-actions">
           <router-link to="/sessions" class="quick-action">
             <div class="action-icon icon-box icon-box-primary">
@@ -647,10 +647,16 @@ function getChannelLabel(name: string): string {
   transform: translateY(-2px);
   background: hsl(var(--muted) / 0.5);
   border-color: hsl(var(--primary) / 0.2);
+  box-shadow: 0 4px 12px hsl(var(--primary) / 0.1);
 }
 
 .action-icon {
   flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+.quick-action:hover .action-icon {
+  transform: scale(1.1);
 }
 
 .action-content {
@@ -662,6 +668,11 @@ function getChannelLabel(name: string): string {
   font-size: 0.9375rem;
   font-weight: 600;
   margin: 0 0 0.25rem 0;
+  transition: color 0.2s;
+}
+
+.quick-action:hover .action-content h4 {
+  color: hsl(var(--primary));
 }
 
 .action-content p {
@@ -675,7 +686,7 @@ function getChannelLabel(name: string): string {
   height: 1rem;
   color: hsl(var(--muted-foreground));
   flex-shrink: 0;
-  transition: transform 0.2s;
+  transition: transform 0.2s, color 0.2s;
 }
 
 .quick-action:hover .action-arrow {

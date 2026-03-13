@@ -42,6 +42,7 @@ class ChatRequest(BaseModel):
     model: Optional[str] = None
     stream: bool = False
     session_id: Optional[str] = None
+    enable_thinking: bool = False
 
 
 class ChatChoice(BaseModel):
@@ -195,6 +196,34 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/api/models")
+async def list_models() -> dict:
+    """
+    获取可用模型列表
+    
+    Returns:
+        模型列表信息
+    """
+    from app.agent.llm import get_llm_client
+    
+    config = get_config()
+    llm_client = get_llm_client()
+    
+    available_models = llm_client.get_available_models()
+    
+    return {
+        "models": [
+            {
+                "id": model,
+                "name": model,
+                "default": model == config.llm.default_model,
+            }
+            for model in available_models
+        ],
+        "default_model": config.llm.default_model,
+    }
 
 
 @app.get("/health")
@@ -874,7 +903,7 @@ async def chat_completions(request: ChatRequest) -> ChatResponse:
     
     if request.stream:
         return StreamingResponse(
-            _stream_response(session_id, last_message.content, config.llm.model),
+            _stream_response(session_id, last_message.content, request.model or config.llm.model, request.enable_thinking),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
@@ -883,7 +912,7 @@ async def chat_completions(request: ChatRequest) -> ChatResponse:
             },
         )
     
-    response_text = await agent.process_message(session_id, last_message.content)
+    response_text = await agent.process_message(session_id, last_message.content, enable_thinking=request.enable_thinking, model=request.model)
     
     return ChatResponse(
         id=f"chatcmpl-{uuid.uuid4().hex[:8]}",
@@ -901,6 +930,7 @@ async def _stream_response(
     session_id: str,
     message: str,
     model: str,
+    enable_thinking: bool = False,
 ) -> AsyncGenerator[str, None]:
     """
     流式响应生成器
@@ -909,6 +939,7 @@ async def _stream_response(
         session_id: 会话 ID
         message: 用户消息
         model: 模型名称
+        enable_thinking: 是否启用深度思考功能
         
     Yields:
         SSE 格式的流式数据
@@ -918,7 +949,7 @@ async def _stream_response(
     
     agent = get_agent()
     
-    async for chunk in agent.process_message_stream(session_id, message):
+    async for chunk in agent.process_message_stream(session_id, message, enable_thinking=enable_thinking, model=model):
         if isinstance(chunk, dict):
             if chunk.get("type") == "tool_call":
                 data = {
@@ -948,6 +979,23 @@ async def _stream_response(
                             "index": 0,
                             "delta": {
                                 "tool_calls": [chunk["tool_call"]]
+                            },
+                            "finish_reason": None,
+                        }
+                    ],
+                }
+                yield f"data: {json.dumps(data)}\n\n"
+            elif "thoughts" in chunk:
+                data = {
+                    "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",
+                    "object": "chat.completion.chunk",
+                    "created": int(time.time()),
+                    "model": model,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {
+                                "thoughts": chunk["thoughts"]
                             },
                             "finish_reason": None,
                         }

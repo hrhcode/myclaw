@@ -184,8 +184,8 @@ class LLMClient:
             if delta.content:
                 yield delta.content
             
-            if hasattr(delta, 'thoughts') and delta.thoughts:
-                yield {"thoughts": delta.thoughts}
+            if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
+                yield {"thoughts": delta.reasoning_content}
             
             if hasattr(delta, 'tool_calls') and delta.tool_calls:
                 for tc in delta.tool_calls:
@@ -289,8 +289,8 @@ class LLMClient:
             "finish_reason": choice.finish_reason,
         }
         
-        if hasattr(choice.message, 'thoughts') and choice.message.thoughts:
-            result["thoughts"] = choice.message.thoughts
+        if hasattr(choice.message, 'reasoning_content') and choice.message.reasoning_content:
+            result["thoughts"] = choice.message.reasoning_content
         
         if choice.message.tool_calls:
             result["tool_calls"] = [

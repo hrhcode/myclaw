@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import type { Message } from '../../types'
 import CodeBlock from '../common/CodeBlock.vue'
 import ToolCall from './ToolCall.vue'
+import ThinkingProcess from './ThinkingProcess.vue'
 import LoadingDots from '../common/LoadingDots.vue'
 import { cn } from '@/lib/utils'
 
@@ -92,6 +93,14 @@ function renderContent(content: string) {
         <LoadingDots v-if="isEmpty && isAssistant" />
         
         <template v-else>
+          <div v-if="message.image" class="message-image">
+            <img :src="message.image" alt="用户上传的图片" />
+          </div>
+          
+          <div v-if="message.thoughts" class="thinking-wrapper">
+            <ThinkingProcess :thoughts="message.thoughts" />
+          </div>
+          
           <div v-if="message.toolCalls?.length" class="tool-calls">
             <ToolCall
               v-for="tool in message.toolCalls"
@@ -258,7 +267,23 @@ function renderContent(content: string) {
   font-size: 0.875rem;
 }
 
+.message-image {
+  margin-bottom: 0.5rem;
+}
+
+.message-image img {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 8px;
+  object-fit: contain;
+  display: block;
+}
+
 .tool-calls {
+  margin-bottom: 0.5rem;
+}
+
+.thinking-wrapper {
   margin-bottom: 0.5rem;
 }
 

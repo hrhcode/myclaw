@@ -21,6 +21,7 @@ export const API_ENDPOINTS = {
   SESSION_MESSAGES: (sessionId: string) => `/v1/sessions/${sessionId}/messages`,
   
   CHAT_COMPLETIONS: '/v1/chat/completions',
+  MODELS: '/api/models',
 }
 
 export const API_TIMEOUT = 300000

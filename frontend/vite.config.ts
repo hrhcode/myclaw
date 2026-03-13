@@ -13,11 +13,11 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:18790',
+        target: 'http://127.0.0.1:18888',
         changeOrigin: true,
       },
       '/v1': {
-        target: 'http://127.0.0.1:18790',
+        target: 'http://127.0.0.1:18888',
         changeOrigin: true,
         timeout: 300000,
         proxyTimeout: 300000,
@@ -34,7 +34,7 @@ export default defineConfig({
         },
       },
       '/health': {
-        target: 'http://127.0.0.1:18790',
+        target: 'http://127.0.0.1:18888',
         changeOrigin: true,
       },
     },

@@ -156,3 +156,24 @@ export const channelConfigApi = {
     return put(`/api/channels/${channelName}/config`, config)
   },
 }
+
+export interface Model {
+  id: string
+  name: string
+  default: boolean
+}
+
+export interface ModelsResponse {
+  models: Model[]
+  default_model: string
+}
+
+export const modelsApi = {
+  async list(): Promise<ModelsResponse> {
+    return get('/api/models')
+  },
+
+  async setDefault(modelId: string): Promise<{ status: string; message: string }> {
+    return put('/api/config', { llm_model: modelId })
+  },
+}

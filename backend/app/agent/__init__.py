@@ -47,6 +47,8 @@ class Agent:
         session_id: str,
         user_message: str,
         channel: str = "web",
+        enable_thinking: bool = False,
+        model: Optional[str] = None,
     ) -> str:
         """
         处理用户消息（非流式）
@@ -55,6 +57,8 @@ class Agent:
             session_id: 会话 ID
             user_message: 用户消息
             channel: 通道来源
+            enable_thinking: 是否启用深度思考功能
+            model: 模型名称
 
         Returns:
             助手回复内容
@@ -77,6 +81,8 @@ class Agent:
             response = self.llm.chat_with_tools(
                 messages=messages,
                 tools=self.tools.get_openai_tools(),
+                enable_thinking=enable_thinking,
+                model=model,
             )
 
             if "tool_calls" not in response:
@@ -133,6 +139,8 @@ class Agent:
         session_id: str,
         user_message: str,
         channel: str = "web",
+        enable_thinking: bool = False,
+        model: Optional[str] = None,
     ) -> AsyncGenerator[dict | str, None]:
         """
         流式处理用户消息
@@ -141,6 +149,8 @@ class Agent:
             session_id: 会话 ID
             user_message: 用户消息
             channel: 通道来源
+            enable_thinking: 是否启用深度思考功能
+            model: 模型名称
 
         Yields:
             流式输出的文本块或工具调用事件
@@ -165,6 +175,8 @@ class Agent:
             async for chunk in self.llm.chat_stream(
                 messages=messages,
                 tools=self.tools.get_openai_tools(),
+                enable_thinking=enable_thinking,
+                model=model,
             ):
                 if isinstance(chunk, dict):
                     if "tool_calls" in chunk:
@@ -186,13 +198,14 @@ class Agent:
                                         "arguments": tc["function"].get("arguments", ""),
                                     },
                                 })
+                    elif "thoughts" in chunk:
+                        yield {"thoughts": chunk["thoughts"]}
                 else:
                     if chunk:
                         assistant_message += chunk
                         yield chunk
 
             if not has_tool_calls:
-                # 没有工具调用，直接存储最终回复
                 await self.sessions.add_message(
                     session_id,
                     "assistant",
@@ -201,7 +214,6 @@ class Agent:
                 )
                 return
 
-            # 保存工具调用信息
             all_tool_calls.extend(tool_calls_list)
 
             messages.append({
@@ -259,7 +271,6 @@ class Agent:
 
             assistant_message = ""
 
-        # 循环结束，存储最终回复（包含所有工具调用）
         if assistant_message:
             await self.sessions.add_message(
                 session_id,

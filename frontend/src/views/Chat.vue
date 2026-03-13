@@ -4,10 +4,13 @@
  * 参考 OpenClaw 设计，简洁的聊天界面
  */
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import type { Message, Session } from '@/types'
+import type { Message, Session, Model } from '@/types'
 import MessageList from '@/components/chat/MessageList.vue'
 import MessageInput from '@/components/input/MessageInput.vue'
+import CustomSelect from '@/components/ui/CustomSelect.vue'
+import Toggle from '@/components/ui/Toggle.vue'
 import { useKeyboard } from '@/composables/useKeyboard'
+import { useSystem } from '@/composables/useSystem'
 import { post, del, get, stream } from '@/utils/request'
 import { API_ENDPOINTS } from '@/config/api'
 
@@ -18,14 +21,59 @@ const sessions = ref<Session[]>([])
 const currentSessionId = ref<string>('main')
 const isLoadingSessions = ref(false)
 
+const models = ref<Model[]>([])
+const currentModel = ref<string>('')
+const isLoadingModels = ref(false)
+
+const { systemInfo, fetchSystemInfo } = useSystem()
+
+const sessionOptions = computed(() => 
+  sessions.value.map(s => ({
+    value: s.id,
+    label: s.id.slice(0, 8)
+  }))
+)
+
+const modelOptions = computed(() => 
+  models.value.map(m => ({
+    value: m.id,
+    label: m.name
+  }))
+)
+
 let abortController: AbortController | null = null
 const inputRef = ref<InstanceType<typeof MessageInput> | null>(null)
 const STORAGE_KEY = 'myclaw_session_id'
+const MODEL_STORAGE_KEY = 'myclaw_model'
+const THINKING_STORAGE_KEY = 'myclaw_thinking_enabled'
+
+const enableThinking = ref<boolean>(false)
+
+const shouldShowThinkingToggle = computed(() => {
+  const currentModel = systemInfo.value?.llm?.model || ''
+  return currentModel.toLowerCase().includes('thinking')
+})
+
+function isVisionSupported(model: string): boolean {
+  return model.includes('v') || model.toLowerCase().includes('thinking')
+}
 
 const { registerShortcut } = useKeyboard()
 
 onMounted(() => {
   initSession()
+  fetchSystemInfo()
+  loadModels()
+  
+  const savedThinkingEnabled = localStorage.getItem(THINKING_STORAGE_KEY)
+  if (savedThinkingEnabled !== null) {
+    enableThinking.value = savedThinkingEnabled === 'true'
+  }
+  
+  const savedModel = localStorage.getItem(MODEL_STORAGE_KEY)
+  if (savedModel) {
+    currentModel.value = savedModel
+  }
   
   registerShortcut({
     key: 'n',
@@ -45,6 +93,10 @@ onMounted(() => {
     handler: () => { inputRef.value?.focus() },
     description: '聚焦输入框'
   })
+})
+
+watch(enableThinking, (newValue) => {
+  localStorage.setItem(THINKING_STORAGE_KEY, String(newValue))
 })
 
 onUnmounted(() => {
@@ -90,6 +142,27 @@ async function loadSessions() {
     sessions.value = []
   } finally {
     isLoadingSessions.value = false
+  }
+}
+
+async function loadModels() {
+  isLoadingModels.value = true
+  try {
+    const data = await get(API_ENDPOINTS.MODELS)
+    models.value = data.models || []
+    
+    if (!currentModel.value && data.default_model) {
+      currentModel.value = data.default_model
+    }
+    
+    if (currentModel.value && !models.value.find(m => m.id === currentModel.value)) {
+      currentModel.value = data.default_model || ''
+    }
+  } catch (error) {
+    console.error('加载模型列表失败:', error)
+    models.value = []
+  } finally {
+    isLoadingModels.value = false
   }
 }
 
@@ -150,6 +223,13 @@ async function switchSession(sessionId: string) {
   await loadMessages()
 }
 
+async function switchModel(modelId: string) {
+  if (modelId === currentModel.value) return
+  
+  currentModel.value = modelId
+  localStorage.setItem(MODEL_STORAGE_KEY, modelId)
+}
+
 function isResetCommand(text: string): boolean {
   const trimmed = text.trim().toLowerCase()
   return trimmed === '/new' || trimmed === '/reset' || 
@@ -184,19 +264,19 @@ async function handleResetCommand(content: string): Promise<boolean> {
   }
 }
 
-async function sendMessage(content: string) {
-  if (!content.trim()) return
+async function sendMessage(content: string, image?: string) {
+  if (!content.trim() && !image) return
   
   if (isResetCommand(content)) {
     await handleResetCommand(content)
     return
   }
   
-  await sendMessageInternal(content)
+  await sendMessageInternal(content, image)
 }
 
-async function sendMessageInternal(content: string) {
-  if (!content.trim()) return
+async function sendMessageInternal(content: string, image?: string) {
+  if (!content.trim() && !image) return
   
   if (isLoading.value) {
     if (abortController) {
@@ -214,12 +294,18 @@ async function sendMessageInternal(content: string) {
     await loadSessions()
   }
 
-  messages.value.push({
+  const userMessage: Message = {
     id: Date.now(),
     role: 'user',
     content: content,
     timestamp: new Date().toISOString(),
-  })
+  }
+  
+  if (image) {
+    userMessage.image = image
+  }
+  
+  messages.value.push(userMessage)
 
   isLoading.value = true
 
@@ -248,13 +334,24 @@ async function sendMessageInternal(content: string) {
   }
 
   try {
+    const modelToUse = currentModel.value || systemInfo.value?.llm?.model || ''
+    const isVisionCapable = isVisionSupported(modelToUse)
+    
+    const requestBody: any = {
+      messages: [{ role: 'user', content }],
+      session_id: currentSessionId.value,
+      model: currentModel.value,
+      stream: true,
+      enable_thinking: enableThinking.value,
+    }
+    
+    if (image && isVisionCapable) {
+      requestBody.image = image
+    }
+    
     abortController = stream(
       API_ENDPOINTS.CHAT_COMPLETIONS,
-      {
-        messages: [{ role: 'user', content }],
-        session_id: currentSessionId.value,
-        stream: true,
-      },
+      requestBody,
       (parsed) => {
         if (parsed.choices && parsed.choices[0]?.delta) {
           const delta = parsed.choices[0].delta
@@ -263,6 +360,15 @@ async function sendMessageInternal(content: string) {
           if (delta.content) {
             if (msgIndex !== -1) {
               messages.value[msgIndex].content += delta.content
+            }
+          }
+
+          if (delta.thoughts) {
+            if (msgIndex !== -1) {
+              if (!messages.value[msgIndex].thoughts) {
+                messages.value[msgIndex].thoughts = ''
+              }
+              messages.value[msgIndex].thoughts += delta.thoughts
             }
           }
 
@@ -317,19 +423,22 @@ async function sendMessageInternal(content: string) {
   <div class="chat-page">
     <div class="chat-header">
       <div class="session-selector">
-        <select
-          :value="currentSessionId"
-          @change="switchSession(($event.target as HTMLSelectElement).value)"
-          class="session-select"
-        >
-          <option
-            v-for="session in sessions"
-            :key="session.id"
-            :value="session.id"
-          >
-            对话 {{ session.id.slice(0, 8) }} ({{ session.message_count }} 条消息)
-          </option>
-        </select>
+        <CustomSelect
+          v-model="currentSessionId"
+          :options="sessionOptions"
+          @update:model-value="switchSession"
+        />
+      </div>
+      <div class="model-selector">
+        <CustomSelect
+          v-model="currentModel"
+          :options="modelOptions"
+          placeholder="选择模型"
+          @update:model-value="switchModel"
+        />
+      </div>
+      <div v-if="shouldShowThinkingToggle" class="thinking-toggle">
+        <Toggle v-model="enableThinking" label="深度思考" size="sm" />
       </div>
     </div>
     
@@ -380,30 +489,12 @@ async function sendMessageInternal(content: string) {
   position: relative;
 }
 
-.session-select {
-  appearance: none;
-  padding: 0.375rem 1.75rem 0.375rem 0.625rem;
-  background: hsl(var(--muted) / 0.5);
-  border: 1px solid hsl(var(--border));
-  border-radius: var(--radius);
-  font-size: 0.8125rem;
-  color: hsl(var(--foreground));
-  cursor: pointer;
-  min-width: 160px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.375rem center;
-  background-size: 1rem;
+.model-selector {
+  position: relative;
 }
 
-.session-select:hover {
-  border-color: hsl(var(--primary) / 0.5);
-}
-
-.session-select:focus {
-  outline: none;
-  border-color: hsl(var(--primary));
-  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
+.thinking-toggle {
+  margin-left: auto;
 }
 
 .chat-footer {
@@ -427,11 +518,6 @@ async function sendMessageInternal(content: string) {
 @media (max-width: 768px) {
   .chat-header {
     padding: 0.375rem 0.75rem;
-  }
-  
-  .session-select {
-    min-width: 120px;
-    font-size: 0.75rem;
   }
   
   .session-title {

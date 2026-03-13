@@ -6,7 +6,8 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { memoriesApi, type Memory, type MemoryStats } from '@/api/settings'
 import { get } from '@/utils/request'
-import { Card, Button, Badge, Modal, Select, Empty, Skeleton } from '@/components/ui'
+import { Card, Button, Badge, Modal, Empty, Skeleton } from '@/components/ui'
+import CustomSelect from '@/components/ui/CustomSelect.vue'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
@@ -202,7 +203,7 @@ function truncateContent(content: string, maxLength: number = 200): string {
             placeholder="搜索记忆内容..."
           />
         </div>
-        <Select
+        <CustomSelect
           v-model="selectedSession"
           :options="sessionOptions"
         />
