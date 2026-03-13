@@ -693,6 +693,8 @@ async def get_session_api(session_id: str) -> dict:
     return session
 
 
+MAIN_SESSION_ID = "main"
+
 @app.delete("/api/sessions/{session_id}")
 async def delete_session_api(session_id: str) -> dict:
     """
@@ -704,6 +706,9 @@ async def delete_session_api(session_id: str) -> dict:
     Returns:
         删除结果
     """
+    if session_id == MAIN_SESSION_ID:
+        raise HTTPException(status_code=403, detail="主会话不能删除")
+    
     session_manager = get_session_manager()
     
     session = await session_manager.get_session(session_id)
@@ -831,6 +836,9 @@ async def delete_session(session_id: str) -> dict:
     Returns:
         删除结果
     """
+    if session_id == MAIN_SESSION_ID:
+        raise HTTPException(status_code=403, detail="主会话不能删除")
+    
     session_manager = get_session_manager()
     
     session = await session_manager.get_session(session_id)

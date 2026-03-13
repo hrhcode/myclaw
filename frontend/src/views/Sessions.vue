@@ -267,7 +267,7 @@ async function nextPage() {
               <Button variant="ghost" size="sm" @click="viewSessionDetail(session)">
                 查看
               </Button>
-              <Button variant="danger" size="sm" @click="deleteSession(session.id)">
+              <Button v-if="session.id !== 'main'" variant="danger" size="sm" @click="deleteSession(session.id)">
                 删除
               </Button>
             </div>

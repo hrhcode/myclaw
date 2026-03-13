@@ -68,14 +68,15 @@ async function initSession() {
     }
   }
   
-  if (sessions.value.length > 0) {
-    const data = await post(API_ENDPOINTS.SESSIONS, { channel: 'web' })
-    currentSessionId.value = data.session_id
-    localStorage.setItem(STORAGE_KEY, data.session_id)
-    messages.value = []
-  } else {
-    currentSessionId.value = sessions.value[0].id
+  const mainSession = sessions.value.find(s => s.id === 'main')
+  if (mainSession) {
+    currentSessionId.value = 'main'
+    localStorage.setItem(STORAGE_KEY, 'main')
     await loadMessages()
+  } else {
+    currentSessionId.value = 'main'
+    localStorage.setItem(STORAGE_KEY, 'main')
+    messages.value = []
   }
 }
 
@@ -83,7 +84,7 @@ async function loadSessions() {
   isLoadingSessions.value = true
   try {
     const data = await get(`${API_ENDPOINTS.SESSIONS}?limit=20`)
-    sessions.value = (data.sessions || []).filter((s: Session) => s.message_count > 0)
+    sessions.value = (data.sessions || []).filter((s: Session) => s.id === 'main' || s.message_count > 0)
   } catch (error) {
     console.error('加载会话列表失败:', error)
     sessions.value = []

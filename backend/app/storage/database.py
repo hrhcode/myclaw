@@ -122,6 +122,17 @@ class Database:
             except Exception as e:
                 logger.warning(f"FTS5 初始化失败，将仅使用向量检索: {e}")
             
+            cursor = await db.execute("SELECT id FROM sessions WHERE id = 'main'")
+            if not await cursor.fetchone():
+                await db.execute(
+                    """
+                    INSERT INTO sessions (id, channel, metadata, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    ("main", "web", None, datetime.now(), datetime.now()),
+                )
+                logger.info("已创建默认主会话: main")
+            
             await db.commit()
         logger.info(f"数据库初始化完成: {self.db_path}")
 
