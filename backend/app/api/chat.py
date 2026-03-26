@@ -4,7 +4,6 @@ from sqlalchemy import select
 from app.database import get_db
 from app.models import Conversation, Message
 from app.schemas import ChatRequest, ChatResponse, MessageCreate, ConversationCreate
-from app.services.chat_service import ChatService
 import httpx
 
 router = APIRouter()
