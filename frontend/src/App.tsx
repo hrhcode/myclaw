@@ -7,7 +7,15 @@ import {
   useNavigate,
 } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Settings, Sparkles, AlertTriangle, Sun, Moon } from "lucide-react";
+import {
+  Settings,
+  Sparkles,
+  AlertTriangle,
+  Sun,
+  Moon,
+  PanelLeftClose,
+  PanelLeft,
+} from "lucide-react";
 import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 import ConversationList from "./components/ConversationList";
 import MessageList from "./components/MessageList";
@@ -86,6 +94,7 @@ const ChatPage: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -132,6 +141,13 @@ const ChatPage: React.FC = () => {
     try {
       const data = await getConversations();
       setConversations(data);
+      if (data.length > 0 && !currentConversationId) {
+        const sortedConversations = [...data].sort(
+          (a, b) =>
+            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+        );
+        setCurrentConversationId(sortedConversations[0].id);
+      }
     } catch (error) {
       console.error("Failed to load conversations:", error);
     }
@@ -277,6 +293,8 @@ const ChatPage: React.FC = () => {
         onSelectConversation={setCurrentConversationId}
         onCreateConversation={handleCreateConversation}
         onDeleteConversation={handleDeleteConversation}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
       />
 
       <div className="main-content flex-1 flex flex-col">
@@ -286,17 +304,44 @@ const ChatPage: React.FC = () => {
           className="navbar h-16 flex items-center justify-between px-6"
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center">
-              <Sparkles size={20} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold text-[var(--text-primary)]">
-                AI对话助手
-              </h1>
-              <p className="text-xs text-[var(--text-muted)]">
-                智能对话，无限可能
-              </p>
-            </div>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              className="p-2.5 rounded-xl glass transition-colors"
+              style={{ color: "var(--text-secondary)" }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.color = "var(--text-primary)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.color = "var(--text-secondary)")
+              }
+              aria-label={isSidebarCollapsed ? "展开侧边栏" : "折叠侧边栏"}
+            >
+              <AnimatePresence mode="wait">
+                {isSidebarCollapsed ? (
+                  <motion.div
+                    key="expand"
+                    initial={{ rotate: -90, opacity: 0 }}
+                    animate={{ rotate: 0, opacity: 1 }}
+                    exit={{ rotate: 90, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <PanelLeft size={20} />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="collapse"
+                    initial={{ rotate: 90, opacity: 0 }}
+                    animate={{ rotate: 0, opacity: 1 }}
+                    exit={{ rotate: -90, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <PanelLeftClose size={20} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.button>
           </div>
 
           <div className="flex items-center gap-3">
