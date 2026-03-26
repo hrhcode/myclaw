@@ -12,6 +12,9 @@ logger = logging.getLogger(__name__)
 API_KEY_KEY = "zhipu_api_key"
 LLM_MODEL_KEY = "llm_model"
 LLM_PROVIDER_KEY = "llm_provider"
+OPENROUTER_API_KEY_KEY = "openrouter_api_key"
+EMBEDDING_PROVIDER_KEY = "embedding_provider"
+EMBEDDING_MODEL_KEY = "embedding_model"
 
 PROVIDERS = {
     "zhipu": {
@@ -20,6 +23,15 @@ PROVIDERS = {
             {"id": "glm-4-flash", "name": "GLM-4-Flash (快速响应)"},
             {"id": "glm-4", "name": "GLM-4 (高性能)"},
             {"id": "glm-4-plus", "name": "GLM-4-Plus (旗舰)"},
+        ]
+    }
+}
+
+EMBEDDING_PROVIDERS = {
+    "openrouter": {
+        "name": "OpenRouter",
+        "models": [
+            {"id": "nvidia/llama-nemotron-embed-vl-1b-v2:free", "name": "Llama-Nemotron-Embed-VL-1B (免费)"},
         ]
     }
 }
@@ -73,6 +85,31 @@ async def get_provider_models(provider: str):
         raise HTTPException(status_code=404, detail=f"提供商 '{provider}' 不存在")
 
     return PROVIDERS[provider]["models"]
+
+
+@router.get("/config/embedding-providers")
+async def get_embedding_providers():
+    """
+    获取所有 Embedding 提供商列表
+    """
+    logger.info("获取 Embedding 提供商列表")
+    return [
+        {"id": provider_id, "name": provider_info["name"]}
+        for provider_id, provider_info in EMBEDDING_PROVIDERS.items()
+    ]
+
+
+@router.get("/config/embedding-providers/{provider}/models")
+async def get_embedding_provider_models(provider: str):
+    """
+    获取指定 Embedding 提供商的模型列表
+    """
+    logger.info(f"获取 Embedding 提供商模型列表: {provider}")
+
+    if provider not in EMBEDDING_PROVIDERS:
+        raise HTTPException(status_code=404, detail=f"Embedding 提供商 '{provider}' 不存在")
+
+    return EMBEDDING_PROVIDERS[provider]["models"]
 
 
 @router.get("/config/{key}", response_model=str)

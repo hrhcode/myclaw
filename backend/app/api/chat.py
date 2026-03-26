@@ -6,7 +6,9 @@ from app.models import Conversation, Message
 from app.schemas import ChatRequest
 from app.llm_service import get_llm_service
 from app.api.config import get_config_value, API_KEY_KEY, LLM_MODEL_KEY
+from app.vector_search_service import index_message_embedding
 import logging
+import asyncio
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -34,8 +36,20 @@ async def get_or_create_conversation(db: AsyncSession, message: str, conversatio
         return conversation_id, conversation
 
 
-async def save_message(db: AsyncSession, conversation_id: int, role: str, content: str) -> Message:
-    """保存消息"""
+async def save_message(db: AsyncSession, conversation_id: int, role: str, content: str, generate_embedding: bool = True) -> Message:
+    """
+    保存消息
+    
+    Args:
+        db: 数据库会话
+        conversation_id: 会话ID
+        role: 角色 (user/assistant)
+        content: 消息内容
+        generate_embedding: 是否生成向量嵌入
+        
+    Returns:
+        保存的消息对象
+    """
     message = Message(
         conversation_id=conversation_id,
         role=role,
@@ -44,6 +58,13 @@ async def save_message(db: AsyncSession, conversation_id: int, role: str, conten
     db.add(message)
     await db.commit()
     await db.refresh(message)
+    
+    if generate_embedding:
+        try:
+            asyncio.create_task(index_message_embedding(message.id))
+        except Exception as e:
+            logger.warning(f"创建向量嵌入任务失败: {str(e)}")
+    
     return message
 
 
