@@ -124,13 +124,6 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                     message.role === "user" ? "message-user" : "message-ai"
                   }`}
                 >
-                  <div
-                    className="text-xs font-medium mb-2 opacity-60 flex items-center gap-1.5"
-                    style={{ color: "inherit" }}
-                  >
-                    {message.role === "user" ? "你" : "AI助手"}
-                  </div>
-
                   {message.content === "" ? (
                     <TypingIndicator />
                   ) : (

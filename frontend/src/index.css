@@ -109,6 +109,18 @@ body {
   background: rgba(255, 255, 255, 0.2);
 }
 
+select option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  padding: 0.5rem;
+}
+
+select option:hover,
+select option:focus {
+  background: var(--primary);
+  color: white;
+}
+
 ::selection {
   background: rgba(102, 126, 234, 0.3);
   color: #ffffff;
@@ -238,7 +250,29 @@ body {
     border-bottom-right-radius: 0.25rem;
     box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
   }
-  
+
+  .message-user .prose {
+    color: white;
+  }
+
+  .message-user .prose p,
+  .message-user .prose li,
+  .message-user .prose strong,
+  .message-user .prose h1,
+  .message-user .prose h2,
+  .message-user .prose h3,
+  .message-user .prose h4 {
+    color: white;
+  }
+
+  .message-user .prose a {
+    color: #e0e7ff;
+  }
+
+  .message-user .prose a:hover {
+    color: white;
+  }
+
   .message-ai {
     background: var(--glass-bg);
     backdrop-filter: blur(12px);
@@ -282,15 +316,6 @@ body {
   }
 }
 
-@keyframes pulseGlow {
-  0%, 100% {
-    box-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
-  }
-  50% {
-    box-shadow: 0 0 40px rgba(102, 126, 234, 0.6);
-  }
-}
-
 @keyframes typing {
   0%, 100% {
     opacity: 0.3;
@@ -299,15 +324,6 @@ body {
   50% {
     opacity: 1;
     transform: scale(1);
-  }
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
   }
 }
 

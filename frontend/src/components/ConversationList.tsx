@@ -94,7 +94,7 @@ const ConversationList: React.FC<ConversationListProps> = ({
                 className={`group relative p-4 rounded-xl cursor-pointer transition-all duration-300 ${
                   currentConversationId === conversation.id
                     ? 'bg-gradient-to-r from-primary/20 to-primary-dark/20 border border-primary/30 shadow-glow'
-                    : 'glass hover:bg-white/5 hover:border-white/10'
+                    : 'glass'
                 }`}
               >
                 {currentConversationId === conversation.id && (
