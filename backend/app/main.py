@@ -32,7 +32,7 @@ async def startup_event():
     logger.info("MyClaw AI对话助手 后端服务启动")
     logger.info("=" * 50)
     logger.info(f"数据库: SQLite (async)")
-    logger.info(f"API路由: /api/chat, /api/chat/stream, /api/conversations")
+    logger.info(f"API路由: /api/chat/stream (流式), /api/conversations")
     logger.info(f"CORS: 已启用 (允许所有来源)")
     logger.info(f"API文档: http://127.0.0.1:8000/docs")
     logger.info("=" * 50)

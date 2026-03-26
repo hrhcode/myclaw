@@ -1,5 +1,4 @@
 from zai import ZhipuAiClient
-import os
 from typing import List, Dict, AsyncIterator, Optional
 import logging
 
@@ -10,46 +9,6 @@ class LLMService:
     def __init__(self, api_key: str):
         self.client = ZhipuAiClient(api_key=api_key)
         self.model = "glm-4-flash"
-
-    async def chat(
-        self,
-        messages: List[Dict[str, str]],
-        model: Optional[str] = None,
-        stream: bool = False,
-        thinking: bool = True
-    ) -> str:
-        """
-        非流式聊天对话
-
-        Args:
-            messages: 消息历史列表，格式为 [{"role": "user", "content": "..."}]
-            model: 模型名称，默认使用 glm-4-flash
-            stream: 是否流式返回
-            thinking: 是否启用思考模式
-
-        Returns:
-            AI回复内容
-        """
-        try:
-            use_model = model or self.model
-
-            logger.info(f"调用智谱AI模型: {use_model}, thinking={thinking}")
-
-            response = self.client.chat.completions.create(
-                model=use_model,
-                messages=messages,
-                stream=False,
-                thinking={"type": "enabled"} if thinking else {"type": "disabled"}
-            )
-
-            content = response.choices[0].message.content
-
-            logger.info(f"AI回复成功, 长度: {len(content)}")
-            return content
-
-        except Exception as e:
-            logger.error(f"AI模型调用失败: {str(e)}")
-            raise
 
     async def chat_stream(
         self,
