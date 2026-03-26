@@ -1,25 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
+import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom';
 import ConversationList from './components/ConversationList';
 import MessageList from './components/MessageList';
 import MessageInput from './components/MessageInput';
 import Settings from './components/Settings';
-import { Conversation, Message } from './types';
-import { sendMessageStream, getConversations, createConversation, deleteConversation, getMessages } from './services/api';
+import type { Conversation, Message } from './types';
+import { sendMessageStream, getConversations, createConversation, deleteConversation, getMessages, getConfig } from './services/api';
 
-/**
- * 主应用组件 - AI对话应用
- */
-const App: React.FC = () => {
-  const [apiKey, setApiKey] = useState(() => {
-    return localStorage.getItem('api_key') || '';
-  });
+const ChatPage: React.FC = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
-  // 滚动到消息底部
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -28,12 +24,11 @@ const App: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-  // 加载会话列表
   useEffect(() => {
+    checkConfiguration();
     loadConversations();
   }, []);
 
-  // 加载当前会话的消息
   useEffect(() => {
     if (currentConversationId) {
       loadMessages(currentConversationId);
@@ -41,6 +36,15 @@ const App: React.FC = () => {
       setMessages([]);
     }
   }, [currentConversationId]);
+
+  const checkConfiguration = async () => {
+    try {
+      await getConfig('zhipu_api_key');
+      setIsConfigured(true);
+    } catch {
+      setIsConfigured(false);
+    }
+  };
 
   const loadConversations = async () => {
     try {
@@ -84,14 +88,14 @@ const App: React.FC = () => {
   };
 
   const handleSendMessage = async (content: string) => {
-    if (!apiKey) {
-      alert('请先在设置中配置API Key');
+    if (isConfigured === false) {
+      alert('请先在设置页面配置API Key');
+      navigate('/settings');
       return;
     }
 
     setIsLoading(true);
 
-    // 如果没有当前会话，创建一个新会话
     let conversationId = currentConversationId;
     if (!conversationId) {
       try {
@@ -106,7 +110,6 @@ const App: React.FC = () => {
       }
     }
 
-    // 添加用户消息
     const userMessage: Message = {
       id: Date.now(),
       conversation_id: conversationId,
@@ -116,7 +119,6 @@ const App: React.FC = () => {
     };
     setMessages((prev) => [...prev, userMessage]);
 
-    // 创建临时AI消息用于流式显示
     const tempAiMessage: Message = {
       id: Date.now() + 1,
       conversation_id: conversationId,
@@ -131,7 +133,6 @@ const App: React.FC = () => {
         {
           conversation_id: conversationId,
           message: content,
-          api_key: apiKey,
         },
         (chunk) => {
           setMessages((prev) =>
@@ -142,12 +143,7 @@ const App: React.FC = () => {
             )
           );
         },
-        (finalMessage, finalConversationId) => {
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === tempAiMessage.id ? finalMessage : msg
-            )
-          );
+        () => {
           loadConversations();
         },
         (error) => {
@@ -155,7 +151,7 @@ const App: React.FC = () => {
           setMessages((prev) =>
             prev.map((msg) =>
               msg.id === tempAiMessage.id
-                ? { ...msg, content: '发送失败，请重试' }
+                ? { ...msg, content: '发送失败，请检查是否已配置API Key' }
                 : msg
             )
           );
@@ -166,18 +162,13 @@ const App: React.FC = () => {
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === tempAiMessage.id
-            ? { ...msg, content: '发送失败，请重试' }
+            ? { ...msg, content: '发送失败，请检查是否已配置API Key' }
             : msg
         )
       );
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleApiKeyChange = (newApiKey: string) => {
-    setApiKey(newApiKey);
-    localStorage.setItem('api_key', newApiKey);
   };
 
   return (
@@ -194,13 +185,39 @@ const App: React.FC = () => {
           <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
             AI对话助手
           </h1>
-          <Settings apiKey={apiKey} onApiKeyChange={handleApiKeyChange} />
+          <Link
+            to="/settings"
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+          >
+            设置
+          </Link>
         </div>
+        {isConfigured === false && (
+          <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 m-4">
+            <p className="text-yellow-700">
+              请先配置API Key才能使用聊天功能。{' '}
+              <Link to="/settings" className="underline font-semibold">
+                去设置
+              </Link>
+            </p>
+          </div>
+        )}
         <MessageList messages={messages} />
         <div ref={messagesEndRef} />
         <MessageInput onSendMessage={handleSendMessage} disabled={isLoading} />
       </div>
     </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<ChatPage />} />
+        <Route path="/settings" element={<Settings />} />
+      </Routes>
+    </BrowserRouter>
   );
 };
 
