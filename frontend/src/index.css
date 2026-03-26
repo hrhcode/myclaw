@@ -238,7 +238,9 @@ select option:focus {
   }
   
   .message-bubble {
-    max-width: 80%;
+    min-width: fit-content;
+    width: fit-content;
+    max-width: 100%;
     padding: 1rem 1.25rem;
     border-radius: 1rem;
     animation: fadeInUp 0.3s ease-out;
@@ -249,6 +251,14 @@ select option:focus {
     color: white;
     border-bottom-right-radius: 0.25rem;
     box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    white-space: normal;
+    word-break: break-word;
+    text-align: left;
+  }
+
+  .message-user > * {
+    white-space: normal;
+    word-break: break-word;
   }
 
   .message-user .prose {

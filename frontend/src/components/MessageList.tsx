@@ -115,7 +115,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.3, delay: 0.1 }}
-                className={`max-w-[75%] ${
+                className={`max-w-[75%] flex flex-col ${
                   message.role === "user" ? "items-end" : "items-start"
                 }`}
               >
