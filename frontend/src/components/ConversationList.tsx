@@ -17,7 +17,6 @@ interface ConversationListProps {
   onCreateConversation: () => void;
   onDeleteConversation: (id: number) => void;
   isCollapsed: boolean;
-  onToggleCollapse: () => void;
 }
 
 /**
@@ -104,7 +103,6 @@ const ConversationList: React.FC<ConversationListProps> = ({
   onCreateConversation,
   onDeleteConversation,
   isCollapsed,
-  onToggleCollapse,
 }) => {
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
 
