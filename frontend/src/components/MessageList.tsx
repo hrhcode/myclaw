@@ -1,11 +1,33 @@
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import { Bot, User, Sparkles } from "lucide-react";
+import React from "react";
 import type { Message } from "../types";
 
 interface MessageListProps {
   messages: Message[];
 }
+
+/**
+ * 消息头像组件 - 使用 React.memo 防止流式输出时不必要的重新渲染
+ */
+const MessageAvatar = React.memo(({ role }: { role: "user" | "assistant" }) => (
+  <div
+    className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+      role === "user"
+        ? "bg-gradient-to-br from-primary to-primary-dark"
+        : "glass border border-[var(--glass-border)]"
+    }`}
+  >
+    {role === "user" ? (
+      <User size={16} className="text-white" />
+    ) : (
+      <Bot size={16} className="text-primary" />
+    )}
+  </div>
+));
+
+MessageAvatar.displayName = "MessageAvatar";
 
 /**
  * 消息列表组件 - 显示对话中的所有消息
@@ -61,27 +83,6 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
           输入消息开始与AI助手对话，探索无限可能
         </p>
       </div>
-    </motion.div>
-  );
-
-  /**
-   * 渲染消息头像
-   */
-  const MessageAvatar = ({ role }: { role: "user" | "assistant" }) => (
-    <motion.div
-      initial={{ scale: 0 }}
-      animate={{ scale: 1 }}
-      className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-        role === "user"
-          ? "bg-gradient-to-br from-primary to-primary-dark"
-          : "glass border border-[var(--glass-border)]"
-      }`}
-    >
-      {role === "user" ? (
-        <User size={16} className="text-white" />
-      ) : (
-        <Bot size={16} className="text-primary" />
-      )}
     </motion.div>
   );
 
