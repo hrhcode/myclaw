@@ -32,6 +32,8 @@ const Settings: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [apiKey, setApiKey] = useState<string>("");
   const [showApiKey, setShowApiKey] = useState(false);
+  const [openrouterApiKey, setOpenrouterApiKey] = useState<string>("");
+  const [showOpenrouterKey, setShowOpenrouterKey] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{
@@ -73,6 +75,7 @@ const Settings: React.FC = () => {
       const savedProvider = await getConfig("llm_provider").catch(() => "");
       const savedModel = await getConfig("llm_model").catch(() => "");
       const savedApiKey = await getConfig("zhipu_api_key").catch(() => "");
+      const savedOpenrouterKey = await getConfig("openrouter_api_key").catch(() => "");
 
       if (savedProvider) {
         setSelectedProvider(savedProvider);
@@ -82,6 +85,10 @@ const Settings: React.FC = () => {
 
       if (savedApiKey) {
         setApiKey(savedApiKey);
+      }
+
+      if (savedOpenrouterKey) {
+        setOpenrouterApiKey(savedOpenrouterKey);
       }
 
       if (savedModel) {
@@ -110,7 +117,7 @@ const Settings: React.FC = () => {
    */
   const handleSave = async () => {
     if (!apiKey.trim()) {
-      setMessage({ type: "error", text: "请输入API Key" });
+      setMessage({ type: "error", text: "请输入智谱AI API Key" });
       return;
     }
 
@@ -131,6 +138,10 @@ const Settings: React.FC = () => {
       await setConfig("zhipu_api_key", apiKey);
       await setConfig("llm_provider", selectedProvider);
       await setConfig("llm_model", selectedModel);
+
+      if (openrouterApiKey.trim()) {
+        await setConfig("openrouter_api_key", openrouterApiKey);
+      }
 
       setMessage({ type: "success", text: "设置保存成功！" });
 
@@ -161,12 +172,12 @@ const Settings: React.FC = () => {
     );
   }
 
-  return (
+ return (
     <div
-      className="min-h-screen p-4 md:p-8"
+      className="h-screen overflow-y-auto p-4 md:p-8"
       style={{ backgroundColor: "var(--bg-primary)" }}
     >
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-2xl mx-auto pb-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -217,6 +228,7 @@ const Settings: React.FC = () => {
           </AnimatePresence>
 
           <div className="space-y-8">
+            {/* LLM配置 */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -299,6 +311,7 @@ const Settings: React.FC = () => {
               </div>
             </motion.div>
 
+            {/* API配置 */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -327,14 +340,14 @@ const Settings: React.FC = () => {
                     className="block text-sm font-medium mb-2"
                     style={{ color: "var(--text-secondary)" }}
                   >
-                    API Key
+                    智谱AI API Key
                   </label>
                   <div className="relative">
                     <input
                       type={showApiKey ? "text" : "password"}
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="请输入您的API Key"
+                      placeholder="请输入您的智谱AI API Key"
                       className="w-full px-4 py-3 pr-12 glass-input rounded-xl"
                       style={{ color: "var(--text-primary)" }}
                     />
@@ -357,12 +370,101 @@ const Settings: React.FC = () => {
                     className="mt-2 text-xs"
                     style={{ color: "var(--text-muted)" }}
                   >
-                    API Key将安全存储在数据库中，不会泄露给第三方
+                    用于智谱AI聊天功能，API Key将安全存储在数据库中
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    className="block text-sm font-medium mb-2"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    OpenRouter API Key
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showOpenrouterKey ? "text" : "password"}
+                      value={openrouterApiKey}
+                      onChange={(e) => setOpenrouterApiKey(e.target.value)}
+                      placeholder="请输入您的OpenRouter API Key"
+                      className="w-full px-4 py-3 pr-12 glass-input rounded-xl"
+                      style={{ color: "var(--text-primary)" }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowOpenrouterKey(!showOpenrouterKey)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 transition-colors"
+                      style={{ color: "var(--text-muted)" }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.color = "var(--text-primary)")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.color = "var(--text-muted)")
+                      }
+                    >
+                      {showOpenrouterKey ? (
+                        <EyeOff size={18} />
+                      ) : (
+                        <Eye size={18} />
+                      )}
+                    </button>
+                  </div>
+                  <p
+                    className="mt-2 text-xs"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    用于记忆搜索功能的向量嵌入生成
                   </p>
                 </div>
               </div>
             </motion.div>
 
+            {/* Embedding配置 */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.25 }}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/20 to-purple-700/20 flex items-center justify-center">
+                  <Cpu size={20} className="text-purple-400" />
+                </div>
+                <div>
+                  <h2
+                    className="text-lg font-semibold"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    Embedding配置
+                  </h2>
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    向量嵌入模型（用于记忆搜索）
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4 pl-13">
+                <div className="p-4 rounded-xl" style={{ backgroundColor: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                        nvidia/llama-nemotron-embed-vl-1b-v2:free
+                      </p>
+                      <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                        通过 OpenRouter 提供的免费向量嵌入模型
+                      </p>
+                    </div>
+                    <span className="px-3 py-1 text-xs rounded-full bg-green-500/20 text-green-400">
+                      免费
+                    </span>
+                  </div>
+                </div>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  此模型用于将文本转换为向量，支持语义搜索功能。请确保已配置 OpenRouter API Key。
+                </p>
+              </div>
+            </motion.div>
+
+            {/* 保存按钮 */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import chat, history, config
+from app.api import chat, history, config, memory
 from app.database import engine, Base
 import logging
 
@@ -23,6 +23,7 @@ app.add_middleware(
 app.include_router(chat.router, prefix="/api", tags=["聊天"])
 app.include_router(history.router, prefix="/api", tags=["历史记录"])
 app.include_router(config.router, prefix="/api", tags=["配置管理"])
+app.include_router(memory.router, prefix="/api", tags=["记忆搜索"])
 
 @app.on_event("startup")
 async def startup_event():
@@ -33,7 +34,11 @@ async def startup_event():
     logger.info("MyClaw AI对话助手 后端服务启动")
     logger.info("=" * 50)
     logger.info(f"数据库: SQLite (async)")
-    logger.info(f"API路由: /api/chat/stream, /api/conversations, /api/config(providers, models)")
+    logger.info(f"API路由:")
+    logger.info(f"  - /api/chat/stream (聊天)")
+    logger.info(f"  - /api/conversations (会话管理)")
+    logger.info(f"  - /api/config (配置管理)")
+    logger.info(f"  - /api/memory (记忆搜索)")
     logger.info(f"CORS: 已启用 (允许所有来源)")
     logger.info(f"API文档: http://127.0.0.1:8000/docs")
     logger.info("=" * 50)

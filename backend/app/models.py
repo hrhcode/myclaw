@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, LargeBinary, Float
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -22,6 +22,8 @@ class Message(Base):
     conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False)
     role = Column(String, nullable=False)
     content = Column(String, nullable=False)
+    embedding = Column(LargeBinary, nullable=True)
+    embedding_model = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     conversation = relationship("Conversation", back_populates="messages")
@@ -34,4 +36,18 @@ class Config(Base):
     key = Column(String, nullable=False, unique=True)
     value = Column(String, nullable=False)
     description = Column(String, nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class LongTermMemory(Base):
+    __tablename__ = "long_term_memory"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String, nullable=True)
+    content = Column(String, nullable=False)
+    embedding = Column(LargeBinary, nullable=True)
+    embedding_model = Column(String, nullable=True)
+    importance = Column(Float, default=0.5)
+    source = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
