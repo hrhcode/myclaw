@@ -37,4 +37,26 @@ class MessageResponse(MessageBase):
 class ChatRequest(BaseModel):
     conversation_id: Optional[int] = None
     message: str
-    api_key: str
+
+
+class ConfigBase(BaseModel):
+    key: str
+    value: str
+    description: Optional[str] = None
+
+
+class ConfigCreate(ConfigBase):
+    pass
+
+
+class ConfigUpdate(BaseModel):
+    value: str
+    description: Optional[str] = None
+
+
+class ConfigResponse(ConfigBase):
+    id: int
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True

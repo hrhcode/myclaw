@@ -1,9 +1,8 @@
 import axios from 'axios';
-import type { ChatRequest, ChatResponse, Conversation, Message } from '../types';
+import type { ChatRequest, Conversation, Message, Provider, Model, ConfigItem } from '../types';
 
 const API_BASE_URL = 'http://localhost:8000/api';
 
-// 创建axios实例
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -11,13 +10,6 @@ const api = axios.create({
   },
 });
 
-// 发送聊天消息（非流式）
-export const sendMessage = async (data: ChatRequest): Promise<ChatResponse> => {
-  const response = await api.post<ChatResponse>('/chat', data);
-  return response.data;
-};
-
-// 发送聊天消息（流式）
 export const sendMessageStream = async (
   data: ChatRequest,
   onChunk: (content: string) => void,
@@ -90,25 +82,46 @@ export const sendMessageStream = async (
   }
 };
 
-// 获取会话列表
 export const getConversations = async (): Promise<Conversation[]> => {
   const response = await api.get<Conversation[]>('/conversations');
   return response.data;
 };
 
-// 创建新会话
 export const createConversation = async (title: string): Promise<Conversation> => {
   const response = await api.post<Conversation>('/conversations', { title });
   return response.data;
 };
 
-// 删除会话
 export const deleteConversation = async (id: number): Promise<void> => {
   await api.delete(`/conversations/${id}`);
 };
 
-// 获取会话消息
 export const getMessages = async (conversationId: number): Promise<Message[]> => {
   const response = await api.get<Message[]>(`/conversations/${conversationId}/messages`);
+  return response.data;
+};
+
+export const getProviders = async (): Promise<Provider[]> => {
+  const response = await api.get<Provider[]>('/config/providers');
+  return response.data;
+};
+
+export const getProviderModels = async (provider: string): Promise<Model[]> => {
+  const response = await api.get<Model[]>(`/config/providers/${provider}/models`);
+  return response.data;
+};
+
+export const getConfig = async (key: string): Promise<string> => {
+  const response = await api.get<string>(`/config/${key}`);
+  return response.data;
+};
+
+export const setConfig = async (key: string, value: string): Promise<ConfigItem> => {
+  const response = await api.put<ConfigItem>(`/config/${key}`, { value });
+  return response.data;
+};
+
+export const getAllConfigs = async (): Promise<ConfigItem[]> => {
+  const response = await api.get<ConfigItem[]>('/config');
   return response.data;
 };

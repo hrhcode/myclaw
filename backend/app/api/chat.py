@@ -5,6 +5,7 @@ from app.database import get_db
 from app.models import Conversation, Message
 from app.schemas import ChatRequest
 from app.llm_service import get_llm_service
+from app.api.config import get_config_value, API_KEY_KEY, LLM_MODEL_KEY
 import logging
 
 router = APIRouter()
@@ -67,6 +68,13 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
 
     logger.info(f"收到聊天请求: conversation_id={request.conversation_id}, message_length={len(request.message)}")
 
+    api_key = await get_config_value(db, API_KEY_KEY)
+    if not api_key:
+        logger.error("API Key未配置")
+        raise HTTPException(status_code=500, detail="智谱AI API Key未配置，请先在设置中配置")
+
+    model = await get_config_value(db, LLM_MODEL_KEY)
+
     conversation_id, conversation = await get_or_create_conversation(
         db, request.message, request.conversation_id
     )
@@ -80,10 +88,10 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
         full_content = ""
 
         try:
-            logger.info(f"调用智谱AI模型(流式): conversation_id={conversation_id}")
-            llm = get_llm_service(request.api_key)
+            logger.info(f"调用智谱AI模型(流式): conversation_id={conversation_id}, model={model}")
+            llm = get_llm_service(api_key)
 
-            async for content in llm.chat_stream(messages=message_history, thinking=True):
+            async for content in llm.chat_stream(messages=message_history, model=model, thinking=True):
                 if content:
                     full_content += content
                     response_data = {

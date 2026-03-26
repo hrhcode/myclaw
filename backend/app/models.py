@@ -1,9 +1,9 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
 
-# 会话模型
+
 class Conversation(Base):
     __tablename__ = "conversations"
 
@@ -12,10 +12,9 @@ class Conversation(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    # 关联消息
     messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan")
 
-# 消息模型
+
 class Message(Base):
     __tablename__ = "messages"
 
@@ -25,5 +24,14 @@ class Message(Base):
     content = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # 关联会话
     conversation = relationship("Conversation", back_populates="messages")
+
+
+class Config(Base):
+    __tablename__ = "config"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String, nullable=False, unique=True)
+    value = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

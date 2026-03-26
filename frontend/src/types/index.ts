@@ -1,7 +1,5 @@
-// 消息角色类型
 export type MessageRole = 'user' | 'assistant';
 
-// 消息接口
 export interface Message {
   id: number;
   conversation_id: number;
@@ -10,7 +8,6 @@ export interface Message {
   created_at: string;
 }
 
-// 会话接口
 export interface Conversation {
   id: number;
   title: string;
@@ -18,21 +15,25 @@ export interface Conversation {
   updated_at: string;
 }
 
-// 聊天请求参数
 export interface ChatRequest {
   conversation_id?: number;
   message: string;
-  api_key: string;
 }
 
-// 聊天响应类型
-export interface ChatResponse {
-  message: Message;
-  conversation_id: number;
+export interface Provider {
+  id: string;
+  name: string;
 }
 
-// 流式聊天响应
-export interface StreamChatChunk {
-  content: string;
-  done: boolean;
+export interface Model {
+  id: string;
+  name: string;
+}
+
+export interface ConfigItem {
+  id: number;
+  key: string;
+  value: string;
+  description?: string;
+  updated_at: string;
 }
