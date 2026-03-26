@@ -1,4 +1,6 @@
-import { Conversation } from '../types';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Plus, Trash2, MessageSquare, Clock } from 'lucide-react';
+import type { Conversation } from '../types';
 
 interface ConversationListProps {
   conversations: Conversation[];
@@ -10,6 +12,7 @@ interface ConversationListProps {
 
 /**
  * 会话列表组件 - 显示和管理所有对话会话
+ * 采用玻璃拟态设计，支持动画效果和主题切换
  */
 const ConversationList: React.FC<ConversationListProps> = ({
   conversations,
@@ -18,6 +21,9 @@ const ConversationList: React.FC<ConversationListProps> = ({
   onCreateConversation,
   onDeleteConversation,
 }) => {
+  /**
+   * 格式化日期显示
+   */
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -33,65 +39,122 @@ const ConversationList: React.FC<ConversationListProps> = ({
     return date.toLocaleDateString('zh-CN');
   };
 
+  /**
+   * 处理删除会话
+   */
+  const handleDelete = (e: React.MouseEvent, id: number) => {
+    e.stopPropagation();
+    if (confirm('确定要删除这个对话吗？')) {
+      onDeleteConversation(id);
+    }
+  };
+
   return (
-    <div className="w-64 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-        <button
+    <motion.div
+      initial={{ x: -20, opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      transition={{ duration: 0.3 }}
+      className="w-72 h-full flex flex-col glass-card"
+      style={{ borderRight: '1px solid var(--glass-border)' }}
+    >
+      <div className="p-4" style={{ borderBottom: '1px solid var(--glass-border)' }}>
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
           onClick={onCreateConversation}
-          className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
+          className="w-full btn-primary flex items-center justify-center gap-2 py-3"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          新建对话
-        </button>
+          <Plus size={20} />
+          <span>新建对话</span>
+        </motion.button>
       </div>
-      <div className="flex-1 overflow-y-auto">
-        {conversations.length === 0 ? (
-          <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-            暂无对话
-          </div>
-        ) : (
-          conversations.map((conversation) => (
-            <div
-              key={conversation.id}
-              className={`p-4 border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group ${
-                currentConversationId === conversation.id
-                  ? 'bg-purple-50 dark:bg-purple-900/20 border-l-4 border-l-purple-600'
-                  : ''
-              }`}
+
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        <AnimatePresence mode="popLayout">
+          {conversations.length === 0 ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex flex-col items-center justify-center py-12"
+              style={{ color: 'var(--text-muted)' }}
             >
-              <div
-                className="flex items-center justify-between"
+              <MessageSquare size={48} strokeWidth={1} className="mb-4 opacity-50" />
+              <p className="text-sm">暂无对话</p>
+              <p className="text-xs mt-1 opacity-60">点击上方按钮开始新对话</p>
+            </motion.div>
+          ) : (
+            conversations.map((conversation, index) => (
+              <motion.div
+                key={conversation.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ delay: index * 0.05 }}
                 onClick={() => onSelectConversation(conversation.id)}
+                className={`group relative p-4 rounded-xl cursor-pointer transition-all duration-300 ${
+                  currentConversationId === conversation.id
+                    ? 'bg-gradient-to-r from-primary/20 to-primary-dark/20 border border-primary/30 shadow-glow'
+                    : 'glass hover:bg-white/5 hover:border-white/10'
+                }`}
               >
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                    {conversation.title}
-                  </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {formatDate(conversation.updated_at)}
-                  </p>
+                {currentConversationId === conversation.id && (
+                  <motion.div
+                    layoutId="activeIndicator"
+                    className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-primary to-primary-dark rounded-r-full"
+                  />
+                )}
+
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <h3
+                      className="text-sm font-medium truncate mb-1"
+                      style={{ color: 'var(--text-primary)' }}
+                    >
+                      {conversation.title}
+                    </h3>
+                    <div
+                      className="flex items-center gap-1.5 text-xs"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
+                      <Clock size={12} />
+                      <span>{formatDate(conversation.updated_at)}</span>
+                    </div>
+                  </div>
+
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={(e) => handleDelete(e, conversation.id)}
+                    className="opacity-0 group-hover:opacity-100 p-2 rounded-lg transition-all"
+                    style={{ color: 'var(--text-muted)' }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = '#ef4444';
+                      e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = 'var(--text-muted)';
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <Trash2 size={16} />
+                  </motion.button>
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (confirm('确定要删除这个对话吗？')) {
-                      onDeleteConversation(conversation.id);
-                    }
-                  }}
-                  className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          ))
-        )}
+              </motion.div>
+            ))
+          )}
+        </AnimatePresence>
       </div>
-    </div>
+
+      <div className="p-4" style={{ borderTop: '1px solid var(--glass-border)' }}>
+        <div className="flex items-center justify-between text-xs" style={{ color: 'var(--text-muted)' }}>
+          <span>共 {conversations.length} 个对话</span>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <span>在线</span>
+          </div>
+        </div>
+      </div>
+    </motion.div>
   );
 };
 
