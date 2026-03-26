@@ -3,120 +3,77 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.models import Conversation, Message
-from app.schemas import ChatRequest, ChatResponse, MessageResponse
+from app.schemas import ChatRequest
 from app.llm_service import get_llm_service
 import logging
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# 发送聊天消息（非流式）
-@router.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
-    """
-    发送聊天消息并获取AI回复
-    """
-    logger.info(f"收到聊天请求: conversation_id={request.conversation_id}, message_length={len(request.message)}")
 
-    if not request.conversation_id:
+async def get_or_create_conversation(db: AsyncSession, message: str, conversation_id: int | None = None) -> tuple[int, Conversation]:
+    """
+    获取或创建会话
+
+    Returns:
+        tuple: (conversation_id, conversation对象)
+    """
+    if not conversation_id:
         new_conversation = Conversation(
-            title=request.message[:20] + "..." if len(request.message) > 20 else request.message
+            title=message[:20] + "..." if len(message) > 20 else message
         )
         db.add(new_conversation)
         await db.commit()
         await db.refresh(new_conversation)
-        conversation_id = new_conversation.id
+        return new_conversation.id, new_conversation
     else:
-        conversation_id = request.conversation_id
+        conversation = await db.get(Conversation, conversation_id)
+        if not conversation:
+            raise HTTPException(status_code=404, detail="会话不存在")
+        return conversation_id, conversation
 
-    user_message = Message(
+
+async def save_message(db: AsyncSession, conversation_id: int, role: str, content: str) -> Message:
+    """保存消息"""
+    message = Message(
         conversation_id=conversation_id,
-        role="user",
-        content=request.message
+        role=role,
+        content=content
     )
-    db.add(user_message)
+    db.add(message)
     await db.commit()
-    await db.refresh(user_message)
+    await db.refresh(message)
+    return message
 
+
+async def get_conversation_history(db: AsyncSession, conversation_id: int) -> list[dict]:
+    """获取会话历史"""
     result = await db.execute(
         select(Message)
         .where(Message.conversation_id == conversation_id)
         .order_by(Message.created_at)
     )
     messages = result.scalars().all()
+    return [{"role": msg.role, "content": msg.content} for msg in messages]
 
-    message_history = [
-        {"role": msg.role, "content": msg.content}
-        for msg in messages
-    ]
 
-    try:
-        logger.info(f"调用智谱AI模型: conversation_id={conversation_id}")
-        llm = get_llm_service(request.api_key)
-        ai_content = await llm.chat(messages=message_history, thinking=True)
-        logger.info(f"AI回复成功: conversation_id={conversation_id}, response_length={len(ai_content)}")
-    except Exception as e:
-        logger.error(f"AI模型调用失败: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-    ai_message = Message(
-        conversation_id=conversation_id,
-        role="assistant",
-        content=ai_content
-    )
-    db.add(ai_message)
-    await db.commit()
-    await db.refresh(ai_message)
-
-    conversation = await db.get(Conversation, conversation_id)
-    if conversation:
-        await db.refresh(conversation)
-
-    return ChatResponse(
-        message=MessageResponse.model_validate(ai_message),
-        conversation_id=conversation_id
-    )
-
-# 发送聊天消息（流式）
 @router.post("/chat/stream")
 async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     """
-    发送聊天消息并获取AI流式回复
+    发送聊天消息并获取AI流式回复（唯一聊天接口）
     """
     from fastapi.responses import StreamingResponse
     import json
 
-    if not request.conversation_id:
-        new_conversation = Conversation(
-            title=request.message[:20] + "..." if len(request.message) > 20 else request.message
-        )
-        db.add(new_conversation)
-        await db.commit()
-        await db.refresh(new_conversation)
-        conversation_id = new_conversation.id
-    else:
-        conversation_id = request.conversation_id
+    logger.info(f"收到聊天请求: conversation_id={request.conversation_id}, message_length={len(request.message)}")
 
-    user_message = Message(
-        conversation_id=conversation_id,
-        role="user",
-        content=request.message
+    conversation_id, conversation = await get_or_create_conversation(
+        db, request.message, request.conversation_id
     )
-    db.add(user_message)
-    await db.commit()
-    await db.refresh(user_message)
 
-    result = await db.execute(
-        select(Message)
-        .where(Message.conversation_id == conversation_id)
-        .order_by(Message.created_at)
-    )
-    messages = result.scalars().all()
+    await save_message(db, conversation_id, "user", request.message)
 
-    message_history = [
-        {"role": msg.role, "content": msg.content}
-        for msg in messages
-    ]
+    message_history = await get_conversation_history(db, conversation_id)
 
     async def generate():
         """生成流式响应"""
@@ -135,14 +92,7 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
                     }
                     yield f"data: {json.dumps(response_data)}\n\n"
 
-            ai_message = Message(
-                conversation_id=conversation_id,
-                role="assistant",
-                content=full_content
-            )
-            db.add(ai_message)
-            await db.commit()
-
+            await save_message(db, conversation_id, "assistant", full_content)
             yield "data: [DONE]\n\n"
 
         except Exception as e:
