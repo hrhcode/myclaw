@@ -12,6 +12,8 @@ from app.api.config import get_config_value
 
 logger = logging.getLogger(__name__)
 
+LOG_SEPARATOR = "─" * 40
+
 AUTO_MEMORY_FLUSH_ENABLED = "auto_memory_flush_enabled"
 AUTO_MEMORY_FLUSH_THRESHOLD = "auto_memory_flush_threshold"
 
@@ -66,9 +68,10 @@ class MemoryFlushService:
             for msg in messages:
                 total_tokens += self.estimate_tokens(msg.content)
             
+            logger.debug(f"[Token统计] 会话 {conversation_id} 共 {len(messages)} 条消息，约 {total_tokens} tokens")
             return int(total_tokens)
         except Exception as e:
-            logger.error(f"获取会话token数量失败: {str(e)}")
+            logger.error(f"[Token统计] 获取会话token数量失败: {str(e)}")
             return 0
     
     async def should_flush_memory(self, db: AsyncSession, conversation_id: int) -> bool:
@@ -83,7 +86,14 @@ class MemoryFlushService:
             是否应该触发记忆刷新
         """
         conversation_tokens = await self.get_conversation_tokens(db, conversation_id)
-        return conversation_tokens >= self.threshold_tokens
+        should_flush = conversation_tokens >= self.threshold_tokens
+        
+        if should_flush:
+            logger.info(f"[记忆刷新] 触发条件满足！当前: {conversation_tokens} tokens >= 阈值: {self.threshold_tokens}")
+        else:
+            logger.debug(f"[记忆刷新] 未达阈值，当前: {conversation_tokens} tokens < 阈值: {self.threshold_tokens}")
+        
+        return should_flush
     
     async def get_recent_messages(self, db: AsyncSession, conversation_id: int, limit: int = 20) -> List[Message]:
         """
@@ -105,9 +115,10 @@ class MemoryFlushService:
                 .limit(limit)
             )
             messages = result.scalars().all()
+            logger.debug(f"[消息获取] 获取会话 {conversation_id} 最近 {len(messages)} 条消息")
             return list(messages)
         except Exception as e:
-            logger.error(f"获取最近消息失败: {str(e)}")
+            logger.error(f"[消息获取] 获取最近消息失败: {str(e)}")
             return []
     
     async def create_memory_flush_prompt(self, db: AsyncSession, conversation_id: int) -> Optional[str]:
@@ -121,10 +132,14 @@ class MemoryFlushService:
         Returns:
             记忆刷新提示文本
         """
+        logger.info(LOG_SEPARATOR)
+        logger.info(f"[记忆刷新] 为会话 {conversation_id} 创建记忆刷新提示")
+        
         try:
             recent_messages = await self.get_recent_messages(db, conversation_id, limit=20)
             
             if not recent_messages:
+                logger.warning("[记忆刷新] 无最近消息，跳过刷新提示")
                 return None
             
             context = "\n".join([f"{msg.role}: {msg.content}" for msg in recent_messages])
@@ -144,9 +159,12 @@ class MemoryFlushService:
 完成后，请忽略此提示，继续正常对话。
 </no_reply>"""
             
+            logger.info(f"[记忆刷新] 提示创建成功，上下文长度: {len(context)} 字符")
+            logger.info(LOG_SEPARATOR)
+            
             return prompt
         except Exception as e:
-            logger.error(f"创建记忆刷新提示失败: {str(e)}")
+            logger.error(f"[记忆刷新] 创建记忆刷新提示失败: {str(e)}")
             return None
 
 
@@ -165,10 +183,12 @@ async def get_memory_flush_service(db: AsyncSession) -> Optional[MemoryFlushServ
         enabled = True
     
     if not enabled:
+        logger.debug("[记忆刷新服务] 服务未启用")
         return None
     
     threshold = await get_config_value(db, AUTO_MEMORY_FLUSH_THRESHOLD)
     if threshold is None:
         threshold = 4000
     
+    logger.debug(f"[记忆刷新服务] 服务已启用，阈值: {threshold} tokens")
     return MemoryFlushService(threshold_tokens=threshold)

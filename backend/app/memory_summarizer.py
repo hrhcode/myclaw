@@ -11,6 +11,8 @@ from app.models import Message, Conversation
 
 logger = logging.getLogger(__name__)
 
+LOG_SEPARATOR = "─" * 40
+
 
 class MemorySummarizer:
     """
@@ -57,7 +59,9 @@ class MemorySummarizer:
         if len(text.split()) > 20:
             score += 0.1
         
-        return min(score, 1.0)
+        final_score = min(score, 1.0)
+        logger.debug(f"[重要性计算] 文本: {text[:30]}... -> 分数: {final_score:.2f}")
+        return final_score
     
     def extract_key_information(self, messages: List[Message]) -> List[Dict]:
         """
@@ -69,6 +73,8 @@ class MemorySummarizer:
         Returns:
             关键信息列表
         """
+        logger.info(f"[关键信息提取] 开始从 {len(messages)} 条消息中提取关键信息")
+        
         key_info = []
         
         for msg in messages:
@@ -82,9 +88,11 @@ class MemorySummarizer:
                     "created_at": msg.created_at,
                     "message_id": msg.id
                 })
+                logger.debug(f"[关键信息提取] 发现重要信息 (分数: {importance:.2f}): {msg.content[:50]}...")
         
         key_info.sort(key=lambda x: x["importance"], reverse=True)
         
+        logger.info(f"[关键信息提取] 完成，提取到 {len(key_info)} 条关键信息")
         return key_info
     
     def generate_summary(self, key_info: List[Dict], max_items: int = 5) -> List[Dict]:
@@ -99,7 +107,10 @@ class MemorySummarizer:
             摘要列表
         """
         if not key_info:
+            logger.debug("[摘要生成] 无关键信息，返回空摘要")
             return []
+        
+        logger.info(f"[摘要生成] 开始生成摘要，最大项数: {max_items}")
         
         summary = key_info[:max_items]
         
@@ -112,6 +123,10 @@ class MemorySummarizer:
                 item["summary"] = content
             
             item["importance_display"] = f"{item['importance']:.2f}"
+        
+        logger.info(f"[摘要生成] 完成，生成 {len(summary)} 条摘要")
+        for i, item in enumerate(summary, 1):
+            logger.debug(f"  #{i}: 分数={item['importance']:.2f}, 内容={item['summary'][:30]}...")
         
         return summary
     
@@ -132,6 +147,9 @@ class MemorySummarizer:
         Returns:
             记忆列表
         """
+        logger.info(LOG_SEPARATOR)
+        logger.info(f"[记忆提取] 开始从会话 {conversation_id} 提取记忆")
+        
         try:
             result = await db.execute(
                 select(Message)
@@ -141,12 +159,17 @@ class MemorySummarizer:
             )
             messages = result.scalars().all()
             
+            logger.info(f"[记忆提取] 获取到 {len(messages)} 条最近消息")
+            
             key_info = self.extract_key_information(messages)
             summary = self.generate_summary(key_info, max_items=max_memories)
             
+            logger.info(f"[记忆提取] 完成，提取 {len(summary)} 条记忆")
+            logger.info(LOG_SEPARATOR)
+            
             return summary
         except Exception as e:
-            logger.error(f"提取记忆失败: {str(e)}")
+            logger.error(f"[记忆提取] 失败: {str(e)}")
             return []
     
     def format_memory_for_storage(self, summary_item: Dict) -> str:

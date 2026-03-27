@@ -14,6 +14,8 @@ import asyncio
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+LOG_SEPARATOR = "─" * 60
+
 
 def build_memory_context(memory_results: List[MemorySearchResult]) -> str:
     """
@@ -26,15 +28,22 @@ def build_memory_context(memory_results: List[MemorySearchResult]) -> str:
         格式化的记忆上下文字符串
     """
     if not memory_results:
+        logger.debug("[记忆上下文] 无相关记忆，跳过上下文构建")
         return ""
 
+    logger.info(f"[记忆上下文] 构建记忆上下文，共 {len(memory_results)} 条结果")
+    
     lines = ["## 相关记忆"]
-    for result in memory_results:
+    for i, result in enumerate(memory_results, 1):
         source_label = "消息" if result.source == "message" else "长期记忆"
         lines.append(f"- [{source_label}] {result.content} (相关度: {result.score:.2f})")
+        logger.debug(f"[记忆上下文] #{i}: [{source_label}] {result.content[:50]}... (分数: {result.score:.3f})")
+    
     lines.append("")
-
-    return "\n".join(lines)
+    
+    context = "\n".join(lines)
+    logger.debug(f"[记忆上下文] 上下文长度: {len(context)} 字符")
+    return context
 
 
 async def get_or_create_conversation(db: AsyncSession, message: str, conversation_id: int | None = None) -> tuple[int, Conversation]:
@@ -45,17 +54,22 @@ async def get_or_create_conversation(db: AsyncSession, message: str, conversatio
         tuple: (conversation_id, conversation对象)
     """
     if not conversation_id:
+        logger.info(f"[会话管理] 创建新会话，标题: {message[:20]}...")
         new_conversation = Conversation(
             title=message[:20] + "..." if len(message) > 20 else message
         )
         db.add(new_conversation)
         await db.commit()
         await db.refresh(new_conversation)
+        logger.info(f"[会话管理] 新会话已创建，ID: {new_conversation.id}")
         return new_conversation.id, new_conversation
     else:
+        logger.debug(f"[会话管理] 获取现有会话，ID: {conversation_id}")
         conversation = await db.get(Conversation, conversation_id)
         if not conversation:
+            logger.error(f"[会话管理] 会话不存在，ID: {conversation_id}")
             raise HTTPException(status_code=404, detail="会话不存在")
+        logger.debug(f"[会话管理] 会话已找到，标题: {conversation.title}")
         return conversation_id, conversation
 
 
@@ -73,6 +87,8 @@ async def save_message(db: AsyncSession, conversation_id: int, role: str, conten
     Returns:
         保存的消息对象
     """
+    logger.debug(f"[消息存储] 保存消息 - 会话ID: {conversation_id}, 角色: {role}, 内容长度: {len(content)}")
+    
     message = Message(
         conversation_id=conversation_id,
         role=role,
@@ -82,11 +98,14 @@ async def save_message(db: AsyncSession, conversation_id: int, role: str, conten
     await db.commit()
     await db.refresh(message)
     
+    logger.info(f"[消息存储] 消息已保存，ID: {message.id}, 角色: {role}")
+    
     if generate_embedding:
         try:
             asyncio.create_task(index_message_embedding(message.id))
+            logger.info(f"[向量嵌入] 已创建异步嵌入任务，消息ID: {message.id}")
         except Exception as e:
-            logger.warning(f"创建向量嵌入任务失败: {str(e)}")
+            logger.warning(f"[向量嵌入] 创建向量嵌入任务失败: {str(e)}")
     
     return message
 
@@ -99,7 +118,9 @@ async def get_conversation_history(db: AsyncSession, conversation_id: int) -> li
         .order_by(Message.created_at)
     )
     messages = result.scalars().all()
-    return [{"role": msg.role, "content": msg.content} for msg in messages]
+    history = [{"role": msg.role, "content": msg.content} for msg in messages]
+    logger.debug(f"[会话历史] 获取会话 {conversation_id} 的历史消息，共 {len(history)} 条")
+    return history
 
 
 @router.post("/chat/stream")
@@ -110,20 +131,28 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     from fastapi.responses import StreamingResponse
     import json
 
-    logger.info(f"收到聊天请求: conversation_id={request.conversation_id}, message_length={len(request.message)}")
+    logger.info(LOG_SEPARATOR)
+    logger.info(f"[聊天请求] 收到新消息")
+    logger.info(f"  ├─ 会话ID: {request.conversation_id or '新会话'}")
+    logger.info(f"  ├─ 消息长度: {len(request.message)} 字符")
+    logger.info(f"  └─ 消息预览: {request.message[:50]}{'...' if len(request.message) > 50 else ''}")
 
     api_key = await get_config_value(db, API_KEY_KEY)
     if not api_key:
-        logger.error("API Key未配置")
+        logger.error("[配置错误] API Key未配置")
         raise HTTPException(status_code=500, detail="智谱AI API Key未配置，请先在设置中配置")
 
     model = await get_config_value(db, LLM_MODEL_KEY)
+    logger.debug(f"[配置] 使用模型: {model or '默认模型'}")
 
     conversation_id, conversation = await get_or_create_conversation(
         db, request.message, request.conversation_id
     )
 
     await save_message(db, conversation_id, "user", request.message)
+    
+    logger.info(LOG_SEPARATOR)
+    logger.info("[记忆搜索] 开始混合记忆搜索...")
     
     message_history = await get_conversation_history(db, conversation_id)
     
@@ -144,17 +173,21 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
         half_life_days=30
     )
     
-    memory_context = build_memory_context(memory_results)
+    logger.info(f"[记忆搜索] 搜索完成，找到 {len(memory_results)} 条相关记忆")
     
-    if memory_results:
-        logger.info(f"检索到 {len(memory_results)} 条相关记忆")
+    memory_context = build_memory_context(memory_results)
 
     async def generate():
         """生成流式响应"""
         full_content = ""
 
         try:
-            logger.info(f"调用智谱AI模型(流式): conversation_id={conversation_id}, model={model}")
+            logger.info(LOG_SEPARATOR)
+            logger.info(f"[LLM调用] 开始调用AI模型生成回复")
+            logger.info(f"  ├─ 模型: {model or '默认'}")
+            logger.info(f"  ├─ 历史消息数: {len(message_history)}")
+            logger.info(f"  └─ 记忆上下文: {'已注入' if memory_context else '无'}")
+            
             llm = get_llm_service(api_key)
 
             if memory_context:
@@ -162,9 +195,10 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
                     {"role": "system", "content": memory_context},
                     *message_history
                 ]
-                logger.info(f"使用带记忆上下文的消息历史 (历史 {len(message_history)} 条)")
+                logger.debug(f"[LLM调用] 消息结构: 1条系统提示 + {len(message_history)}条历史")
             else:
                 full_messages = message_history
+                logger.debug(f"[LLM调用] 消息结构: {len(message_history)}条历史")
 
             async for content in llm.chat_stream(messages=full_messages, model=model, thinking=True):
                 if content:
@@ -175,11 +209,14 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
                     }
                     yield f"data: {json.dumps(response_data)}\n\n"
 
+            logger.info(f"[LLM调用] 回复生成完成，长度: {len(full_content)} 字符")
             await save_message(db, conversation_id, "assistant", full_content)
+            logger.info(f"[聊天完成] 会话ID: {conversation_id}")
+            logger.info(LOG_SEPARATOR)
             yield "data: [DONE]\n\n"
 
         except Exception as e:
-            logger.error(f"流式AI模型调用失败: {str(e)}")
+            logger.error(f"[LLM调用] 失败: {str(e)}")
             error_data = {
                 "error": str(e),
                 "status": 500

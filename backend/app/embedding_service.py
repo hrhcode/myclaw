@@ -15,6 +15,8 @@ from app.models import EmbeddingCache
 
 logger = logging.getLogger(__name__)
 
+LOG_SEPARATOR = "─" * 40
+
 DEFAULT_EMBEDDING_MODEL = "nvidia/llama-nemotron-embed-vl-1b-v2:free"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_API_KEY_KEY = "openrouter_api_key"
@@ -61,10 +63,10 @@ class EmbeddingService:
     
     async def _get_from_cache(self, db: AsyncSession, content_hash: str) -> Optional[bytes]:
         """
-        从缓存中获取嵌入
+        从缓存中获取嵌入（使用独立数据库会话）
         
         Args:
-            db: 数据库会话
+            db: 数据库会话（未使用，保留参数兼容性）
             content_hash: 内容哈希
             
         Returns:
@@ -73,27 +75,31 @@ class EmbeddingService:
         if not self.cache_enabled:
             return None
         
+        from app.database import AsyncSessionLocal
+        
         try:
-            result = await db.execute(
-                select(EmbeddingCache).where(EmbeddingCache.content_hash == content_hash)
-            )
-            cache_entry = result.scalar_one_or_none()
-            
-            if cache_entry:
-                cache_entry.last_accessed_at = datetime.now()
-                cache_entry.access_count += 1
-                await db.commit()
-                logger.debug(f"缓存命中: {content_hash[:16]}...")
-                return cache_entry.embedding
-            
-            return None
+            async with AsyncSessionLocal() as cache_db:
+                result = await cache_db.execute(
+                    select(EmbeddingCache).where(EmbeddingCache.content_hash == content_hash)
+                )
+                cache_entry = result.scalar_one_or_none()
+                
+                if cache_entry:
+                    embedding_data = cache_entry.embedding
+                    cache_entry.last_accessed_at = datetime.now()
+                    cache_entry.access_count += 1
+                    await cache_db.commit()
+                    logger.debug(f"缓存命中: {content_hash[:16]}...")
+                    return embedding_data
+                
+                return None
         except Exception as e:
             logger.warning(f"缓存查询失败: {str(e)}")
             return None
     
     async def _save_to_cache(self, db: AsyncSession, content_hash: str, embedding: bytes) -> None:
         """
-        保存嵌入到缓存
+        保存嵌入到缓存（使用独立数据库会话）
         
         Args:
             db: 数据库会话
@@ -101,35 +107,38 @@ class EmbeddingService:
             embedding: 嵌入字节数据
         """
         if not self.cache_enabled:
-            return None
+            return
+        
+        from app.database import AsyncSessionLocal
         
         try:
-            await self._cleanup_cache_if_needed(db)
-            
-            result = await db.execute(
-                select(EmbeddingCache).where(EmbeddingCache.content_hash == content_hash)
-            )
-            existing_entry = result.scalar_one_or_none()
-            
-            if existing_entry:
-                existing_entry.embedding = embedding
-                existing_entry.model = self.model
-                existing_entry.last_accessed_at = datetime.now()
-                existing_entry.access_count += 1
-                logger.debug(f"缓存更新: {content_hash[:16]}...")
-            else:
-                cache_entry = EmbeddingCache(
-                    content_hash=content_hash,
-                    embedding=embedding,
-                    model=self.model,
-                    created_at=datetime.now(),
-                    last_accessed_at=datetime.now(),
-                    access_count=1
+            async with AsyncSessionLocal() as cache_db:
+                await self._cleanup_cache_if_needed(cache_db)
+                
+                result = await cache_db.execute(
+                    select(EmbeddingCache).where(EmbeddingCache.content_hash == content_hash)
                 )
-                db.add(cache_entry)
-                logger.debug(f"缓存保存: {content_hash[:16]}...")
-            
-            await db.commit()
+                existing_entry = result.scalar_one_or_none()
+                
+                if existing_entry:
+                    existing_entry.embedding = embedding
+                    existing_entry.model = self.model
+                    existing_entry.last_accessed_at = datetime.now()
+                    existing_entry.access_count += 1
+                    logger.debug(f"缓存更新: {content_hash[:16]}...")
+                else:
+                    cache_entry = EmbeddingCache(
+                        content_hash=content_hash,
+                        embedding=embedding,
+                        model=self.model,
+                        created_at=datetime.now(),
+                        last_accessed_at=datetime.now(),
+                        access_count=1
+                    )
+                    cache_db.add(cache_entry)
+                    logger.debug(f"缓存保存: {content_hash[:16]}...")
+                
+                await cache_db.commit()
         except Exception as e:
             logger.warning(f"缓存保存失败: {str(e)}")
     
@@ -176,16 +185,23 @@ class EmbeddingService:
             向量嵌入列表，失败返回 None
         """
         if not text or not text.strip():
+            logger.warning("[嵌入生成] 输入文本为空，跳过嵌入生成")
             return None
         
         content_hash = self._compute_content_hash(text.strip())
+        logger.debug(f"[嵌入生成] 开始处理，文本长度: {len(text)}, 哈希: {content_hash[:16]}...")
         
         if use_cache:
             cached_embedding = await self._get_from_cache(db, content_hash)
             if cached_embedding:
-                return bytes_to_embedding(cached_embedding)
+                embedding_list = bytes_to_embedding(cached_embedding)
+                logger.info(f"[嵌入生成] 缓存命中，维度: {len(embedding_list)}")
+                return embedding_list
+            else:
+                logger.debug("[嵌入生成] 缓存未命中，调用API生成")
         
         try:
+            logger.info(f"[嵌入生成] 调用OpenRouter API，模型: {self.model}")
             async with httpx.AsyncClient(timeout=60.0) as client:
                 response = await client.post(
                     f"{self.base_url}/embeddings",
@@ -202,7 +218,7 @@ class EmbeddingService:
                 )
                 
                 if response.status_code != 200:
-                    logger.error(f"嵌入API调用失败: {response.status_code} - {response.text}")
+                    logger.error(f"[嵌入生成] API调用失败: HTTP {response.status_code} - {response.text[:200]}")
                     return None
                 
                 data = response.json()
@@ -210,21 +226,22 @@ class EmbeddingService:
                 if "data" in data and len(data["data"]) > 0:
                     embedding = data["data"][0].get("embedding")
                     if embedding:
-                        logger.debug(f"成功生成嵌入向量，维度: {len(embedding)}")
+                        logger.info(f"[嵌入生成] 成功，维度: {len(embedding)}")
                         
                         if use_cache:
                             await self._save_to_cache(db, content_hash, embedding_to_bytes(embedding))
+                            logger.debug(f"[嵌入生成] 已缓存，哈希: {content_hash[:16]}...")
                         
                         return embedding
                 
-                logger.error(f"嵌入响应格式错误: {data}")
+                logger.error(f"[嵌入生成] 响应格式错误: {str(data)[:200]}")
                 return None
                 
         except httpx.TimeoutException:
-            logger.error("嵌入API调用超时")
+            logger.error("[嵌入生成] API调用超时 (60s)")
             return None
         except Exception as e:
-            logger.error(f"嵌入API调用异常: {str(e)}")
+            logger.error(f"[嵌入生成] 异常: {str(e)}")
             return None
     
     async def get_embeddings_batch(self, db: AsyncSession, texts: List[str], use_cache: bool = True) -> List[Optional[List[float]]]:
@@ -403,10 +420,11 @@ class LocalEmbeddingService:
         """
         try:
             from sentence_transformers import SentenceTransformer
+            logger.info(f"[本地嵌入] 开始加载模型: {self.model_name}")
             self.model = SentenceTransformer(self.model_name)
-            logger.info(f"成功加载本地嵌入模型: {self.model_name}")
+            logger.info(f"[本地嵌入] 模型加载成功: {self.model_name}")
         except Exception as e:
-            logger.error(f"加载本地嵌入模型失败: {str(e)}")
+            logger.error(f"[本地嵌入] 模型加载失败: {str(e)}")
             raise
     
     def _compute_content_hash(self, content: str) -> str:
@@ -435,54 +453,57 @@ class LocalEmbeddingService:
         if not self.cache_enabled:
             return None
         
+        from app.database import AsyncSessionLocal
+        
         try:
-            result = await db.execute(
-                select(EmbeddingCache).where(EmbeddingCache.content_hash == content_hash)
-            )
-            cache_entry = result.scalar_one_or_none()
-            
-            if cache_entry:
-                await db.execute(
-                    delete(EmbeddingCache).where(EmbeddingCache.id == cache_entry.id)
+            async with AsyncSessionLocal() as cache_db:
+                result = await cache_db.execute(
+                    select(EmbeddingCache).where(EmbeddingCache.content_hash == content_hash)
                 )
-                cache_entry.last_accessed_at = datetime.now()
-                cache_entry.access_count += 1
-                db.add(cache_entry)
-                await db.commit()
-                logger.debug(f"缓存命中: {content_hash[:16]}...")
-                return cache_entry.embedding
-            
-            return None
+                cache_entry = result.scalar_one_or_none()
+                
+                if cache_entry:
+                    embedding_data = cache_entry.embedding
+                    cache_entry.last_accessed_at = datetime.now()
+                    cache_entry.access_count += 1
+                    await cache_db.commit()
+                    logger.debug(f"缓存命中: {content_hash[:16]}...")
+                    return embedding_data
+                
+                return None
         except Exception as e:
             logger.warning(f"缓存查询失败: {str(e)}")
             return None
     
     async def _save_to_cache(self, db: AsyncSession, content_hash: str, embedding: List[float]) -> None:
         """
-        保存嵌入到缓存
+        保存嵌入到缓存（使用独立数据库会话）
         
         Args:
-            db: 数据库会话
+            db: 数据库会话（未使用，保留参数兼容性）
             content_hash: 内容哈希
             embedding: 嵌入列表
         """
         if not self.cache_enabled:
-            return None
+            return
+        
+        from app.database import AsyncSessionLocal
         
         try:
-            await self._cleanup_cache_if_needed(db)
-            
-            cache_entry = EmbeddingCache(
-                content_hash=content_hash,
-                embedding=embedding_to_bytes(embedding),
-                model=self.model_name,
-                created_at=datetime.now(),
-                last_accessed_at=datetime.now(),
-                access_count=1
-            )
-            db.add(cache_entry)
-            await db.commit()
-            logger.debug(f"缓存保存: {content_hash[:16]}...")
+            async with AsyncSessionLocal() as cache_db:
+                await self._cleanup_cache_if_needed(cache_db)
+                
+                cache_entry = EmbeddingCache(
+                    content_hash=content_hash,
+                    embedding=embedding_to_bytes(embedding),
+                    model=self.model_name,
+                    created_at=datetime.now(),
+                    last_accessed_at=datetime.now(),
+                    access_count=1
+                )
+                cache_db.add(cache_entry)
+                await cache_db.commit()
+                logger.debug(f"缓存保存: {content_hash[:16]}...")
         except Exception as e:
             logger.warning(f"缓存保存失败: {str(e)}")
     
@@ -494,8 +515,10 @@ class LocalEmbeddingService:
             db: 数据库会话
         """
         try:
+            from sqlalchemy import func
+            
             result = await db.execute(
-                select(EmbeddingCache).count()
+                select(func.count()).select_from(EmbeddingCache)
             )
             count = result.scalar()
             
@@ -527,22 +550,29 @@ class LocalEmbeddingService:
             向量嵌入列表，失败返回 None
         """
         if not text or not text.strip():
+            logger.warning("[本地嵌入] 输入文本为空，跳过嵌入生成")
             return None
         
         if not self.model:
-            logger.error("本地嵌入模型未加载")
+            logger.error("[本地嵌入] 模型未加载")
             return None
         
         content_hash = self._compute_content_hash(text.strip())
+        logger.debug(f"[本地嵌入] 开始处理，文本长度: {len(text)}, 哈希: {content_hash[:16]}...")
         
         if use_cache:
             cached_embedding = await self._get_from_cache(db, content_hash)
             if cached_embedding:
-                return bytes_to_embedding(cached_embedding)
+                embedding_list = bytes_to_embedding(cached_embedding)
+                logger.info(f"[本地嵌入] 缓存命中，维度: {len(embedding_list)}")
+                return embedding_list
+            else:
+                logger.debug("[本地嵌入] 缓存未命中，开始生成")
         
         try:
             import asyncio
             loop = asyncio.get_event_loop()
+            logger.debug(f"[本地嵌入] 开始生成嵌入向量...")
             embedding = await loop.run_in_executor(
                 None,
                 self.model.encode,
@@ -551,17 +581,18 @@ class LocalEmbeddingService:
             
             if embedding is not None:
                 embedding_list = embedding.tolist()
-                logger.debug(f"成功生成嵌入向量，维度: {len(embedding_list)}")
+                logger.info(f"[本地嵌入] 成功，维度: {len(embedding_list)}")
                 
                 if use_cache:
                     await self._save_to_cache(db, content_hash, embedding_list)
+                    logger.debug(f"[本地嵌入] 已缓存，哈希: {content_hash[:16]}...")
                 
                 return embedding_list
             
-            logger.error("嵌入生成返回None")
+            logger.error("[本地嵌入] 嵌入生成返回None")
             return None
         except Exception as e:
-            logger.error(f"本地嵌入生成失败: {str(e)}")
+            logger.error(f"[本地嵌入] 生成失败: {str(e)}")
             return None
     
     async def get_embeddings_batch(self, db: AsyncSession, texts: List[str], use_cache: bool = True) -> List[Optional[List[float]]]:
@@ -599,6 +630,8 @@ async def get_embedding_service(db) -> Optional[object]:
     if not provider:
         provider = EMBEDDING_PROVIDER_OPENROUTER
     
+    logger.debug(f"[嵌入服务] 初始化嵌入服务，提供商: {provider}")
+    
     if provider == EMBEDDING_PROVIDER_LOCAL:
         model = await get_config_value(db, EMBEDDING_MODEL_KEY)
         if not model:
@@ -614,13 +647,15 @@ async def get_embedding_service(db) -> Optional[object]:
         
         if local_embedding_service_instance is None:
             try:
+                logger.info(f"[嵌入服务] 创建本地嵌入服务实例，模型: {model}")
                 local_embedding_service_instance = LocalEmbeddingService(
                     model_name=model,
                     cache_enabled=cache_enabled,
                     cache_max_entries=cache_max_entries
                 )
+                logger.info("[嵌入服务] 本地嵌入服务初始化成功")
             except Exception as e:
-                logger.error(f"初始化本地嵌入服务失败: {str(e)}，降级到远程API")
+                logger.error(f"[嵌入服务] 初始化本地嵌入服务失败: {str(e)}，降级到远程API")
                 provider = EMBEDDING_PROVIDER_OPENROUTER
         
         if local_embedding_service_instance:
@@ -629,7 +664,7 @@ async def get_embedding_service(db) -> Optional[object]:
     if provider == EMBEDDING_PROVIDER_OPENROUTER:
         api_key = await get_config_value(db, OPENROUTER_API_KEY_KEY)
         if not api_key:
-            logger.warning("OpenRouter API Key 未配置")
+            logger.warning("[嵌入服务] OpenRouter API Key 未配置")
             return None
         
         model = await get_config_value(db, EMBEDDING_MODEL_KEY)
@@ -645,18 +680,22 @@ async def get_embedding_service(db) -> Optional[object]:
             cache_max_entries = 50000
         
         if embedding_service_instance is None:
+            logger.info(f"[嵌入服务] 创建OpenRouter嵌入服务实例，模型: {model}")
             embedding_service_instance = EmbeddingService(
                 api_key=api_key, 
                 model=model,
                 cache_enabled=cache_enabled,
                 cache_max_entries=cache_max_entries
             )
+            logger.info("[嵌入服务] OpenRouter嵌入服务初始化成功")
         else:
             embedding_service_instance.api_key = api_key
             embedding_service_instance.model = model
             embedding_service_instance.cache_enabled = cache_enabled
             embedding_service_instance.cache_max_entries = cache_max_entries
+            logger.debug(f"[嵌入服务] 更新现有实例配置，模型: {model}")
         
         return embedding_service_instance
     
+    logger.warning("[嵌入服务] 未找到可用的嵌入服务提供商")
     return None

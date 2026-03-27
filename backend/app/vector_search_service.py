@@ -20,6 +20,21 @@ from app.api.config import get_config_value, EMBEDDING_MODEL_KEY, OPENROUTER_API
 
 logger = logging.getLogger(__name__)
 
+LOG_SEPARATOR = "─" * 50
+
+
+def _log_search_start(query: str, search_type: str, top_k: int):
+    """记录搜索开始的日志"""
+    logger.info(f"[{search_type}] 开始搜索")
+    logger.info(f"  ├─ 查询内容: {query[:50]}{'...' if len(query) > 50 else ''}")
+    logger.info(f"  └─ 返回数量: {top_k}")
+
+
+def _log_search_result(count: int, search_type: str, source: str):
+    """记录搜索结果的日志"""
+    logger.info(f"[{search_type}] 搜索完成，找到 {count} 条结果 (来源: {source})")
+
+
 _sqlite_vec_available = None
 
 
@@ -85,6 +100,37 @@ async def generate_and_store_embedding(
         return None
     
     return embedding_to_bytes(embedding)
+
+
+async def generate_embedding_standalone(content: str) -> Optional[bytes]:
+    """
+    生成向量嵌入（使用独立数据库会话，用于后台任务）
+    
+    Args:
+        content: 要嵌入的内容
+        
+    Returns:
+        嵌入字节数据，失败返回 None
+    """
+    from app.database import AsyncSessionLocal
+    
+    async with AsyncSessionLocal() as db:
+        try:
+            embedding_service = await get_embedding_service(db)
+            if not embedding_service:
+                logger.warning("[独立嵌入] 嵌入服务不可用，跳过向量生成")
+                return None
+            
+            embedding = await embedding_service.get_embedding(db, content)
+            if not embedding:
+                logger.warning(f"[独立嵌入] 生成嵌入失败: {content[:50]}...")
+                return None
+            
+            logger.debug(f"[独立嵌入] 成功生成嵌入，维度: {len(embedding)}")
+            return embedding_to_bytes(embedding)
+        except Exception as e:
+            logger.error(f"[独立嵌入] 生成失败: {str(e)}")
+            return None
 
 
 async def search_messages_by_similarity(
@@ -217,9 +263,27 @@ async def hybrid_memory_search(
     Returns:
         搜索结果列表
     """
+    logger.info(LOG_SEPARATOR)
+    logger.info("[混合搜索] 开始混合记忆搜索")
+    logger.info(f"  ├─ 查询: {query[:50]}{'...' if len(query) > 50 else ''}")
+    logger.info(f"  ├─ 会话ID: {conversation_id or '全部'}")
+    logger.info(f"  ├─ 返回数量: {top_k}")
+    logger.info(f"  ├─ 最小分数: {min_score}")
+    logger.info(f"  ├─ 混合模式: {'启用' if use_hybrid else '禁用'}")
+    if use_hybrid:
+        logger.info(f"  │   ├─ 向量权重: {vector_weight}")
+        logger.info(f"  │   └─ 文本权重: {text_weight}")
+    logger.info(f"  ├─ MMR重排序: {'启用' if enable_mmr else '禁用'}")
+    if enable_mmr:
+        logger.info(f"  │   └─ Lambda: {mmr_lambda}")
+    logger.info(f"  └─ 时间衰减: {'启用' if enable_temporal_decay else '禁用'}")
+    if enable_temporal_decay:
+        logger.info(f"      └─ 半衰期: {half_life_days}天")
+    
     results = []
     
     if include_messages:
+        logger.info("[消息搜索] 开始搜索历史消息...")
         if use_hybrid:
             message_results = await hybrid_search(
                 db, query, conversation_id, top_k, min_score,
@@ -235,15 +299,16 @@ async def hybrid_memory_search(
                     source=f"message_{source}",
                     created_at=msg.created_at
                 ))
+            logger.info(f"[消息搜索] 找到 {len(message_results)} 条相关消息")
         else:
             embedding_service = await get_embedding_service(db)
             if not embedding_service:
-                logger.warning("嵌入服务不可用，返回空结果")
+                logger.warning("[消息搜索] 嵌入服务不可用，返回空结果")
                 return []
             
             query_embedding = await embedding_service.get_embedding(db, query)
             if not query_embedding:
-                logger.warning("生成查询嵌入失败")
+                logger.warning("[消息搜索] 生成查询嵌入失败")
                 return []
             
             message_results = await search_messages_by_similarity(
@@ -259,8 +324,10 @@ async def hybrid_memory_search(
                     source="message",
                     created_at=msg.created_at
                 ))
+            logger.info(f"[消息搜索] 找到 {len(message_results)} 条相关消息 (纯向量模式)")
     
     if include_long_term:
+        logger.info("[长期记忆搜索] 开始搜索长期记忆...")
         if use_hybrid:
             memory_results = await hybrid_search(
                 db, query, None, top_k, min_score,
@@ -276,15 +343,16 @@ async def hybrid_memory_search(
                     source=f"long_term_memory_{source}",
                     created_at=mem.created_at
                 ))
+            logger.info(f"[长期记忆搜索] 找到 {len(memory_results)} 条相关记忆")
         else:
             embedding_service = await get_embedding_service(db)
             if not embedding_service:
-                logger.warning("嵌入服务不可用，返回空结果")
+                logger.warning("[长期记忆搜索] 嵌入服务不可用，返回空结果")
                 return []
             
             query_embedding = await embedding_service.get_embedding(db, query)
             if not query_embedding:
-                logger.warning("生成查询嵌入失败")
+                logger.warning("[长期记忆搜索] 生成查询嵌入失败")
                 return []
             
             memory_results = await search_long_term_memory_by_similarity(
@@ -300,8 +368,12 @@ async def hybrid_memory_search(
                     source="long_term_memory",
                     created_at=mem.created_at
                 ))
+            logger.info(f"[长期记忆搜索] 找到 {len(memory_results)} 条相关记忆 (纯向量模式)")
+    
+    logger.info(f"[混合搜索] 合并结果: {len(results)} 条")
     
     if enable_mmr:
+        logger.info(f"[MMR重排序] 开始MMR重排序，lambda={mmr_lambda}")
         results_with_scores = [(r, r.score, r.source) for r in results]
         reranked = mmr_rerank(results_with_scores, mmr_lambda, top_k)
         results = [MemorySearchResult(
@@ -312,8 +384,10 @@ async def hybrid_memory_search(
             source=source,
             created_at=getattr(r, 'created_at', None)
         ) for r, score, source in reranked]
+        logger.info(f"[MMR重排序] 完成，保留 {len(results)} 条结果")
     
     if enable_temporal_decay:
+        logger.info(f"[时间衰减] 应用时间衰减，半衰期={half_life_days}天")
         results_with_sources = [(r, r.score, r.source) for r in results]
         decayed = apply_temporal_decay(results_with_sources, half_life_days, enable_temporal_decay)
         results = [MemorySearchResult(
@@ -324,10 +398,18 @@ async def hybrid_memory_search(
             source=r[2],
             created_at=getattr(r[0], 'created_at', None)
         ) for r in decayed]
+        logger.debug(f"[时间衰减] 完成")
     
     results.sort(key=lambda x: x.score, reverse=True)
+    final_results = results[:top_k]
     
-    return results[:top_k]
+    logger.info(f"[混合搜索] 最终返回 {len(final_results)} 条结果")
+    for i, r in enumerate(final_results, 1):
+        source_type = "消息" if "message" in r.source else "长期记忆"
+        logger.debug(f"  #{i}: [{source_type}] 分数={r.score:.3f}, 内容={r.content[:30]}...")
+    logger.info(LOG_SEPARATOR)
+    
+    return final_results
 
 
 async def index_message_embedding(message_id: int) -> bool:
@@ -346,22 +428,24 @@ async def index_message_embedding(message_id: int) -> bool:
         try:
             message = await db.get(Message, message_id)
             if not message:
-                logger.warning(f"消息 {message_id} 不存在")
+                logger.warning(f"[消息嵌入] 消息 {message_id} 不存在")
                 return False
             
-            embedding_bytes = await generate_and_store_embedding(db, message.content)
+            content = message.content
+            embedding_bytes = await generate_embedding_standalone(content)
             
             if embedding_bytes:
                 message.embedding = embedding_bytes
                 model = await get_config_value(db, EMBEDDING_MODEL_KEY)
                 message.embedding_model = model or "nvidia/llama-nemotron-embed-vl-1b-v2:free"
                 await db.commit()
-                logger.info(f"消息 {message.id} 向量嵌入已生成")
+                logger.info(f"[消息嵌入] 消息 {message.id} 向量嵌入已生成")
                 return True
             
+            logger.warning(f"[消息嵌入] 消息 {message_id} 嵌入生成失败")
             return False
         except Exception as e:
-            logger.error(f"索引消息 {message_id} 失败: {str(e)}")
+            logger.error(f"[消息嵌入] 索引消息 {message_id} 失败: {str(e)}")
             return False
 
 
@@ -381,22 +465,24 @@ async def index_long_term_memory_embedding(memory_id: int) -> bool:
         try:
             memory = await db.get(LongTermMemory, memory_id)
             if not memory:
-                logger.warning(f"长期记忆 {memory_id} 不存在")
+                logger.warning(f"[长期记忆嵌入] 长期记忆 {memory_id} 不存在")
                 return False
             
-            embedding_bytes = await generate_and_store_embedding(db, memory.content)
+            content = memory.content
+            embedding_bytes = await generate_embedding_standalone(content)
             
             if embedding_bytes:
                 memory.embedding = embedding_bytes
                 model = await get_config_value(db, EMBEDDING_MODEL_KEY)
                 memory.embedding_model = model or "nvidia/llama-nemotron-embed-vl-1b-v2:free"
                 await db.commit()
-                logger.info(f"长期记忆 {memory.id} 向量嵌入已生成")
+                logger.info(f"[长期记忆嵌入] 长期记忆 {memory.id} 向量嵌入已生成")
                 return True
             
+            logger.warning(f"[长期记忆嵌入] 长期记忆 {memory_id} 嵌入生成失败")
             return False
         except Exception as e:
-            logger.error(f"索引长期记忆 {memory_id} 失败: {str(e)}")
+            logger.error(f"[长期记忆嵌入] 索引长期记忆 {memory_id} 失败: {str(e)}")
             return False
 
 
@@ -594,9 +680,11 @@ async def hybrid_search(
     Returns:
         (对象, 分数, 来源) 元组列表
     """
+    logger.debug(f"[混合搜索-{search_type}] 开始，查询: {query[:30]}...")
+    
     embedding_service = await get_embedding_service(db)
     if not embedding_service:
-        logger.warning("嵌入服务不可用，仅使用BM25搜索")
+        logger.warning(f"[混合搜索-{search_type}] 嵌入服务不可用，仅使用BM25搜索")
         if use_hybrid:
             if search_type == "message":
                 results = await search_messages_by_bm25(
@@ -606,14 +694,16 @@ async def hybrid_search(
                 results = await search_long_term_memory_by_bm25(
                     db, query, top_k, min_score
                 )
+            logger.info(f"[混合搜索-{search_type}] BM25搜索完成，找到 {len(results)} 条结果")
             return [(obj, score, "bm25") for obj, score in results]
         else:
             return []
     
     if not use_hybrid:
+        logger.debug(f"[混合搜索-{search_type}] 纯向量模式")
         query_embedding = await embedding_service.get_embedding(db, query)
         if not query_embedding:
-            logger.warning("生成查询嵌入失败")
+            logger.warning(f"[混合搜索-{search_type}] 生成查询嵌入失败")
             return []
         
         if search_type == "message":
@@ -624,11 +714,12 @@ async def hybrid_search(
             results = await search_long_term_memory_by_similarity(
                 db, query_embedding, top_k, min_score
             )
+        logger.info(f"[混合搜索-{search_type}] 向量搜索完成，找到 {len(results)} 条结果")
         return [(obj, score, "vector") for obj, score in results]
     
     query_embedding = await embedding_service.get_embedding(db, query)
     if not query_embedding:
-        logger.warning("生成查询嵌入失败，仅使用BM25搜索")
+        logger.warning(f"[混合搜索-{search_type}] 生成查询嵌入失败，仅使用BM25搜索")
         if search_type == "message":
             results = await search_messages_by_bm25(
                 db, query, conversation_id, top_k, min_score
@@ -637,22 +728,30 @@ async def hybrid_search(
             results = await search_long_term_memory_by_bm25(
                 db, query, top_k, min_score
             )
+        logger.info(f"[混合搜索-{search_type}] BM25搜索完成，找到 {len(results)} 条结果")
         return [(obj, score, "bm25") for obj, score in results]
     
+    logger.debug(f"[混合搜索-{search_type}] 执行向量搜索...")
     if search_type == "message":
         vector_results = await search_messages_by_similarity(
             db, query_embedding, conversation_id, top_k * 4, min_score
-        )
-        bm25_results = await search_messages_by_bm25(
-            db, query, conversation_id, top_k * 4, min_score
         )
     else:
         vector_results = await search_long_term_memory_by_similarity(
             db, query_embedding, top_k * 4, min_score
         )
+    logger.debug(f"[混合搜索-{search_type}] 向量搜索找到 {len(vector_results)} 条")
+    
+    logger.debug(f"[混合搜索-{search_type}] 执行BM25搜索...")
+    if search_type == "message":
+        bm25_results = await search_messages_by_bm25(
+            db, query, conversation_id, top_k * 4, min_score
+        )
+    else:
         bm25_results = await search_long_term_memory_by_bm25(
             db, query, top_k * 4, min_score
         )
+    logger.debug(f"[混合搜索-{search_type}] BM25搜索找到 {len(bm25_results)} 条")
     
     merged_results = {}
     
@@ -681,6 +780,8 @@ async def hybrid_search(
             merged_results[obj_id]["bm25_score"] = bm25_score
             merged_results[obj_id]["source"] = "hybrid"
     
+    logger.debug(f"[混合搜索-{search_type}] 合并后共 {len(merged_results)} 条唯一结果")
+    
     final_results = []
     for result_id, result_data in merged_results.items():
         vec_score = result_data["vector_score"]
@@ -695,6 +796,7 @@ async def hybrid_search(
     
     final_results.sort(key=lambda x: x[1], reverse=True)
     
+    logger.info(f"[混合搜索-{search_type}] 完成，返回 {len(final_results[:top_k])} 条结果")
     return final_results[:top_k]
 
 
