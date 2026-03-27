@@ -37,7 +37,7 @@ async def search_memory(
     
     通过向量相似度搜索相关的历史消息和长期记忆
     """
-    logger.info(f"记忆搜索: query='{request.query[:30]}...', top_k={request.top_k}")
+    logger.info(f"记忆搜索: query='{request.query[:30]}...', top_k={request.top_k}, use_hybrid={request.use_hybrid}")
     
     try:
         results = await hybrid_memory_search(
@@ -45,7 +45,16 @@ async def search_memory(
             query=request.query,
             conversation_id=request.conversation_id,
             top_k=request.top_k,
-            min_score=request.min_score
+            min_score=request.min_score,
+            include_messages=True,
+            include_long_term=True,
+            use_hybrid=request.use_hybrid,
+            vector_weight=request.vector_weight,
+            text_weight=request.text_weight,
+            enable_mmr=request.enable_mmr,
+            mmr_lambda=request.mmr_lambda,
+            enable_temporal_decay=request.enable_temporal_decay,
+            half_life_days=request.half_life_days
         )
         
         logger.info(f"搜索完成，找到 {len(results)} 条结果")

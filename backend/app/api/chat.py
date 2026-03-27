@@ -3,15 +3,38 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.models import Conversation, Message
-from app.schemas import ChatRequest
+from app.schemas import ChatRequest, MemorySearchResult
 from app.llm_service import get_llm_service
 from app.api.config import get_config_value, API_KEY_KEY, LLM_MODEL_KEY
-from app.vector_search_service import index_message_embedding
+from app.vector_search_service import index_message_embedding, hybrid_memory_search
+from typing import List
 import logging
 import asyncio
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def build_memory_context(memory_results: List[MemorySearchResult]) -> str:
+    """
+    将记忆搜索结果格式化为上下文提示
+
+    Args:
+        memory_results: 记忆搜索结果列表
+
+    Returns:
+        格式化的记忆上下文字符串
+    """
+    if not memory_results:
+        return ""
+
+    lines = ["## 相关记忆"]
+    for result in memory_results:
+        source_label = "消息" if result.source == "message" else "长期记忆"
+        lines.append(f"- [{source_label}] {result.content} (相关度: {result.score:.2f})")
+    lines.append("")
+
+    return "\n".join(lines)
 
 
 async def get_or_create_conversation(db: AsyncSession, message: str, conversation_id: int | None = None) -> tuple[int, Conversation]:
@@ -101,8 +124,30 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     )
 
     await save_message(db, conversation_id, "user", request.message)
-
+    
     message_history = await get_conversation_history(db, conversation_id)
+    
+    memory_results = await hybrid_memory_search(
+        db=db,
+        query=request.message,
+        conversation_id=conversation_id,
+        top_k=5,
+        min_score=0.5,
+        include_messages=True,
+        include_long_term=True,
+        use_hybrid=True,
+        vector_weight=0.7,
+        text_weight=0.3,
+        enable_mmr=True,
+        mmr_lambda=0.7,
+        enable_temporal_decay=True,
+        half_life_days=30
+    )
+    
+    memory_context = build_memory_context(memory_results)
+    
+    if memory_results:
+        logger.info(f"检索到 {len(memory_results)} 条相关记忆")
 
     async def generate():
         """生成流式响应"""
@@ -112,7 +157,16 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
             logger.info(f"调用智谱AI模型(流式): conversation_id={conversation_id}, model={model}")
             llm = get_llm_service(api_key)
 
-            async for content in llm.chat_stream(messages=message_history, model=model, thinking=True):
+            if memory_context:
+                full_messages = [
+                    {"role": "system", "content": memory_context},
+                    *message_history
+                ]
+                logger.info(f"使用带记忆上下文的消息历史 (历史 {len(message_history)} 条)")
+            else:
+                full_messages = message_history
+
+            async for content in llm.chat_stream(messages=full_messages, model=model, thinking=True):
                 if content:
                     full_content += content
                     response_data = {

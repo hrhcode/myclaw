@@ -1,12 +1,13 @@
 """
 向量搜索服务
 提供消息和长期记忆的语义搜索功能
+支持sqlite-vec加速和Python降级
 """
 import logging
-from typing import List, Optional, Tuple
-from datetime import datetime
+from typing import List, Optional, Tuple, Dict
+from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, text, func
 from app.models import Message, LongTermMemory
 from app.embedding_service import (
     get_embedding_service,
@@ -18,6 +19,41 @@ from app.schemas import MemorySearchResult
 from app.api.config import get_config_value, EMBEDDING_MODEL_KEY, OPENROUTER_API_KEY_KEY
 
 logger = logging.getLogger(__name__)
+
+_sqlite_vec_available = None
+
+
+async def check_sqlite_vec_available(db: AsyncSession) -> bool:
+    """
+    检查sqlite-vec是否可用
+    
+    Args:
+        db: 数据库会话
+        
+    Returns:
+        是否可用
+    """
+    global _sqlite_vec_available
+    
+    if _sqlite_vec_available is not None:
+        return _sqlite_vec_available
+    
+    try:
+        result = await db.execute(text(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='message_embeddings_vec'"
+        ))
+        if result.fetchone():
+            _sqlite_vec_available = True
+            logger.info("sqlite-vec向量表可用，将使用加速搜索")
+            return True
+        else:
+            _sqlite_vec_available = False
+            logger.info("sqlite-vec向量表不可用，将使用Python计算")
+            return False
+    except Exception as e:
+        logger.warning(f"检查sqlite-vec可用性失败: {str(e)}")
+        _sqlite_vec_available = False
+        return False
 
 
 async def generate_and_store_embedding(
@@ -43,7 +79,7 @@ async def generate_and_store_embedding(
         logger.warning("嵌入服务不可用，跳过向量生成")
         return None
     
-    embedding = await embedding_service.get_embedding(content)
+    embedding = await embedding_service.get_embedding(db, content)
     if not embedding:
         logger.warning(f"生成嵌入失败: {content[:50]}...")
         return None
@@ -150,7 +186,14 @@ async def hybrid_memory_search(
     top_k: int = 5,
     min_score: float = 0.5,
     include_messages: bool = True,
-    include_long_term: bool = True
+    include_long_term: bool = True,
+    use_hybrid: bool = True,
+    vector_weight: float = 0.7,
+    text_weight: float = 0.3,
+    enable_mmr: bool = True,
+    mmr_lambda: float = 0.7,
+    enable_temporal_decay: bool = True,
+    half_life_days: int = 30
 ) -> List[MemorySearchResult]:
     """
     混合记忆搜索（消息 + 长期记忆）
@@ -163,51 +206,124 @@ async def hybrid_memory_search(
         min_score: 最小相似度阈值
         include_messages: 是否包含消息
         include_long_term: 是否包含长期记忆
+        use_hybrid: 是否使用混合搜索
+        vector_weight: 向量搜索权重
+        text_weight: BM25搜索权重
+        enable_mmr: 是否启用MMR重排序
+        mmr_lambda: MMR参数
+        enable_temporal_decay: 是否启用时间衰减
+        half_life_days: 半衰期天数
         
     Returns:
         搜索结果列表
     """
-    embedding_service = await get_embedding_service(db)
-    if not embedding_service:
-        logger.warning("嵌入服务不可用，返回空结果")
-        return []
-    
-    query_embedding = await embedding_service.get_embedding(query)
-    if not query_embedding:
-        logger.warning("生成查询嵌入失败")
-        return []
-    
     results = []
     
     if include_messages:
-        message_results = await search_messages_by_similarity(
-            db, query_embedding, conversation_id, top_k, min_score
-        )
-        
-        for msg, score in message_results:
-            results.append(MemorySearchResult(
-                message_id=msg.id,
-                memory_id=None,
-                content=msg.content,
-                score=score,
-                source="message",
-                created_at=msg.created_at
-            ))
+        if use_hybrid:
+            message_results = await hybrid_search(
+                db, query, conversation_id, top_k, min_score,
+                vector_weight, text_weight, use_hybrid, search_type="message"
+            )
+            
+            for msg, score, source in message_results:
+                results.append(MemorySearchResult(
+                    message_id=msg.id,
+                    memory_id=None,
+                    content=msg.content,
+                    score=score,
+                    source=f"message_{source}",
+                    created_at=msg.created_at
+                ))
+        else:
+            embedding_service = await get_embedding_service(db)
+            if not embedding_service:
+                logger.warning("嵌入服务不可用，返回空结果")
+                return []
+            
+            query_embedding = await embedding_service.get_embedding(db, query)
+            if not query_embedding:
+                logger.warning("生成查询嵌入失败")
+                return []
+            
+            message_results = await search_messages_by_similarity(
+                db, query_embedding, conversation_id, top_k, min_score
+            )
+            
+            for msg, score in message_results:
+                results.append(MemorySearchResult(
+                    message_id=msg.id,
+                    memory_id=None,
+                    content=msg.content,
+                    score=score,
+                    source="message",
+                    created_at=msg.created_at
+                ))
     
     if include_long_term:
-        memory_results = await search_long_term_memory_by_similarity(
-            db, query_embedding, top_k, min_score
-        )
-        
-        for mem, score in memory_results:
-            results.append(MemorySearchResult(
-                message_id=None,
-                memory_id=mem.id,
-                content=mem.content,
-                score=score,
-                source="long_term_memory",
-                created_at=mem.created_at
-            ))
+        if use_hybrid:
+            memory_results = await hybrid_search(
+                db, query, None, top_k, min_score,
+                vector_weight, text_weight, use_hybrid, search_type="long_term_memory"
+            )
+            
+            for mem, score, source in memory_results:
+                results.append(MemorySearchResult(
+                    message_id=None,
+                    memory_id=mem.id,
+                    content=mem.content,
+                    score=score,
+                    source=f"long_term_memory_{source}",
+                    created_at=mem.created_at
+                ))
+        else:
+            embedding_service = await get_embedding_service(db)
+            if not embedding_service:
+                logger.warning("嵌入服务不可用，返回空结果")
+                return []
+            
+            query_embedding = await embedding_service.get_embedding(db, query)
+            if not query_embedding:
+                logger.warning("生成查询嵌入失败")
+                return []
+            
+            memory_results = await search_long_term_memory_by_similarity(
+                db, query_embedding, top_k, min_score
+            )
+            
+            for mem, score in memory_results:
+                results.append(MemorySearchResult(
+                    message_id=None,
+                    memory_id=mem.id,
+                    content=mem.content,
+                    score=score,
+                    source="long_term_memory",
+                    created_at=mem.created_at
+                ))
+    
+    if enable_mmr:
+        results_with_scores = [(r, r.score, r.source) for r in results]
+        reranked = mmr_rerank(results_with_scores, mmr_lambda, top_k)
+        results = [MemorySearchResult(
+            message_id=r.message_id if hasattr(r, 'message_id') else None,
+            memory_id=r.memory_id if hasattr(r, 'memory_id') else None,
+            content=r.content if hasattr(r, 'content') else '',
+            score=score,
+            source=source,
+            created_at=getattr(r, 'created_at', None)
+        ) for r, score, source in reranked]
+    
+    if enable_temporal_decay:
+        results_with_sources = [(r, r.score, r.source) for r in results]
+        decayed = apply_temporal_decay(results_with_sources, half_life_days, enable_temporal_decay)
+        results = [MemorySearchResult(
+            message_id=r[0].message_id if hasattr(r[0], 'message_id') else None,
+            memory_id=r[0].memory_id if hasattr(r[0], 'memory_id') else None,
+            content=r[0].content if hasattr(r[0], 'content') else '',
+            score=r[1],
+            source=r[2],
+            created_at=getattr(r[0], 'created_at', None)
+        ) for r in decayed]
     
     results.sort(key=lambda x: x.score, reverse=True)
     
@@ -318,3 +434,388 @@ async def batch_index_conversation_messages(
     
     logger.info(f"会话 {conversation_id} 索引完成，共 {indexed_count} 条消息")
     return indexed_count
+
+
+async def search_messages_by_bm25(
+    db: AsyncSession,
+    query: str,
+    conversation_id: Optional[int] = None,
+    top_k: int = 5,
+    min_score: float = 0.0
+) -> List[Tuple[Message, float]]:
+    """
+    通过BM25全文搜索消息
+    
+    Args:
+        db: 数据库会话
+        query: 搜索查询
+        conversation_id: 会话ID（可选）
+        top_k: 返回结果数量
+        min_score: 最小BM25分数阈值
+        
+    Returns:
+        (消息, BM25分数) 元组列表
+    """
+    try:
+        result = await db.execute(text(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='messages_fts'"
+        ))
+        if not result.fetchone():
+            logger.warning("messages_fts表不存在，BM25搜索不可用，请运行数据库迁移")
+            return []
+        
+        base_query = """
+            SELECT m.*, bm25(messages_fts) AS bm25_score
+            FROM messages m
+            JOIN messages_fts fts ON m.id = fts.rowid
+            WHERE messages_fts MATCH :query
+        """
+        
+        params = {"query": query}
+        
+        if conversation_id:
+            base_query += " AND m.conversation_id = :conversation_id"
+            params["conversation_id"] = conversation_id
+        
+        base_query += f" ORDER BY bm25_score DESC LIMIT {top_k * 4}"
+        
+        result = await db.execute(text(base_query), params)
+        rows = result.fetchall()
+        
+        scored_messages = []
+        for row in rows:
+            msg = await db.get(Message, row[0])
+            if msg:
+                bm25_score = row[-1]
+                if bm25_score >= min_score:
+                    scored_messages.append((msg, bm25_score))
+        
+        logger.debug(f"BM25搜索消息成功，找到 {len(scored_messages)} 条结果")
+        return scored_messages
+    except Exception as e:
+        logger.error(f"BM25搜索消息失败: {str(e)}", exc_info=True)
+        return []
+
+
+async def search_long_term_memory_by_bm25(
+    db: AsyncSession,
+    query: str,
+    top_k: int = 5,
+    min_score: float = 0.0
+) -> List[Tuple[LongTermMemory, float]]:
+    """
+    通过BM25全文搜索长期记忆
+    
+    Args:
+        db: 数据库会话
+        query: 搜索查询
+        top_k: 返回结果数量
+        min_score: 最小BM25分数阈值
+        
+    Returns:
+        (长期记忆, BM25分数) 元组列表
+    """
+    try:
+        result = await db.execute(text(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='long_term_memory_fts'"
+        ))
+        if not result.fetchone():
+            logger.warning("long_term_memory_fts表不存在，BM25搜索不可用，请运行数据库迁移")
+            return []
+        
+        query_sql = """
+            SELECT m.*, bm25(long_term_memory_fts) AS bm25_score
+            FROM long_term_memory m
+            JOIN long_term_memory_fts fts ON m.id = fts.rowid
+            WHERE long_term_memory_fts MATCH :query
+            ORDER BY bm25_score DESC
+            LIMIT :limit
+        """
+        
+        result = await db.execute(
+            text(query_sql),
+            {"query": query, "limit": top_k * 4}
+        )
+        rows = result.fetchall()
+        
+        scored_memories = []
+        for row in rows:
+            memory = await db.get(LongTermMemory, row[0])
+            if memory:
+                bm25_score = row[-1]
+                if bm25_score >= min_score:
+                    scored_memories.append((memory, bm25_score))
+        
+        logger.debug(f"BM25搜索长期记忆成功，找到 {len(scored_memories)} 条结果")
+        return scored_memories
+    except Exception as e:
+        logger.error(f"BM25搜索长期记忆失败: {str(e)}", exc_info=True)
+        return []
+
+
+def normalize_bm25_score(bm25_rank: int) -> float:
+    """
+    将BM25排名转换为0-1分数
+    
+    Args:
+        bm25_rank: BM25排名（越小越好）
+        
+    Returns:
+        归一化分数 (0-1)
+    """
+    return 1.0 / (1.0 + max(0, bm25_rank))
+
+
+async def hybrid_search(
+    db: AsyncSession,
+    query: str,
+    conversation_id: Optional[int] = None,
+    top_k: int = 5,
+    min_score: float = 0.5,
+    vector_weight: float = 0.7,
+    text_weight: float = 0.3,
+    use_hybrid: bool = True,
+    search_type: str = "message"
+) -> List[Tuple[object, float, str]]:
+    """
+    混合搜索（向量 + BM25）
+    
+    Args:
+        db: 数据库会话
+        query: 搜索查询
+        conversation_id: 会话ID（可选）
+        top_k: 返回结果数量
+        min_score: 最小分数阈值
+        vector_weight: 向量搜索权重
+        text_weight: BM25搜索权重
+        use_hybrid: 是否使用混合搜索
+        search_type: 搜索类型 ("message" 或 "long_term_memory")
+        
+    Returns:
+        (对象, 分数, 来源) 元组列表
+    """
+    embedding_service = await get_embedding_service(db)
+    if not embedding_service:
+        logger.warning("嵌入服务不可用，仅使用BM25搜索")
+        if use_hybrid:
+            if search_type == "message":
+                results = await search_messages_by_bm25(
+                    db, query, conversation_id, top_k, min_score
+                )
+            else:
+                results = await search_long_term_memory_by_bm25(
+                    db, query, top_k, min_score
+                )
+            return [(obj, score, "bm25") for obj, score in results]
+        else:
+            return []
+    
+    if not use_hybrid:
+        query_embedding = await embedding_service.get_embedding(db, query)
+        if not query_embedding:
+            logger.warning("生成查询嵌入失败")
+            return []
+        
+        if search_type == "message":
+            results = await search_messages_by_similarity(
+                db, query_embedding, conversation_id, top_k, min_score
+            )
+        else:
+            results = await search_long_term_memory_by_similarity(
+                db, query_embedding, top_k, min_score
+            )
+        return [(obj, score, "vector") for obj, score in results]
+    
+    query_embedding = await embedding_service.get_embedding(db, query)
+    if not query_embedding:
+        logger.warning("生成查询嵌入失败，仅使用BM25搜索")
+        if search_type == "message":
+            results = await search_messages_by_bm25(
+                db, query, conversation_id, top_k, min_score
+            )
+        else:
+            results = await search_long_term_memory_by_bm25(
+                db, query, top_k, min_score
+            )
+        return [(obj, score, "bm25") for obj, score in results]
+    
+    if search_type == "message":
+        vector_results = await search_messages_by_similarity(
+            db, query_embedding, conversation_id, top_k * 4, min_score
+        )
+        bm25_results = await search_messages_by_bm25(
+            db, query, conversation_id, top_k * 4, min_score
+        )
+    else:
+        vector_results = await search_long_term_memory_by_similarity(
+            db, query_embedding, top_k * 4, min_score
+        )
+        bm25_results = await search_long_term_memory_by_bm25(
+            db, query, top_k * 4, min_score
+        )
+    
+    merged_results = {}
+    
+    for obj, vec_score in vector_results:
+        obj_id = obj.id
+        if obj_id not in merged_results:
+            merged_results[obj_id] = {
+                "obj": obj,
+                "vector_score": vec_score,
+                "bm25_score": 0.0,
+                "source": "vector"
+            }
+        else:
+            merged_results[obj_id]["vector_score"] = vec_score
+    
+    for obj, bm25_score in bm25_results:
+        obj_id = obj.id
+        if obj_id not in merged_results:
+            merged_results[obj_id] = {
+                "obj": obj,
+                "vector_score": 0.0,
+                "bm25_score": bm25_score,
+                "source": "bm25"
+            }
+        else:
+            merged_results[obj_id]["bm25_score"] = bm25_score
+            merged_results[obj_id]["source"] = "hybrid"
+    
+    final_results = []
+    for result_id, result_data in merged_results.items():
+        vec_score = result_data["vector_score"]
+        bm25_score = result_data["bm25_score"]
+        
+        normalized_bm25 = normalize_bm25_score(bm25_score) if isinstance(bm25_score, (int, float)) else 0.0
+        
+        final_score = vector_weight * vec_score + text_weight * normalized_bm25
+        
+        if final_score >= min_score:
+            final_results.append((result_data["obj"], final_score, result_data["source"]))
+    
+    final_results.sort(key=lambda x: x[1], reverse=True)
+    
+    return final_results[:top_k]
+
+
+def jaccard_similarity(text1: str, text2: str) -> float:
+    """
+    计算两个文本的Jaccard相似度
+    
+    Args:
+        text1: 文本1
+        text2: 文本2
+        
+    Returns:
+        Jaccard相似度 (0-1)
+    """
+    set1 = set(text1.lower().split())
+    set2 = set(text2.lower().split())
+    
+    if not set1 and not set2:
+        return 1.0
+    
+    intersection = len(set1 & set2)
+    union = len(set1 | set2)
+    
+    if union == 0:
+        return 0.0
+    
+    return intersection / union
+
+
+def mmr_rerank(
+    results: List[Tuple[object, float, str]],
+    lambda_param: float = 0.7,
+    top_k: int = 5
+) -> List[Tuple[object, float, str]]:
+    """
+    使用MMR算法对搜索结果进行重排序
+    
+    Args:
+        results: 原始搜索结果 (对象, 分数, 来源)
+        lambda_param: MMR参数，平衡相关性和多样性 (0-1)
+        top_k: 返回结果数量
+        
+    Returns:
+        重排序后的结果列表
+    """
+    if not results:
+        return []
+    
+    selected = []
+    remaining = results.copy()
+    
+    for _ in range(min(top_k, len(results))):
+        if not remaining:
+            break
+        
+        best_idx = 0
+        best_score = -float('inf')
+        
+        for i, (obj, score, source) in enumerate(remaining):
+            mmr_score = lambda_param * score
+            
+            for selected_obj, _, _ in selected:
+                selected_text = getattr(selected_obj, 'content', '')
+                current_text = getattr(obj, 'content', '')
+                similarity = jaccard_similarity(selected_text, current_text)
+                mmr_score -= (1 - lambda_param) * similarity
+            
+            if mmr_score > best_score:
+                best_score = mmr_score
+                best_idx = i
+        
+        selected.append(remaining[best_idx])
+        del remaining[best_idx]
+    
+    return selected
+
+
+def apply_temporal_decay(
+    results: List[Tuple[object, float, str]],
+    half_life_days: int = 30,
+    enable_decay: bool = True
+) -> List[Tuple[object, float, str]]:
+    """
+    对搜索结果应用时间衰减
+    
+    Args:
+        results: 原始搜索结果 (对象, 分数, 来源)
+        half_life_days: 半衰期天数
+        enable_decay: 是否启用时间衰减
+        
+    Returns:
+        应用衰减后的结果列表
+    """
+    if not enable_decay:
+        return results
+    
+    decayed_results = []
+    current_time = datetime.now()
+    
+    for obj, score, source in results:
+        if not obj or not hasattr(obj, 'created_at'):
+            decayed_results.append((obj, score, source))
+            continue
+        
+        created_at = getattr(obj, 'created_at', None)
+        if not created_at:
+            decayed_results.append((obj, score, source))
+            continue
+        
+        age_days = (current_time - created_at).days
+        
+        if age_days < 0:
+            decayed_results.append((obj, score, source))
+            continue
+        
+        lambda_param = 0.693 / half_life_days
+        
+        decay_factor = 2.718 ** (-lambda_param * age_days)
+        
+        decayed_score = score * decay_factor
+        
+        decayed_results.append((obj, decayed_score, source))
+    
+    return decayed_results
