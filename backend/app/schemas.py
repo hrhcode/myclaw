@@ -67,6 +67,12 @@ class MemorySearchRequest(BaseModel):
     conversation_id: Optional[int] = None
     top_k: int = 5
     min_score: float = 0.5
+    use_hybrid: bool = True
+    vector_weight: float = 0.7
+    text_weight: float = 0.3
+    enable_mmr: bool = True
+    mmr_lambda: float = 0.7
+    enable_temporal_decay: bool = True
 
 
 class MemorySearchResult(BaseModel):
@@ -110,3 +116,41 @@ class LongTermMemoryResponse(LongTermMemoryBase):
 
     class Config:
         from_attributes = True
+
+
+class MemorySearchConfig(BaseModel):
+    use_hybrid: bool = True
+    vector_weight: float = 0.7
+    text_weight: float = 0.3
+    enable_mmr: bool = True
+    mmr_lambda: float = 0.7
+    enable_temporal_decay: bool = True
+    half_life_days: int = 30
+
+
+class EmbeddingConfig(BaseModel):
+    provider: str = "openrouter"
+    model: str = "nvidia/llama-nemotron-embed-vl-1b-v2:free"
+    fallback: Optional[str] = None
+    cache_enabled: bool = True
+    cache_max_entries: int = 50000
+
+
+class MemorySearchResultExtended(BaseModel):
+    message_id: Optional[int] = None
+    memory_id: Optional[int] = None
+    content: str
+    score: float
+    source: str
+    created_at: Optional[datetime] = None
+    search_mode: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class MemorySearchResponseExtended(BaseModel):
+    results: List[MemorySearchResultExtended]
+    search_mode: str
+    provider: Optional[str] = None
+    model: Optional[str] = None
