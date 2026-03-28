@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 
 type Theme = 'light' | 'dark';
@@ -59,17 +59,44 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   }, []);
 
   /**
-   * 切换主题
+   * 切换主题 - 添加平滑过渡效果
    */
-  const toggleTheme = () => {
-    setThemeState((prev) => (prev === 'dark' ? 'light' : 'dark'));
-  };
+  const toggleTheme = useCallback(() => {
+    const root = document.documentElement;
+    
+    requestAnimationFrame(() => {
+      root.classList.add('theme-transitioning');
+      
+      requestAnimationFrame(() => {
+        setThemeState((prev) => {
+          const newTheme = prev === 'dark' ? 'light' : 'dark';
+          return newTheme;
+        });
+        
+        setTimeout(() => {
+          root.classList.remove('theme-transitioning');
+        }, 200);
+      });
+    });
+  }, []);
 
   /**
    * 设置指定主题
    */
   const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme);
+    const root = document.documentElement;
+    
+    requestAnimationFrame(() => {
+      root.classList.add('theme-transitioning');
+      
+      requestAnimationFrame(() => {
+        setThemeState(newTheme);
+        
+        setTimeout(() => {
+          root.classList.remove('theme-transitioning');
+        }, 200);
+      });
+    });
   };
 
   return (

@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle, Plus } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import MainLayout from "../layout/MainLayout";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import ThemeToggle from "../common/ThemeToggle";
+import ConversationSelect from "../common/ConversationSelect";
 import { useApp } from "../../contexts/AppContext";
 import { sendMessageStream, getConfig } from "../../services/api";
 import type { Message } from "../../types";
@@ -92,9 +93,27 @@ const ChatPage: React.FC = () => {
   };
 
   /**
-   * 发送消息
+   * 创建新会话
+   */
+  const handleCreateNewChat = async () => {
+    const newConversation = await createNewConversation("新对话");
+    if (newConversation) {
+      selectConversation(newConversation.id);
+      navigate(`/chat/${newConversation.id}`, { replace: true });
+    }
+  };
+
+  /**
+   * 处理发送消息或命令
    */
   const handleSendMessage = async (content: string) => {
+    const trimmedContent = content.trim();
+
+    if (trimmedContent === "/new") {
+      await handleCreateNewChat();
+      return;
+    }
+
     if (isConfigured === false) {
       alert("请先在配置页面配置API Key");
       navigate("/settings");
@@ -107,7 +126,7 @@ const ChatPage: React.FC = () => {
 
     if (!conversationIdToUse) {
       const newConversation = await createNewConversation(
-        content.substring(0, 20) + "...",
+        trimmedContent.substring(0, 20) + "...",
       );
       if (newConversation) {
         conversationIdToUse = newConversation.id;
@@ -123,7 +142,7 @@ const ChatPage: React.FC = () => {
       id: Date.now(),
       conversation_id: conversationIdToUse,
       role: "user",
-      content,
+      content: trimmedContent,
       created_at: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, userMessage]);
@@ -141,7 +160,7 @@ const ChatPage: React.FC = () => {
       await sendMessageStream(
         {
           conversation_id: conversationIdToUse,
-          message: content,
+          message: trimmedContent,
         },
         (chunk) => {
           setMessages((prev) =>
@@ -180,40 +199,12 @@ const ChatPage: React.FC = () => {
     }
   };
 
-  /**
-   * 创建新会话
-   */
-  const handleCreateNewChat = async () => {
-    const newConversation = await createNewConversation("新对话");
-    if (newConversation) {
-      selectConversation(newConversation.id);
-      navigate(`/chat/${newConversation.id}`, { replace: true });
-    }
-  };
-
   return (
     <MainLayout showHeader={false}>
       <div className="h-full flex flex-col">
-        <header className="navbar h-16 flex items-center justify-between px-6">
+        <header className="navbar h-16 flex items-center justify-between px-6 relative z-50">
           <div className="flex items-center gap-3">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleCreateNewChat}
-              className="btn-primary flex items-center gap-2"
-            >
-              <Plus size={16} />
-              <span>新对话</span>
-            </motion.button>
-            {currentConversationId && (
-              <h2
-                className="text-lg font-semibold truncate max-w-[300px]"
-                style={{ color: "var(--text-primary)" }}
-              >
-                {conversations.find((c) => c.id === currentConversationId)
-                  ?.title || "新对话"}
-              </h2>
-            )}
+            <ConversationSelect />
           </div>
 
           <div className="flex items-center gap-3">
@@ -247,7 +238,11 @@ const ChatPage: React.FC = () => {
 
         <MessageList messages={messages} />
         <div ref={messagesEndRef} />
-        <MessageInput onSendMessage={handleSendMessage} disabled={isSending} />
+        <MessageInput
+          onSendMessage={handleSendMessage}
+          disabled={isSending}
+          onCreateNewChat={handleCreateNewChat}
+        />
       </div>
     </MainLayout>
   );
