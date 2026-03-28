@@ -249,18 +249,18 @@ const MemoryForm: React.FC<MemoryFormProps> = ({ memory, onSave, onClose }) => {
             <button
               type="submit"
               disabled={isSaving}
-              className="btn-primary flex items-center gap-2 px-6 py-2.5"
+              className="btn-primary flex items-center gap-2"
             >
               {isSaving ? (
                 <>
                   <div className="animate-spin">
-                    <Loader2 size={18} />
+                    <Loader2 size={16} />
                   </div>
                   <span>保存中...</span>
                 </>
               ) : (
                 <>
-                  <Star size={18} />
+                  <Star size={16} />
                   <span>{memory ? "更新记忆" : "创建记忆"}</span>
                 </>
               )}

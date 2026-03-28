@@ -130,10 +130,10 @@ const LongTermMemoryTab: React.FC = () => {
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <button
           onClick={handleCreate}
-          className="btn-primary flex items-center gap-2 px-4 py-2.5"
+          className="btn-primary flex items-center gap-2"
         >
-          <Plus size={18} />
-          <span className="text-sm font-medium">创建记忆</span>
+          <Plus size={16} />
+          <span>创建记忆</span>
         </button>
 
         <div className="flex-1 min-w-[200px]">
@@ -174,8 +174,8 @@ const LongTermMemoryTab: React.FC = () => {
           value={`${sortBy}-${sortOrder}`}
           onChange={(e) => {
             const [sort, order] = e.target.value.split("-");
-            setSortBy(sort as any);
-            setSortOrder(order as any);
+            setSortBy(sort as "created_at" | "importance" | "updated_at");
+            setSortOrder(order as "asc" | "desc");
           }}
           className="px-4 py-2.5 glass-input rounded-xl cursor-pointer"
           style={{ color: "var(--text-primary)" }}

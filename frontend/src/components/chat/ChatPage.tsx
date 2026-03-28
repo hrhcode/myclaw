@@ -200,10 +200,10 @@ const ChatPage: React.FC = () => {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={handleCreateNewChat}
-              className="btn-primary flex items-center gap-2 px-4 py-2.5"
+              className="btn-primary flex items-center gap-2"
             >
-              <Plus size={18} />
-              <span className="text-sm font-medium">新对话</span>
+              <Plus size={16} />
+              <span>新对话</span>
             </motion.button>
             {currentConversationId && (
               <h2

@@ -540,13 +540,13 @@ const SettingsPage: React.FC = () => {
                       ease: "linear",
                     }}
                   >
-                    <Loader2 size={18} />
+                    <Loader2 size={16} />
                   </motion.div>
                   <span>保存中...</span>
                 </>
               ) : (
                 <>
-                  <Save size={18} />
+                  <Save size={16} />
                   <span>保存设置</span>
                 </>
               )}

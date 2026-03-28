@@ -70,3 +70,23 @@ class EmbeddingCache(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     last_accessed_at = Column(DateTime(timezone=True), server_default=func.now())
     access_count = Column(Integer, default=0)
+
+
+class Log(Base):
+    """
+    日志记录模型
+    用于持久化存储系统日志，支持历史查询和分析
+    """
+    __tablename__ = "logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(String, nullable=False, index=True)
+    level = Column(String, nullable=False, index=True)
+    logger = Column(String, nullable=False)
+    message = Column(String, nullable=False)
+    extra = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    __table_args__ = (
+        {"sqlite_autoincrement": True}
+    )

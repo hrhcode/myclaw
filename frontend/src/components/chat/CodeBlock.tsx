@@ -1,14 +1,16 @@
 import { useState, useEffect } from "react";
 import { Copy, Check } from "lucide-react";
 import { Highlight, themes, Prism } from "prism-react-renderer";
+import type { Language } from "prism-react-renderer";
 import { useTheme } from "../../contexts/ThemeContext";
 
-// 动态加载 Prism 语言包
+/**
+ * 动态加载 Prism 语言包
+ * 将 Prism 实例挂载到全局对象以支持语言扩展
+ */
 const loadLanguages = async () => {
-  if (typeof global !== "undefined") {
-    (global as any).Prism = Prism;
-  } else {
-    (window as any).Prism = Prism;
+  if (typeof globalThis !== "undefined") {
+    (globalThis as Record<string, unknown>).Prism = Prism;
   }
 
   // 按需加载常用语言（使用正确的 prismjs 包名）
@@ -40,7 +42,8 @@ const loadLanguages = async () => {
 
   for (const lang of languages) {
     try {
-      await import(`prismjs/components/prism-${lang}`);
+      // @vite-ignore - Vite 无法静态分析此动态 import
+      await import(/* @vite-ignore */ `prismjs/components/prism-${lang}`);
     } catch (e) {
       console.warn(`Failed to load prism language: ${lang}`, e);
     }
@@ -84,7 +87,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ language = "code", value }) => {
     <Highlight
       theme={isDark ? themes.oneDark : themes.github}
       code={value}
-      language={language as any}
+      language={language as Language}
     >
       {({ className, style, tokens, getLineProps, getTokenProps }) => (
         <div className="code-block-container">
