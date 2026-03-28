@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { ChatRequest, Conversation, Message, Provider, Model, ConfigItem } from '../types';
+import type { ChatRequest, Conversation, ConversationDetail, Message, Provider, Model, ConfigItem } from '../types';
 
 const API_BASE_URL = 'http://localhost:8000/api';
 
@@ -94,6 +94,16 @@ export const createConversation = async (title: string): Promise<Conversation> =
 
 export const deleteConversation = async (id: number): Promise<void> => {
   await api.delete(`/conversations/${id}`);
+};
+
+export const renameConversation = async (id: number, title: string): Promise<Conversation> => {
+  const response = await api.put<Conversation>(`/conversations/${id}`, { title });
+  return response.data;
+};
+
+export const getConversationDetail = async (id: number): Promise<ConversationDetail> => {
+  const response = await api.get<ConversationDetail>(`/conversations/${id}/detail`);
+  return response.data;
 };
 
 export const getMessages = async (conversationId: number): Promise<Message[]> => {

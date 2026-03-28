@@ -4,7 +4,7 @@ from sqlalchemy import select, delete
 from typing import List
 from app.database import get_db
 from app.models import Conversation, Message
-from app.schemas import ConversationResponse, MessageResponse, ConversationCreate
+from app.schemas import ConversationResponse, MessageResponse, ConversationCreate, ConversationUpdate
 import logging
 
 router = APIRouter()
@@ -55,6 +55,28 @@ async def delete_conversation(conversation_id: int, db: AsyncSession = Depends(g
     await db.commit()
     logger.info(f"会话已删除: conversation_id={conversation_id}")
     return {"message": "会话已删除"}
+
+# 重命名会话
+@router.put("/conversations/{conversation_id}", response_model=ConversationResponse)
+async def rename_conversation(
+    conversation_id: int,
+    data: ConversationUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    重命名指定会话
+    """
+    logger.info(f"重命名会话: conversation_id={conversation_id}, new_title={data.title}")
+    conversation = await db.get(Conversation, conversation_id)
+    if not conversation:
+        logger.warning(f"会话不存在: conversation_id={conversation_id}")
+        raise HTTPException(status_code=404, detail="会话不存在")
+    
+    conversation.title = data.title
+    await db.commit()
+    await db.refresh(conversation)
+    logger.info(f"会话已重命名: conversation_id={conversation_id}")
+    return conversation
 
 # 获取会话的所有消息
 @router.get("/conversations/{conversation_id}/messages", response_model=List[MessageResponse])

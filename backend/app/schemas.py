@@ -11,6 +11,10 @@ class ConversationCreate(ConversationBase):
     pass
 
 
+class ConversationUpdate(BaseModel):
+    title: str
+
+
 class ConversationResponse(ConversationBase):
     id: int
     created_at: datetime

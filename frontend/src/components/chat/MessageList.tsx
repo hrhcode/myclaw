@@ -1,8 +1,8 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import { Bot, User, Sparkles } from "lucide-react";
 import React from "react";
-import type { Message } from "../types";
+import type { Message } from "../../types";
 
 interface MessageListProps {
   messages: Message[];
@@ -88,68 +88,58 @@ const EmptyState: React.FC = () => (
 const MessageList: React.FC<MessageListProps> = ({ messages }) => {
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6">
-      <AnimatePresence mode="popLayout">
-        {messages.length === 0 ? (
-          <EmptyState />
-        ) : (
-          messages.map((message, index) => (
-            <motion.div
-              key={message.id}
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{
-                duration: 0.3,
-                delay: index * 0.05,
-                ease: [0.4, 0, 0.2, 1],
-              }}
-              className={`flex gap-3 ${
-                message.role === "user" ? "flex-row-reverse" : "flex-row"
+      {messages.length === 0 ? (
+        <EmptyState />
+      ) : (
+        messages.map((message) => (
+          <motion.div
+            key={message.id}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{
+              duration: 0.2,
+              ease: [0.4, 0, 0.2, 1],
+            }}
+            className={`flex gap-3 ${
+              message.role === "user" ? "flex-row-reverse" : "flex-row"
+            }`}
+          >
+            <MessageAvatar role={message.role} />
+
+            <div
+              className={`max-w-[75%] flex flex-col ${
+                message.role === "user" ? "items-end" : "items-start"
               }`}
             >
-              <MessageAvatar role={message.role} />
-
-              <motion.div
-                initial={{
-                  opacity: 0,
-                  x: message.role === "user" ? 20 : -20,
-                }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3, delay: 0.1 }}
-                className={`max-w-[75%] flex flex-col ${
-                  message.role === "user" ? "items-end" : "items-start"
+              <div
+                className={`message-bubble ${
+                  message.role === "user" ? "message-user" : "message-ai"
                 }`}
               >
-                <div
-                  className={`message-bubble ${
-                    message.role === "user" ? "message-user" : "message-ai"
-                  }`}
-                >
-                  {message.content === "" ? (
-                    <TypingIndicator />
-                  ) : (
-                    <div className="prose prose-sm max-w-none">
-                      <ReactMarkdown>{message.content}</ReactMarkdown>
-                    </div>
-                  )}
-                </div>
+                {message.content === "" ? (
+                  <TypingIndicator />
+                ) : (
+                  <div className="prose prose-sm max-w-none">
+                    <ReactMarkdown>{message.content}</ReactMarkdown>
+                  </div>
+                )}
+              </div>
 
-                <div
-                  className={`text-xs mt-1.5 ${
-                    message.role === "user" ? "text-right" : "text-left"
-                  }`}
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  {new Date(message.created_at).toLocaleTimeString("zh-CN", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </div>
-              </motion.div>
-            </motion.div>
-          ))
-        )}
-      </AnimatePresence>
+              <div
+                className={`text-xs mt-1.5 ${
+                  message.role === "user" ? "text-right" : "text-left"
+                }`}
+                style={{ color: "var(--text-muted)" }}
+              >
+                {new Date(message.created_at).toLocaleTimeString("zh-CN", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </div>
+            </div>
+          </motion.div>
+        ))
+      )}
     </div>
   );
 };
