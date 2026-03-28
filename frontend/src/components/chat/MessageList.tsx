@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import { Bot, User, Sparkles } from "lucide-react";
 import React from "react";
 import type { Message } from "../../types";
+import CodeBlock from "./CodeBlock";
 
 interface MessageListProps {
   messages: Message[];
@@ -120,7 +121,43 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                   <TypingIndicator />
                 ) : (
                   <div className="prose prose-sm max-w-none">
-                    <ReactMarkdown>{message.content}</ReactMarkdown>
+                    <ReactMarkdown
+                      components={{
+                        pre({ children, ...props }: any) {
+                          // 直接返回 children，避免额外的 pre 嵌套
+                          return <>{children}</>;
+                        },
+                        code({
+                          node,
+                          inline,
+                          className,
+                          children,
+                          ...props
+                        }: any) {
+                          const match = /language-(\w+)/.exec(className || "");
+                          const language = match ? match[1] : "";
+                          const value = String(children).replace(/\n$/, "");
+
+                          if (!inline && language) {
+                            return (
+                              <CodeBlock
+                                language={language}
+                                value={value}
+                                {...(props as any)}
+                              />
+                            );
+                          }
+
+                          return (
+                            <code className={className} {...(props as any)}>
+                              {children}
+                            </code>
+                          );
+                        },
+                      }}
+                    >
+                      {message.content}
+                    </ReactMarkdown>
                   </div>
                 )}
               </div>
