@@ -1,12 +1,13 @@
 import { NavLink, useLocation, matchPath } from "react-router-dom";
 import {
-  MessageSquare,
+  MessageCircleMore,
   FolderOpen,
   Settings,
   PanelLeftClose,
   PanelLeft,
   Brain,
   ScrollText,
+  Bot,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 
@@ -36,7 +37,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
     () => [
       {
         path: "/chat",
-        icon: <MessageSquare size={22} />,
+        icon: <MessageCircleMore size={22} />,
         label: "聊天",
         pattern: "/chat/*",
       },
@@ -93,13 +94,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
         {!isCollapsed && (
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center">
-              <MessageSquare size={18} className="text-white" />
+              <Bot size={18} className="text-white" />
             </div>
             <span
               className="text-lg font-semibold"
               style={{ color: "var(--text-primary)" }}
             >
-              AI助手
+              MyClaw
             </span>
           </div>
         )}
@@ -124,6 +125,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
                 onMouseEnter={() => setHoveredItem(item.path)}
                 onMouseLeave={() => setHoveredItem(null)}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative ${
+                  isCollapsed ? "justify-center" : ""
+                } ${
                   active
                     ? "bg-gradient-to-r from-primary/20 to-primary-dark/20"
                     : "hover:bg-white/5"
@@ -138,10 +141,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
 
                 {!isCollapsed && (
                   <span className="text-sm font-medium">{item.label}</span>
-                )}
-
-                {active && (
-                  <div className="absolute left-0 top-2 bottom-2 w-1 bg-gradient-to-b from-primary to-primary-dark rounded-r-full" />
                 )}
               </NavLink>
 

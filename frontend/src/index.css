@@ -31,6 +31,11 @@
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.1);
   
   color-scheme: light;
+  
+  --theme-transition: background-color 0.3s ease,
+                      border-color 0.3s ease,
+                      box-shadow 0.3s ease,
+                      color 0.3s ease;
 }
 
 .dark {
@@ -72,7 +77,6 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
-  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 #root {
@@ -131,13 +135,29 @@ select option:focus {
   color: #ffffff;
 }
 
+.theme-transitioning {
+  transition: background-color 0.2s ease-out, border-color 0.2s ease-out !important;
+  will-change: background-color, border-color;
+}
+
+.theme-transitioning .glass,
+.theme-transitioning .glass-card,
+.theme-transitioning .glass-input,
+.theme-transitioning .navbar,
+.theme-transitioning .message-ai,
+.theme-transitioning .sidebar-container,
+.theme-transitioning .btn-secondary {
+  transition: background-color 0.2s ease-out, border-color 0.2s ease-out, box-shadow 0.2s ease-out !important;
+  will-change: background-color, border-color, box-shadow;
+}
+
 @layer components {
   .glass {
     background: var(--glass-bg);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--glass-border);
-    transition: all 0.3s ease;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
   }
   
   .glass-card {
@@ -146,7 +166,7 @@ select option:focus {
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid var(--glass-border);
     box-shadow: var(--shadow-lg);
-    transition: all 0.3s ease;
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
   }
   
   .glass-input {
@@ -154,7 +174,7 @@ select option:focus {
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     border: 1px solid var(--glass-border);
-    transition: all 0.3s ease;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
   }
   
   .glass-input:focus {
