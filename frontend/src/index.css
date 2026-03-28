@@ -8,18 +8,21 @@
   --primary: #667eea;
   --primary-dark: #764ba2;
   --primary-light: #818cf8;
+  --accent-color: #667eea;
   
   --bg-primary: #ffffff;
   --bg-secondary: #f8fafc;
   --bg-tertiary: #f1f5f9;
+  --input-bg: #f1f5f9;
   
   --text-primary: #1e293b;
-  --text-secondary: rgba(30, 41, 59, 0.7);
+  --text-secondary: rgba(30, 41, 59, 0.8);
   --text-muted: rgba(30, 41, 59, 0.5);
   
   --glass-bg: rgba(255, 255, 255, 0.7);
   --glass-border: rgba(0, 0, 0, 0.08);
   --glass-glow: rgba(102, 126, 234, 0.3);
+  --glass-hover: rgba(0, 0, 0, 0.03);
   
   --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   
@@ -34,14 +37,16 @@
   --bg-primary: #0f0f23;
   --bg-secondary: #1a1a2e;
   --bg-tertiary: #16213e;
+  --input-bg: #1e1e3f;
   
   --text-primary: #ffffff;
-  --text-secondary: rgba(255, 255, 255, 0.7);
+  --text-secondary: rgba(255, 255, 255, 0.75);
   --text-muted: rgba(255, 255, 255, 0.5);
   
   --glass-bg: rgba(255, 255, 255, 0.05);
   --glass-border: rgba(255, 255, 255, 0.1);
   --glass-glow: rgba(102, 126, 234, 0.5);
+  --glass-hover: rgba(255, 255, 255, 0.08);
   
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
@@ -198,17 +203,18 @@ select option:focus {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     font-weight: 500;
-    padding: 0.75rem 1.5rem;
-    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    padding: 0.375rem 1rem;
+    border-radius: 0.5rem;
     border: none;
     cursor: pointer;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
   }
   
   .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 25px rgba(102, 126, 234, 0.4);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
   }
   
   .btn-primary:active {
@@ -225,8 +231,9 @@ select option:focus {
     background: var(--glass-bg);
     color: var(--text-primary);
     font-weight: 500;
-    padding: 0.75rem 1.5rem;
-    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    padding: 0.375rem 1rem;
+    border-radius: 0.5rem;
     border: 1px solid var(--glass-border);
     cursor: pointer;
     transition: all 0.3s ease;
@@ -234,7 +241,6 @@ select option:focus {
   
   .btn-secondary:hover {
     background: rgba(102, 126, 234, 0.1);
-    border-color: rgba(102, 126, 234, 0.2);
   }
   
   .message-bubble {

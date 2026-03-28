@@ -17,9 +17,9 @@ const MemoryPage: React.FC = () => {
           <div className="flex gap-2 mb-6">
             <button
               onClick={() => setActiveTab("config")}
-              className={`px-6 py-3 rounded-xl font-medium transition-all ${
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
                 activeTab === "config"
-                  ? "bg-gradient-to-r from-primary to-primary-dark text-white shadow-lg"
+                  ? "bg-gradient-to-r from-primary to-primary-dark text-white shadow-md"
                   : "glass hover:bg-white/5"
               }`}
               style={{
@@ -30,9 +30,9 @@ const MemoryPage: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab("memory")}
-              className={`px-6 py-3 rounded-xl font-medium transition-all ${
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
                 activeTab === "memory"
-                  ? "bg-gradient-to-r from-primary to-primary-dark text-white shadow-lg"
+                  ? "bg-gradient-to-r from-primary to-primary-dark text-white shadow-md"
                   : "glass hover:bg-white/5"
               }`}
               style={{

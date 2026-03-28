@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
+import type { Components } from "react-markdown";
 import { Bot, User, Sparkles } from "lucide-react";
 import React from "react";
 import type { Message } from "../../types";
@@ -122,39 +123,33 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                 ) : (
                   <div className="prose prose-sm max-w-none">
                     <ReactMarkdown
-                      components={{
-                        pre({ children, ...props }: any) {
-                          // 直接返回 children，避免额外的 pre 嵌套
-                          return <>{children}</>;
-                        },
-                        code({
-                          node,
-                          inline,
-                          className,
-                          children,
-                          ...props
-                        }: any) {
-                          const match = /language-(\w+)/.exec(className || "");
-                          const language = match ? match[1] : "";
-                          const value = String(children).replace(/\n$/, "");
-
-                          if (!inline && language) {
-                            return (
-                              <CodeBlock
-                                language={language}
-                                value={value}
-                                {...(props as any)}
-                              />
+                      components={
+                        {
+                          pre({ children }) {
+                            return <>{children}</>;
+                          },
+                          code({ className, children, ...props }) {
+                            const match = /language-(\w+)/.exec(
+                              className || "",
                             );
-                          }
+                            const language = match ? match[1] : "";
+                            const value = String(children).replace(/\n$/, "");
 
-                          return (
-                            <code className={className} {...(props as any)}>
-                              {children}
-                            </code>
-                          );
-                        },
-                      }}
+                            // 如果有语言标识符，则认为是代码块
+                            if (language) {
+                              return (
+                                <CodeBlock language={language} value={value} />
+                              );
+                            }
+
+                            return (
+                              <code className={className} {...props}>
+                                {children}
+                              </code>
+                            );
+                          },
+                        } satisfies Components
+                      }
                     >
                       {message.content}
                     </ReactMarkdown>

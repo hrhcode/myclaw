@@ -6,6 +6,7 @@ import {
   PanelLeftClose,
   PanelLeft,
   Brain,
+  ScrollText,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 
@@ -28,17 +29,29 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
   const location = useLocation();
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
-  const navItems: NavItem[] = [
-    {
-      path: "/chat",
-      icon: <MessageSquare size={22} />,
-      label: "聊天",
-      pattern: "/chat/*",
-    },
-    { path: "/conversations", icon: <FolderOpen size={22} />, label: "会话" },
-    { path: "/memory", icon: <Brain size={22} />, label: "记忆" },
-    { path: "/settings", icon: <Settings size={22} />, label: "配置" },
-  ];
+  /**
+   * 导航项配置 - 使用 useMemo 避免每次渲染重新创建数组
+   */
+  const navItems = useMemo<NavItem[]>(
+    () => [
+      {
+        path: "/chat",
+        icon: <MessageSquare size={22} />,
+        label: "聊天",
+        pattern: "/chat/*",
+      },
+      { path: "/conversations", icon: <FolderOpen size={22} />, label: "会话" },
+      { path: "/memory", icon: <Brain size={22} />, label: "记忆" },
+      { path: "/settings", icon: <Settings size={22} />, label: "配置" },
+      {
+        path: "/logs",
+        icon: <ScrollText size={22} />,
+        label: "日志",
+        pattern: "/logs/*",
+      },
+    ],
+    [],
+  );
 
   /**
    * 判断导航项是否激活 - 使用 useMemo 优化避免不必要的重计算
@@ -61,7 +74,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
     }
 
     return null;
-  }, [location.pathname]);
+  }, [location, navItems]);
 
   return (
     <div
