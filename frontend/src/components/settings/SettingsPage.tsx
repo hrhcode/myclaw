@@ -1,10 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft,
   Save,
-  Key,
   Cpu,
   CheckCircle,
   AlertCircle,
@@ -12,24 +9,32 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
+import MainLayout from "../layout/MainLayout";
 import {
   getProviders,
   getProviderModels,
+  getEmbeddingProviders,
+  getEmbeddingProviderModels,
   getConfig,
   setConfig,
-} from "../services/api";
-import type { Provider, Model } from "../types";
+} from "../../services/api";
+import type { Provider, Model } from "../../types";
 
 /**
- * 设置页面组件 - 配置API和模型参数
+ * 配置页面组件 - 配置API和模型参数
  * 采用玻璃拟态设计，支持动画效果和主题切换
  */
-const Settings: React.FC = () => {
-  const navigate = useNavigate();
+const SettingsPage: React.FC = () => {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [models, setModels] = useState<Model[]>([]);
+  const [embeddingProviders, setEmbeddingProviders] = useState<Provider[]>([]);
+  const [embeddingModels, setEmbeddingModels] = useState<Model[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState<string>("");
+  const [selectedEmbeddingProvider, setSelectedEmbeddingProvider] =
+    useState<string>("");
+  const [selectedEmbeddingModel, setSelectedEmbeddingModel] =
+    useState<string>("");
   const [apiKey, setApiKey] = useState<string>("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [openrouterApiKey, setOpenrouterApiKey] = useState<string>("");
@@ -63,6 +68,32 @@ const Settings: React.FC = () => {
   );
 
   /**
+   * 加载Embedding模型列表
+   */
+  const loadEmbeddingModels = useCallback(
+    async (provider: string) => {
+      try {
+        const modelList = await getEmbeddingProviderModels(provider);
+        setEmbeddingModels(modelList);
+
+        if (
+          selectedEmbeddingModel &&
+          !modelList.find((m) => m.id === selectedEmbeddingModel)
+        ) {
+          setSelectedEmbeddingModel(
+            modelList.length > 0 ? modelList[0].id : "",
+          );
+        } else if (modelList.length > 0 && !selectedEmbeddingModel) {
+          setSelectedEmbeddingModel(modelList[0].id);
+        }
+      } catch (error) {
+        console.error("Failed to load embedding models:", error);
+      }
+    },
+    [selectedEmbeddingModel],
+  );
+
+  /**
    * 加载设置数据
    */
   const loadSettings = async () => {
@@ -70,17 +101,33 @@ const Settings: React.FC = () => {
       setIsLoading(true);
 
       const providerList = await getProviders();
+      const embeddingProviderList = await getEmbeddingProviders();
       setProviders(providerList);
+      setEmbeddingProviders(embeddingProviderList);
 
       const savedProvider = await getConfig("llm_provider").catch(() => "");
       const savedModel = await getConfig("llm_model").catch(() => "");
       const savedApiKey = await getConfig("zhipu_api_key").catch(() => "");
-      const savedOpenrouterKey = await getConfig("openrouter_api_key").catch(() => "");
+      const savedOpenrouterKey = await getConfig("openrouter_api_key").catch(
+        () => "",
+      );
+      const savedEmbeddingProvider = await getConfig(
+        "embedding_provider",
+      ).catch(() => "");
+      const savedEmbeddingModel = await getConfig("embedding_model").catch(
+        () => "",
+      );
 
       if (savedProvider) {
         setSelectedProvider(savedProvider);
       } else if (providerList.length > 0) {
         setSelectedProvider(providerList[0].id);
+      }
+
+      if (savedEmbeddingProvider) {
+        setSelectedEmbeddingProvider(savedEmbeddingProvider);
+      } else if (embeddingProviderList.length > 0) {
+        setSelectedEmbeddingProvider(embeddingProviderList[0].id);
       }
 
       if (savedApiKey) {
@@ -93,6 +140,10 @@ const Settings: React.FC = () => {
 
       if (savedModel) {
         setSelectedModel(savedModel);
+      }
+
+      if (savedEmbeddingModel) {
+        setSelectedEmbeddingModel(savedEmbeddingModel);
       }
     } catch (error) {
       console.error("Failed to load settings:", error);
@@ -112,6 +163,12 @@ const Settings: React.FC = () => {
     }
   }, [selectedProvider, loadModels]);
 
+  useEffect(() => {
+    if (selectedEmbeddingProvider) {
+      loadEmbeddingModels(selectedEmbeddingProvider);
+    }
+  }, [selectedEmbeddingProvider, loadEmbeddingModels]);
+
   /**
    * 保存设置
    */
@@ -127,7 +184,17 @@ const Settings: React.FC = () => {
     }
 
     if (!selectedModel) {
-      setMessage({ type: "error", text: "请选择模型" });
+      setMessage({ type: "error", text: "请选择LLM模型" });
+      return;
+    }
+
+    if (!selectedEmbeddingProvider) {
+      setMessage({ type: "error", text: "请选择Embedding提供商" });
+      return;
+    }
+
+    if (!selectedEmbeddingModel) {
+      setMessage({ type: "error", text: "请选择Embedding模型" });
       return;
     }
 
@@ -143,11 +210,10 @@ const Settings: React.FC = () => {
         await setConfig("openrouter_api_key", openrouterApiKey);
       }
 
-      setMessage({ type: "success", text: "设置保存成功！" });
+      await setConfig("embedding_provider", selectedEmbeddingProvider);
+      await setConfig("embedding_model", selectedEmbeddingModel);
 
-      setTimeout(() => {
-        navigate("/");
-      }, 1500);
+      setMessage({ type: "success", text: "设置保存成功！" });
     } catch (error) {
       console.error("Failed to save settings:", error);
       setMessage({ type: "error", text: "保存设置失败" });
@@ -158,53 +224,23 @@ const Settings: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ backgroundColor: "var(--bg-primary)" }}
-      >
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-        >
-          <Loader2 size={40} className="text-primary" />
-        </motion.div>
-      </div>
+      <MainLayout headerTitle="配置">
+        <div className="h-full flex items-center justify-center">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          >
+            <Loader2 size={40} className="text-primary" />
+          </motion.div>
+        </div>
+      </MainLayout>
     );
   }
 
- return (
-    <div
-      className="h-screen overflow-y-auto p-4 md:p-8"
-      style={{ backgroundColor: "var(--bg-primary)" }}
-    >
-      <div className="max-w-2xl mx-auto pb-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="glass-card rounded-2xl p-6 md:p-8"
-        >
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h1
-                className="text-2xl font-bold"
-                style={{ color: "var(--text-primary)" }}
-              >
-                设置
-              </h1>
-              <p
-                className="text-sm mt-1"
-                style={{ color: "var(--text-muted)" }}
-              >
-                配置您的AI助手参数
-              </p>
-            </div>
-            <Link to="/" className="btn-secondary flex items-center gap-2">
-              <ArrowLeft size={18} />
-              <span>返回</span>
-            </Link>
-          </div>
-
+  return (
+    <MainLayout headerTitle="配置">
+      <div className="h-full overflow-y-auto p-6">
+        <div className="max-w-6xl mx-auto pb-8">
           <AnimatePresence mode="wait">
             {message && (
               <motion.div
@@ -227,14 +263,15 @@ const Settings: React.FC = () => {
             )}
           </AnimatePresence>
 
-          <div className="space-y-8">
-            {/* LLM配置 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
+              className="glass-card rounded-2xl p-6"
+              style={{ border: "1px solid var(--glass-border)" }}
             >
-              <div className="flex items-center gap-3 mb-4">
+              <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary-dark/20 flex items-center justify-center">
                   <Cpu size={20} className="text-primary" />
                 </div>
@@ -251,7 +288,7 @@ const Settings: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-4 pl-13">
+              <div className="space-y-4">
                 <div>
                   <label
                     className="block text-sm font-medium mb-2"
@@ -308,33 +345,7 @@ const Settings: React.FC = () => {
                     ))}
                   </select>
                 </div>
-              </div>
-            </motion.div>
 
-            {/* API配置 */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary-dark/20 flex items-center justify-center">
-                  <Key size={20} className="text-primary" />
-                </div>
-                <div>
-                  <h2
-                    className="text-lg font-semibold"
-                    style={{ color: "var(--text-primary)" }}
-                  >
-                    API配置
-                  </h2>
-                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    配置您的API密钥
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-4 pl-13">
                 <div>
                   <label
                     className="block text-sm font-medium mb-2"
@@ -372,6 +383,92 @@ const Settings: React.FC = () => {
                   >
                     用于智谱AI聊天功能，API Key将安全存储在数据库中
                   </p>
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="glass-card rounded-2xl p-6"
+              style={{ border: "1px solid var(--glass-border)" }}
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/20 to-purple-700/20 flex items-center justify-center">
+                  <Cpu size={20} className="text-purple-400" />
+                </div>
+                <div>
+                  <h2
+                    className="text-lg font-semibold"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    Embedding配置
+                  </h2>
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    向量嵌入模型（用于记忆搜索）
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label
+                    className="block text-sm font-medium mb-2"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    模型厂商
+                  </label>
+                  <select
+                    value={selectedEmbeddingProvider}
+                    onChange={(e) =>
+                      setSelectedEmbeddingProvider(e.target.value)
+                    }
+                    className="w-full px-4 py-3 glass-input rounded-xl appearance-none cursor-pointer"
+                    style={{
+                      color: "var(--text-primary)",
+                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='${encodeURIComponent("var(--text-muted)")}'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
+                      backgroundRepeat: "no-repeat",
+                      backgroundPosition: "right 1rem center",
+                      backgroundSize: "1.5rem",
+                    }}
+                  >
+                    <option value="">请选择厂商</option>
+                    {embeddingProviders.map((provider) => (
+                      <option key={provider.id} value={provider.id}>
+                        {provider.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    className="block text-sm font-medium mb-2"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    模型
+                  </label>
+                  <select
+                    value={selectedEmbeddingModel}
+                    onChange={(e) => setSelectedEmbeddingModel(e.target.value)}
+                    disabled={!selectedEmbeddingProvider}
+                    className="w-full px-4 py-3 glass-input rounded-xl appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{
+                      color: "var(--text-primary)",
+                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='${encodeURIComponent("var(--text-muted)")}'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
+                      backgroundRepeat: "no-repeat",
+                      backgroundPosition: "right 1rem center",
+                      backgroundSize: "1.5rem",
+                    }}
+                  >
+                    <option value="">请先选择厂商</option>
+                    {embeddingModels.map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
@@ -418,97 +515,47 @@ const Settings: React.FC = () => {
                 </div>
               </div>
             </motion.div>
-
-            {/* Embedding配置 */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.25 }}
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/20 to-purple-700/20 flex items-center justify-center">
-                  <Cpu size={20} className="text-purple-400" />
-                </div>
-                <div>
-                  <h2
-                    className="text-lg font-semibold"
-                    style={{ color: "var(--text-primary)" }}
-                  >
-                    Embedding配置
-                  </h2>
-                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    向量嵌入模型（用于记忆搜索）
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-4 pl-13">
-                <div className="p-4 rounded-xl" style={{ backgroundColor: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                        nvidia/llama-nemotron-embed-vl-1b-v2:free
-                      </p>
-                      <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                        通过 OpenRouter 提供的免费向量嵌入模型
-                      </p>
-                    </div>
-                    <span className="px-3 py-1 text-xs rounded-full bg-green-500/20 text-green-400">
-                      免费
-                    </span>
-                  </div>
-                </div>
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  此模型用于将文本转换为向量，支持语义搜索功能。请确保已配置 OpenRouter API Key。
-                </p>
-              </div>
-            </motion.div>
-
-            {/* 保存按钮 */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="flex justify-end gap-3 pt-6"
-              style={{ borderTop: "1px solid var(--glass-border)" }}
-            >
-              <button onClick={() => navigate("/")} className="btn-secondary">
-                取消
-              </button>
-              <motion.button
-                onClick={handleSave}
-                disabled={isSaving}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="btn-primary flex items-center gap-2"
-              >
-                {isSaving ? (
-                  <>
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{
-                        duration: 1,
-                        repeat: Infinity,
-                        ease: "linear",
-                      }}
-                    >
-                      <Loader2 size={18} />
-                    </motion.div>
-                    <span>保存中...</span>
-                  </>
-                ) : (
-                  <>
-                    <Save size={18} />
-                    <span>保存设置</span>
-                  </>
-                )}
-              </motion.button>
-            </motion.div>
           </div>
-        </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="flex justify-end mt-6"
+          >
+            <motion.button
+              onClick={handleSave}
+              disabled={isSaving}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="btn-primary flex items-center gap-2"
+            >
+              {isSaving ? (
+                <>
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{
+                      duration: 1,
+                      repeat: Infinity,
+                      ease: "linear",
+                    }}
+                  >
+                    <Loader2 size={18} />
+                  </motion.div>
+                  <span>保存中...</span>
+                </>
+              ) : (
+                <>
+                  <Save size={18} />
+                  <span>保存设置</span>
+                </>
+              )}
+            </motion.button>
+          </motion.div>
+        </div>
       </div>
-    </div>
+    </MainLayout>
   );
 };
 
-export default Settings;
+export default SettingsPage;

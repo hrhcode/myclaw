@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Send, Loader2 } from 'lucide-react';
+import { useState, useRef, useEffect } from "react";
+import { motion } from "framer-motion";
+import { Send, Loader2 } from "lucide-react";
 
 interface MessageInputProps {
   onSendMessage: (message: string) => void;
@@ -11,8 +11,11 @@ interface MessageInputProps {
  * 消息输入组件 - 用于输入和发送消息
  * 采用玻璃拟态设计，支持自动调整高度和主题切换
  */
-const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled = false }) => {
-  const [message, setMessage] = useState('');
+const MessageInput: React.FC<MessageInputProps> = ({
+  onSendMessage,
+  disabled = false,
+}) => {
+  const [message, setMessage] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -22,7 +25,7 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled = f
   useEffect(() => {
     const textarea = textareaRef.current;
     if (textarea) {
-      textarea.style.height = 'auto';
+      textarea.style.height = "auto";
       textarea.style.height = `${Math.min(textarea.scrollHeight, 150)}px`;
     }
   }, [message]);
@@ -34,7 +37,7 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled = f
     e.preventDefault();
     if (message.trim() && !disabled) {
       onSendMessage(message.trim());
-      setMessage('');
+      setMessage("");
     }
   };
 
@@ -42,7 +45,7 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled = f
    * 处理键盘事件
    */
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e);
     }
@@ -54,13 +57,13 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled = f
   const canSend = message.trim() && !disabled;
 
   return (
-    <div className="p-4" style={{ borderTop: '1px solid var(--glass-border)' }}>
+    <div className="p-4" style={{ borderTop: "1px solid var(--glass-border)" }}>
       <form onSubmit={handleSubmit} className="relative">
         <motion.div
           animate={{
             boxShadow: isFocused
-              ? '0 0 0 2px rgba(102, 126, 234, 0.3), 0 0 20px rgba(102, 126, 234, 0.2)'
-              : '0 0 0 0 transparent',
+              ? "0 0 0 2px rgba(102, 126, 234, 0.3), 0 0 20px rgba(102, 126, 234, 0.2)"
+              : "0 0 0 0 transparent",
           }}
           transition={{ duration: 0.2 }}
           className="relative flex items-end gap-3 p-3 rounded-2xl glass"
@@ -77,9 +80,9 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled = f
               disabled={disabled}
               rows={1}
               className="w-full px-4 py-3 bg-transparent resize-none focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ 
-                maxHeight: '150px',
-                color: 'var(--text-primary)',
+              style={{
+                maxHeight: "150px",
+                color: "var(--text-primary)",
               }}
             />
           </div>
@@ -91,28 +94,28 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled = f
             whileTap={canSend ? { scale: 0.95 } : {}}
             className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 ${
               canSend
-                ? 'bg-gradient-to-r from-primary to-primary-dark text-white shadow-glow hover:shadow-glow-lg'
-                : 'bg-white/5 text-white/30 cursor-not-allowed'
+                ? "bg-gradient-to-r from-primary to-primary-dark text-white shadow-glow hover:shadow-glow-lg"
+                : "bg-white/5 text-white/30 cursor-not-allowed"
             }`}
           >
             {disabled ? (
               <motion.div
                 animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
               >
                 <Loader2 size={20} />
               </motion.div>
             ) : (
-              <Send size={20} className={canSend ? 'translate-x-0.5' : ''} />
+              <Send size={20} className={canSend ? "translate-x-0.5" : ""} />
             )}
           </motion.button>
         </motion.div>
 
         <div className="flex items-center justify-between mt-2 px-2">
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
             按 Enter 发送，Shift+Enter 换行
           </span>
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
             {message.length} 字符
           </span>
         </div>

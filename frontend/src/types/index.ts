@@ -15,6 +15,15 @@ export interface Conversation {
   updated_at: string;
 }
 
+export interface ConversationDetail extends Conversation {
+  message_count: number;
+  last_message?: {
+    content: string;
+    role: MessageRole;
+    created_at: string;
+  };
+}
+
 export interface ChatRequest {
   conversation_id?: number;
   message: string;
