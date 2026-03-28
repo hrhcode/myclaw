@@ -154,23 +154,36 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     logger.info(LOG_SEPARATOR)
     logger.info("[记忆搜索] 开始混合记忆搜索...")
     
+    # 从配置中读取记忆搜索参数
+    from app.api.config import get_config_value
+    
+    memory_top_k = await get_config_value(db, "memory_top_k")
+    memory_min_score = await get_config_value(db, "memory_min_score")
+    memory_use_hybrid = await get_config_value(db, "memory_use_hybrid")
+    memory_vector_weight = await get_config_value(db, "memory_vector_weight")
+    memory_text_weight = await get_config_value(db, "memory_text_weight")
+    memory_enable_mmr = await get_config_value(db, "memory_enable_mmr")
+    memory_mmr_lambda = await get_config_value(db, "memory_mmr_lambda")
+    memory_enable_temporal_decay = await get_config_value(db, "memory_enable_temporal_decay")
+    memory_half_life_days = await get_config_value(db, "memory_half_life_days")
+    
     message_history = await get_conversation_history(db, conversation_id)
     
     memory_results = await hybrid_memory_search(
         db=db,
         query=request.message,
         conversation_id=conversation_id,
-        top_k=5,
-        min_score=0.5,
+        top_k=int(memory_top_k) if memory_top_k else 5,
+        min_score=float(memory_min_score) if memory_min_score else 0.5,
         include_messages=True,
         include_long_term=True,
-        use_hybrid=True,
-        vector_weight=0.7,
-        text_weight=0.3,
-        enable_mmr=True,
-        mmr_lambda=0.7,
-        enable_temporal_decay=True,
-        half_life_days=30
+        use_hybrid=(memory_use_hybrid == "true") if memory_use_hybrid else True,
+        vector_weight=float(memory_vector_weight) if memory_vector_weight else 0.7,
+        text_weight=float(memory_text_weight) if memory_text_weight else 0.3,
+        enable_mmr=(memory_enable_mmr == "true") if memory_enable_mmr else True,
+        mmr_lambda=float(memory_mmr_lambda) if memory_mmr_lambda else 0.7,
+        enable_temporal_decay=(memory_enable_temporal_decay == "true") if memory_enable_temporal_decay else True,
+        half_life_days=int(memory_half_life_days) if memory_half_life_days else 30
     )
     
     logger.info(f"[记忆搜索] 搜索完成，找到 {len(memory_results)} 条相关记忆")
