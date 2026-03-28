@@ -152,11 +152,9 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     await save_message(db, conversation_id, "user", request.message)
     
     logger.info(LOG_SEPARATOR)
-    logger.info("[记忆搜索] 开始混合记忆搜索...")
+    logger.info("[记忆搜索】开始混合记忆搜索...")
     
     # 从配置中读取记忆搜索参数
-    from app.api.config import get_config_value
-    
     memory_top_k = await get_config_value(db, "memory_top_k")
     memory_min_score = await get_config_value(db, "memory_min_score")
     memory_use_hybrid = await get_config_value(db, "memory_use_hybrid")
