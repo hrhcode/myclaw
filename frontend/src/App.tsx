@@ -4,6 +4,7 @@ import { AppProvider } from "./contexts/AppContext";
 import ChatPage from "./components/chat/ChatPage";
 import ConversationsPage from "./components/conversations/ConversationsPage";
 import SettingsPage from "./components/settings/SettingsPage";
+import MemoryPage from "./components/memory";
 import "./App.css";
 
 /**
@@ -19,6 +20,7 @@ const App: React.FC = () => {
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/chat/:conversationId" element={<ChatPage />} />
             <Route path="/conversations" element={<ConversationsPage />} />
+            <Route path="/memory" element={<MemoryPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>
         </BrowserRouter>

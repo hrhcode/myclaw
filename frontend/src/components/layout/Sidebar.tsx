@@ -1,13 +1,13 @@
-import { NavLink, useLocation } from "react-router-dom";
-import { motion } from "framer-motion";
+import { NavLink, useLocation, matchPath } from "react-router-dom";
 import {
   MessageSquare,
   FolderOpen,
   Settings,
   PanelLeftClose,
   PanelLeft,
+  Brain,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 interface SidebarProps {
   isCollapsed: boolean;
@@ -18,6 +18,7 @@ interface NavItem {
   path: string;
   icon: React.ReactNode;
   label: string;
+  pattern?: string;
 }
 
 /**
@@ -28,24 +29,39 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   const navItems: NavItem[] = [
-    { path: "/chat", icon: <MessageSquare size={22} />, label: "聊天" },
+    {
+      path: "/chat",
+      icon: <MessageSquare size={22} />,
+      label: "聊天",
+      pattern: "/chat/*",
+    },
     { path: "/conversations", icon: <FolderOpen size={22} />, label: "会话" },
+    { path: "/memory", icon: <Brain size={22} />, label: "记忆" },
     { path: "/settings", icon: <Settings size={22} />, label: "配置" },
   ];
 
   /**
-   * 判断导航项是否激活
+   * 判断导航项是否激活 - 使用 useMemo 优化避免不必要的重计算
    */
-  const isActive = (path: string): boolean => {
-    if (path === "/chat") {
-      return (
-        location.pathname === "/chat" ||
-        location.pathname.startsWith("/chat/") ||
-        location.pathname === "/"
-      );
+  const activeItem = useMemo(() => {
+    const currentPath = location.pathname;
+
+    for (const item of navItems) {
+      if (item.pattern) {
+        if (matchPath(item.pattern, currentPath)) {
+          return item.path;
+        }
+      } else if (currentPath === item.path) {
+        return item.path;
+      }
     }
-    return location.pathname === path;
-  };
+
+    if (currentPath === "/") {
+      return "/chat";
+    }
+
+    return null;
+  }, [location.pathname]);
 
   return (
     <div
@@ -53,7 +69,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
       style={{
         borderRight: "1px solid var(--glass-border)",
         width: isCollapsed ? 72 : 240,
-        transition: "width 0.3s ease",
+        transition: "width 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+        flexShrink: 0,
       }}
     >
       <div
@@ -74,21 +91,19 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
           </div>
         )}
 
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
+        <button
           onClick={onToggleCollapse}
-          className={`p-2.5 rounded-xl glass transition-colors ${isCollapsed ? "mx-auto" : ""}`}
+          className={`p-2.5 rounded-xl glass transition-colors hover:bg-white/10 ${isCollapsed ? "mx-auto" : ""}`}
           style={{ color: "var(--text-secondary)" }}
           aria-label={isCollapsed ? "展开侧边栏" : "折叠侧边栏"}
         >
           {isCollapsed ? <PanelLeft size={20} /> : <PanelLeftClose size={20} />}
-        </motion.button>
+        </button>
       </div>
 
       <nav className="flex-1 p-3 space-y-2">
         {navItems.map((item) => {
-          const active = isActive(item.path);
+          const active = activeItem === item.path;
           return (
             <div key={item.path} className="relative">
               <NavLink

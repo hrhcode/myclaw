@@ -35,8 +35,6 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const SIDEBAR_COLLAPSED_KEY = "sidebar-collapsed";
-
 interface AppProviderProps {
   children: ReactNode;
 }
@@ -52,11 +50,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
-      return stored === "true";
-    }
-    return false;
+    // 从 localStorage 读取侧边栏折叠状态，默认为展开
+    const saved = localStorage.getItem("sidebar_collapsed");
+    return saved === "true";
   });
 
   /**
@@ -155,7 +151,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((prev) => {
       const newValue = !prev;
-      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(newValue));
+      localStorage.setItem("sidebar_collapsed", String(newValue));
       return newValue;
     });
   }, []);
@@ -164,7 +160,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
    * 设置侧边栏折叠状态
    */
   const setSidebarCollapsedWithStorage = useCallback((collapsed: boolean) => {
-    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
+    localStorage.setItem("sidebar_collapsed", String(collapsed));
     setSidebarCollapsed(collapsed);
   }, []);
 

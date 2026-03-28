@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { memo } from "react";
 import Sidebar from "./Sidebar";
 import ThemeToggle from "../common/ThemeToggle";
 import { useApp } from "../../contexts/AppContext";
@@ -20,7 +21,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   const { sidebarCollapsed, toggleSidebar } = useApp();
 
   return (
-    <div className="app-container flex h-screen">
+    <div className="app-container flex h-screen overflow-hidden">
       <div className="app-bg-glow" />
 
       <Sidebar
@@ -28,9 +29,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         onToggleCollapse={toggleSidebar}
       />
 
-      <div className="main-content flex-1 flex flex-col">
+      <div className="main-content flex-1 flex flex-col overflow-hidden">
         {showHeader && (
-          <header className="navbar h-16 flex items-center justify-between px-6">
+          <header className="navbar h-16 flex items-center justify-between px-6 flex-shrink-0">
             <div className="flex items-center gap-3">
               {headerTitle && (
                 <h1
@@ -54,4 +55,4 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   );
 };
 
-export default MainLayout;
+export default memo(MainLayout);
