@@ -8,31 +8,25 @@ from typing import List, Optional, Tuple, Dict
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text, func
-from app.models import Message, LongTermMemory
-from app.embedding_service import (
-    get_embedding_service,
+from app.models.models import Message, LongTermMemory
+from app.services.embedding_service import get_embedding_service
+from app.common.utils.embedding import (
     bytes_to_embedding,
     cosine_similarity,
     embedding_to_bytes
 )
-from app.schemas import MemorySearchResult
-from app.api.config import get_config_value, EMBEDDING_MODEL_KEY, OPENROUTER_API_KEY_KEY
+from app.common.utils.search import (
+    normalize_bm25_score,
+    mmr_rerank,
+    apply_temporal_decay
+)
+from app.common.utils.logging import log_search_start, log_search_result
+from app.common.constants import LOG_SEPARATOR
+from app.schemas.schemas import MemorySearchResult
+from app.common.config import get_config_value
+from app.common.constants import EMBEDDING_MODEL_KEY, OPENROUTER_API_KEY_KEY
 
 logger = logging.getLogger(__name__)
-
-LOG_SEPARATOR = "─" * 50
-
-
-def _log_search_start(query: str, search_type: str, top_k: int):
-    """记录搜索开始的日志"""
-    logger.info(f"[{search_type}] 开始搜索")
-    logger.info(f"  ├─ 查询内容: {query[:50]}{'...' if len(query) > 50 else ''}")
-    logger.info(f"  └─ 返回数量: {top_k}")
-
-
-def _log_search_result(count: int, search_type: str, source: str):
-    """记录搜索结果的日志"""
-    logger.info(f"[{search_type}] 搜索完成，找到 {count} 条结果 (来源: {source})")
 
 
 _sqlite_vec_available = None
@@ -112,7 +106,7 @@ async def generate_embedding_standalone(content: str) -> Optional[bytes]:
     Returns:
         嵌入字节数据，失败返回 None
     """
-    from app.database import AsyncSessionLocal
+    from app.core.database import AsyncSessionLocal
     
     async with AsyncSessionLocal() as db:
         try:
@@ -422,7 +416,7 @@ async def index_message_embedding(message_id: int) -> bool:
     Returns:
         是否成功
     """
-    from app.database import AsyncSessionLocal
+    from app.core.database import AsyncSessionLocal
     
     async with AsyncSessionLocal() as db:
         try:
@@ -459,7 +453,7 @@ async def index_long_term_memory_embedding(memory_id: int) -> bool:
     Returns:
         是否成功
     """
-    from app.database import AsyncSessionLocal
+    from app.core.database import AsyncSessionLocal
     
     async with AsyncSessionLocal() as db:
         try:
@@ -500,7 +494,7 @@ async def batch_index_conversation_messages(
     Returns:
         成功索引的消息数量
     """
-    from app.database import AsyncSessionLocal
+    from app.core.database import AsyncSessionLocal
     
     async with AsyncSessionLocal() as db:
         query = select(Message).where(
@@ -637,19 +631,6 @@ async def search_long_term_memory_by_bm25(
     except Exception as e:
         logger.error(f"BM25搜索长期记忆失败: {str(e)}", exc_info=True)
         return []
-
-
-def normalize_bm25_score(bm25_rank: int) -> float:
-    """
-    将BM25排名转换为0-1分数
-    
-    Args:
-        bm25_rank: BM25排名（越小越好）
-        
-    Returns:
-        归一化分数 (0-1)
-    """
-    return 1.0 / (1.0 + max(0, bm25_rank))
 
 
 async def hybrid_search(
@@ -798,126 +779,3 @@ async def hybrid_search(
     
     logger.info(f"[混合搜索-{search_type}] 完成，返回 {len(final_results[:top_k])} 条结果")
     return final_results[:top_k]
-
-
-def jaccard_similarity(text1: str, text2: str) -> float:
-    """
-    计算两个文本的Jaccard相似度
-    
-    Args:
-        text1: 文本1
-        text2: 文本2
-        
-    Returns:
-        Jaccard相似度 (0-1)
-    """
-    set1 = set(text1.lower().split())
-    set2 = set(text2.lower().split())
-    
-    if not set1 and not set2:
-        return 1.0
-    
-    intersection = len(set1 & set2)
-    union = len(set1 | set2)
-    
-    if union == 0:
-        return 0.0
-    
-    return intersection / union
-
-
-def mmr_rerank(
-    results: List[Tuple[object, float, str]],
-    lambda_param: float = 0.7,
-    top_k: int = 5
-) -> List[Tuple[object, float, str]]:
-    """
-    使用MMR算法对搜索结果进行重排序
-    
-    Args:
-        results: 原始搜索结果 (对象, 分数, 来源)
-        lambda_param: MMR参数，平衡相关性和多样性 (0-1)
-        top_k: 返回结果数量
-        
-    Returns:
-        重排序后的结果列表
-    """
-    if not results:
-        return []
-    
-    selected = []
-    remaining = results.copy()
-    
-    for _ in range(min(top_k, len(results))):
-        if not remaining:
-            break
-        
-        best_idx = 0
-        best_score = -float('inf')
-        
-        for i, (obj, score, source) in enumerate(remaining):
-            mmr_score = lambda_param * score
-            
-            for selected_obj, _, _ in selected:
-                selected_text = getattr(selected_obj, 'content', '')
-                current_text = getattr(obj, 'content', '')
-                similarity = jaccard_similarity(selected_text, current_text)
-                mmr_score -= (1 - lambda_param) * similarity
-            
-            if mmr_score > best_score:
-                best_score = mmr_score
-                best_idx = i
-        
-        selected.append(remaining[best_idx])
-        del remaining[best_idx]
-    
-    return selected
-
-
-def apply_temporal_decay(
-    results: List[Tuple[object, float, str]],
-    half_life_days: int = 30,
-    enable_decay: bool = True
-) -> List[Tuple[object, float, str]]:
-    """
-    对搜索结果应用时间衰减
-    
-    Args:
-        results: 原始搜索结果 (对象, 分数, 来源)
-        half_life_days: 半衰期天数
-        enable_decay: 是否启用时间衰减
-        
-    Returns:
-        应用衰减后的结果列表
-    """
-    if not enable_decay:
-        return results
-    
-    decayed_results = []
-    current_time = datetime.now()
-    
-    for obj, score, source in results:
-        if not obj or not hasattr(obj, 'created_at'):
-            decayed_results.append((obj, score, source))
-            continue
-        
-        created_at = getattr(obj, 'created_at', None)
-        if not created_at:
-            decayed_results.append((obj, score, source))
-            continue
-        
-        age_days = (current_time - created_at).days
-        
-        if age_days < 0:
-            decayed_results.append((obj, score, source))
-            continue
-        
-        lambda_param = 0.693 / half_life_days
-        
-        decay_factor = 2.718 ** (-lambda_param * age_days)
-        
-        decayed_score = score * decay_factor
-        
-        decayed_results.append((obj, decayed_score, source))
-    
-    return decayed_results

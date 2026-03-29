@@ -7,11 +7,14 @@ from typing import List, Optional, Dict
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.models import Message, Conversation
+from app.models.models import Message, Conversation
+from app.common.utils.text import (
+    calculate_importance_score,
+    format_memory_for_storage,
+)
+from app.common.constants import LOG_SEPARATOR_SHORT
 
 logger = logging.getLogger(__name__)
-
-LOG_SEPARATOR = "─" * 40
 
 
 class MemorySummarizer:
@@ -23,45 +26,7 @@ class MemorySummarizer:
         """
         初始化记忆摘要生成器
         """
-        self.importance_keywords = [
-            "重要", "关键", "必须", "记住", "不要忘记",
-            "重要信息", "关键信息", "核心", "主要",
-            "prefer", "like", "want", "need", "require",
-            "设置", "配置", "选项", "参数", "偏好"
-        ]
-    
-    def calculate_importance_score(self, text: str) -> float:
-        """
-        计算文本的重要性分数
-        
-        Args:
-            text: 文本内容
-            
-        Returns:
-            重要性分数 (0.0-1.0)
-        """
-        if not text:
-            return 0.0
-        
-        score = 0.0
-        text_lower = text.lower()
-        
-        for keyword in self.importance_keywords:
-            if keyword.lower() in text_lower:
-                score += 0.1
-        
-        if "？" in text or "?" in text:
-            score += 0.05
-        
-        if "！" in text or "!" in text:
-            score += 0.05
-        
-        if len(text.split()) > 20:
-            score += 0.1
-        
-        final_score = min(score, 1.0)
-        logger.debug(f"[重要性计算] 文本: {text[:30]}... -> 分数: {final_score:.2f}")
-        return final_score
+        pass
     
     def extract_key_information(self, messages: List[Message]) -> List[Dict]:
         """
@@ -78,7 +43,7 @@ class MemorySummarizer:
         key_info = []
         
         for msg in messages:
-            importance = self.calculate_importance_score(msg.content)
+            importance = calculate_importance_score(msg.content)
             
             if importance > 0.3:
                 key_info.append({
@@ -147,7 +112,7 @@ class MemorySummarizer:
         Returns:
             记忆列表
         """
-        logger.info(LOG_SEPARATOR)
+        logger.info(LOG_SEPARATOR_SHORT)
         logger.info(f"[记忆提取] 开始从会话 {conversation_id} 提取记忆")
         
         try:
@@ -165,30 +130,12 @@ class MemorySummarizer:
             summary = self.generate_summary(key_info, max_items=max_memories)
             
             logger.info(f"[记忆提取] 完成，提取 {len(summary)} 条记忆")
-            logger.info(LOG_SEPARATOR)
+            logger.info(LOG_SEPARATOR_SHORT)
             
             return summary
         except Exception as e:
             logger.error(f"[记忆提取] 失败: {str(e)}")
             return []
-    
-    def format_memory_for_storage(self, summary_item: Dict) -> str:
-        """
-        格式化记忆用于存储
-        
-        Args:
-            summary_item: 摘要项
-            
-        Returns:
-            格式化的记忆文本
-        """
-        role = summary_item.get("role", "user")
-        content = summary_item.get("summary", "")
-        
-        if role == "user":
-            return f"用户提到: {content}"
-        else:
-            return f"系统/助手: {content}"
 
 
 async def get_memory_summarizer() -> MemorySummarizer:

@@ -1,65 +1,24 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.database import get_db
-from app.models import Config
-from app.schemas import ConfigCreate, ConfigUpdate, ConfigResponse
+from app.core.database import get_db
+from app.models.models import Config
+from app.schemas.schemas import ConfigCreate, ConfigUpdate, ConfigResponse
+from app.common.constants import (
+    API_KEY_KEY,
+    LLM_MODEL_KEY,
+    LLM_PROVIDER_KEY,
+    OPENROUTER_API_KEY_KEY,
+    EMBEDDING_PROVIDER_KEY,
+    EMBEDDING_MODEL_KEY,
+    PROVIDERS,
+    EMBEDDING_PROVIDERS,
+)
+from app.common.config import get_config_value, set_config_value
 import logging
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-API_KEY_KEY = "zhipu_api_key"
-LLM_MODEL_KEY = "llm_model"
-LLM_PROVIDER_KEY = "llm_provider"
-OPENROUTER_API_KEY_KEY = "openrouter_api_key"
-EMBEDDING_PROVIDER_KEY = "embedding_provider"
-EMBEDDING_MODEL_KEY = "embedding_model"
-
-PROVIDERS = {
-    "zhipu": {
-        "name": "智谱AI",
-        "models": [
-            {"id": "glm-4-flash", "name": "GLM-4-Flash (快速响应)"},
-            {"id": "glm-4", "name": "GLM-4 (高性能)"},
-            {"id": "glm-4-plus", "name": "GLM-4-Plus (旗舰)"},
-        ]
-    }
-}
-
-EMBEDDING_PROVIDERS = {
-    "openrouter": {
-        "name": "OpenRouter",
-        "models": [
-            {"id": "nvidia/llama-nemotron-embed-vl-1b-v2:free", "name": "Llama-Nemotron-Embed-VL-1B (免费)"},
-        ]
-    }
-}
-
-
-async def get_config_value(db: AsyncSession, key: str) -> str | None:
-    """获取配置值"""
-    result = await db.execute(select(Config).where(Config.key == key))
-    config = result.scalar_one_or_none()
-    return config.value if config else None
-
-
-async def set_config_value(db: AsyncSession, key: str, value: str, description: str | None = None) -> Config:
-    """设置配置值"""
-    result = await db.execute(select(Config).where(Config.key == key))
-    config = result.scalar_one_or_none()
-
-    if config:
-        config.value = value
-        if description is not None:
-            config.description = description
-    else:
-        config = Config(key=key, value=value, description=description)
-        db.add(config)
-
-    await db.commit()
-    await db.refresh(config)
-    return config
 
 
 @router.get("/config/providers")

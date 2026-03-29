@@ -6,9 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
-from app.database import get_db
-from app.models import LongTermMemory
-from app.schemas import (
+from app.core.database import get_db
+from app.models.models import LongTermMemory
+from app.schemas.schemas import (
     MemorySearchRequest,
     MemorySearchResponse,
     MemorySearchResult,
@@ -16,17 +16,17 @@ from app.schemas import (
     LongTermMemoryUpdate,
     LongTermMemoryResponse
 )
-from app.vector_search_service import (
+from app.services.vector_search_service import (
     hybrid_memory_search,
     index_long_term_memory_embedding,
     batch_index_conversation_messages
 )
+from app.common.utils.logging import log_search_start, log_search_result
+from app.common.constants import LOG_SEPARATOR
 import logging
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-LOG_SEPARATOR = "─" * 50
 
 
 @router.post("/memory/search", response_model=MemorySearchResponse)

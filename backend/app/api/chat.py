@@ -1,14 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.database import get_db
-from app.models import Conversation, Message, ToolCall
-from app.schemas import ChatRequest, MemorySearchResult
-from app.llm_service import get_llm_service
-from app.api.config import get_config_value, API_KEY_KEY, LLM_MODEL_KEY
-from app.vector_search_service import index_message_embedding, hybrid_memory_search
+from app.core.database import get_db
+from app.models.models import Conversation, Message, ToolCall
+from app.schemas.schemas import ChatRequest, MemorySearchResult
+from app.services.llm_service import get_llm_service
+from app.common.config import get_config_value
+from app.common.constants import API_KEY_KEY, LLM_MODEL_KEY
+from app.services.vector_search_service import index_message_embedding, hybrid_memory_search
 from app.tools import tool_registry, tool_executor, tools_to_zhipu_schemas
 from app.tools.builtin import get_current_time_tool
+from app.common.utils.logging import log_search_start, log_search_result
+from app.common.constants import LOG_SEPARATOR
 from typing import List, Dict, Any
 import logging
 import asyncio
@@ -17,8 +20,6 @@ from datetime import datetime
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-LOG_SEPARATOR = "─" * 60
 
 
 def register_builtin_tools():

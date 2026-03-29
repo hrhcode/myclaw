@@ -11,13 +11,14 @@ from fastapi import WebSocket
 from sqlalchemy import select, delete, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import AsyncSessionLocal
-from app.models import Log
-
-MAX_LOG_BUFFER_SIZE = 1000
-LOG_RETENTION_DAYS = 7
-LOG_MAX_RECORDS = 100000
-LOG_CLEANUP_INTERVAL_HOURS = 24
+from app.core.database import AsyncSessionLocal
+from app.models.models import Log
+from app.common.constants import (
+    MAX_LOG_BUFFER_SIZE,
+    LOG_RETENTION_DAYS,
+    LOG_MAX_RECORDS,
+    LOG_CLEANUP_INTERVAL_HOURS,
+)
 
 
 class LogEntry:

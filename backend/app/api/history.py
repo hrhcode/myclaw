@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from typing import List
-from app.database import get_db
-from app.models import Conversation, Message
-from app.schemas import ConversationResponse, MessageResponse, ConversationCreate, ConversationUpdate
+from app.core.database import get_db
+from app.models.models import Conversation, Message
+from app.schemas.schemas import ConversationResponse, MessageResponse, ConversationCreate, ConversationUpdate
 import logging
 
 router = APIRouter()

@@ -7,15 +7,16 @@ from typing import List, Optional
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.models import Message, Conversation, LongTermMemory
-from app.api.config import get_config_value
+from app.models.models import Message, Conversation, LongTermMemory
+from app.common.config import get_config_value
+from app.common.constants import (
+    AUTO_MEMORY_FLUSH_ENABLED,
+    AUTO_MEMORY_FLUSH_THRESHOLD,
+    LOG_SEPARATOR_SHORT,
+)
+from app.common.utils.text import estimate_tokens
 
 logger = logging.getLogger(__name__)
-
-LOG_SEPARATOR = "─" * 40
-
-AUTO_MEMORY_FLUSH_ENABLED = "auto_memory_flush_enabled"
-AUTO_MEMORY_FLUSH_THRESHOLD = "auto_memory_flush_threshold"
 
 
 class MemoryFlushService:
@@ -31,21 +32,6 @@ class MemoryFlushService:
             threshold_tokens: 触发记忆刷新的token阈值
         """
         self.threshold_tokens = threshold_tokens
-    
-    def estimate_tokens(self, text: str) -> int:
-        """
-        估算文本的token数量
-        
-        Args:
-            text: 文本内容
-            
-        Returns:
-            估算的token数量
-        """
-        if not text:
-            return 0
-        
-        return len(text.split()) * 1.3
     
     async def get_conversation_tokens(self, db: AsyncSession, conversation_id: int) -> int:
         """
