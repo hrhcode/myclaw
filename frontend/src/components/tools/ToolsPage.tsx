@@ -5,8 +5,10 @@
  */
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Wrench, Settings, ToggleLeft, ToggleRight, Loader2, Clock, Info } from 'lucide-react';
-import { getTools, getToolConfig, updateToolConfig, toggleTool, type ToolInfo, type ToolListResponse, type ToolConfig } from '../../services/api';
+import { Wrench, Settings, Loader2, Clock, Info } from 'lucide-react';
+import MainLayout from '../layout/MainLayout';
+import { getTools, getToolConfig, updateToolConfig, toggleTool } from '../../services/api';
+import type { ToolInfo, ToolConfig } from '../../services/api';
 
 interface ToolCardProps {
   tool: ToolInfo;
@@ -49,7 +51,7 @@ const ToolCard: React.FC<ToolCardProps> = ({ tool, onToggle }) => {
                 <span>参数</span>
               </div>
               <div className="flex flex-wrap gap-1">
-                {Object.entries(tool.parameters?.properties || {}).map(([key, prop]) => (
+                {Object.entries(tool.parameters?.properties || {}).map(([key]) => (
                   <span
                     key={key}
                     className="px-2 py-0.5 text-xs rounded"
@@ -68,17 +70,19 @@ const ToolCard: React.FC<ToolCardProps> = ({ tool, onToggle }) => {
         </div>
         <button
           onClick={() => onToggle(tool.name, !tool.enabled)}
-          className="p-2 rounded-lg transition-colors"
-          style={{
-            background: tool.enabled ? 'var(--primary)' : 'var(--glass-bg)',
-            border: '1px solid var(--glass-border)'
-          }}
+          className={`relative w-12 h-6 rounded-full transition-colors ${
+            tool.enabled
+              ? 'bg-gradient-to-r from-primary to-primary-dark'
+              : 'bg-gray-600'
+          }`}
         >
-          {tool.enabled ? (
-            <ToggleRight size={20} className="text-white" />
-          ) : (
-            <ToggleLeft size={20} style={{ color: 'var(--text-muted)' }} />
-          )}
+          <span
+            className={`block w-4 h-4 rounded-full bg-white shadow-md transition-transform absolute top-1 ${
+              tool.enabled
+                ? 'left-[calc(100%-1.25rem)]'
+                : 'left-1'
+            }`}
+          />
         </button>
       </div>
     </motion.div>
@@ -147,129 +151,127 @@ const ToolsPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
+      <MainLayout headerTitle="工具">
+        <div className="h-full flex items-center justify-center">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          >
+            <Loader2 size={40} className="text-primary" />
+          </motion.div>
+        </div>
+      </MainLayout>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p style={{ color: 'var(--text-muted)' }}>{error}</p>
-      </div>
+      <MainLayout headerTitle="工具">
+        <div className="h-full flex items-center justify-center">
+          <p style={{ color: 'var(--text-muted)' }}>{error}</p>
+        </div>
+      </MainLayout>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* 页面标题 */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary-dark/20">
-          <Wrench size={20} className="text-primary" />
-        </div>
-        <div>
-          <h1 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
-            工具管理
-          </h1>
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-            管理 AI 可调用的工具
-          </p>
+    <MainLayout headerTitle="工具">
+      <div className="h-full overflow-y-auto p-6">
+        <div className="max-w-6xl mx-auto pb-8">
+          {/* 工具配置 */}
+          {config && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="glass-card p-4 rounded-xl mb-6"
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <Settings size={18} className="text-primary" />
+                <h2 className="font-medium" style={{ color: 'var(--text-primary)' }}>
+                  全局配置
+                </h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm mb-1 block" style={{ color: 'var(--text-muted)' }}>
+                    配置文件
+                  </label>
+                  <select
+                    value={config.profile}
+                    onChange={(e) => handleUpdateConfig({ profile: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg"
+                    style={{
+                      background: 'var(--glass-bg)',
+                      border: '1px solid var(--glass-border)',
+                      color: 'var(--text-primary)'
+                    }}
+                  >
+                    <option value="minimal">minimal - 最小工具集</option>
+                    <option value="standard">standard - 标准工具集</option>
+                    <option value="full">full - 完整工具集</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm mb-1 block" style={{ color: 'var(--text-muted)' }}>
+                    最大迭代次数
+                  </label>
+                  <input
+                    type="number"
+                    value={config.max_iterations}
+                    onChange={(e) => handleUpdateConfig({ max_iterations: parseInt(e.target.value) || 5 })}
+                    min={1}
+                    max={10}
+                    className="w-full px-3 py-2 rounded-lg"
+                    style={{
+                      background: 'var(--glass-bg)',
+                      border: '1px solid var(--glass-border)',
+                      color: 'var(--text-primary)'
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm mb-1 block" style={{ color: 'var(--text-muted)' }}>
+                    超时时间（秒）
+                  </label>
+                  <input
+                    type="number"
+                    value={config.timeout_seconds}
+                    onChange={(e) => handleUpdateConfig({ timeout_seconds: parseInt(e.target.value) || 30 })}
+                    min={5}
+                    max={120}
+                    className="w-full px-3 py-2 rounded-lg"
+                    style={{
+                      background: 'var(--glass-bg)',
+                      border: '1px solid var(--glass-border)',
+                      color: 'var(--text-primary)'
+                    }}
+                  />
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* 工具列表 */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Clock size={18} className="text-primary" />
+              <h2 className="font-medium" style={{ color: 'var(--text-primary)' }}>
+                可用工具 ({tools.length})
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {tools.map(tool => (
+                <ToolCard
+                  key={tool.name}
+                  tool={tool}
+                  onToggle={handleToggleTool}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
-
-      {/* 工具配置 */}
-      {config && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="glass-card p-4 rounded-xl"
-        >
-          <div className="flex items-center gap-2 mb-4">
-            <Settings size={18} className="text-primary" />
-            <h2 className="font-medium" style={{ color: 'var(--text-primary)' }}>
-              全局配置
-            </h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="text-sm mb-1 block" style={{ color: 'var(--text-muted)' }}>
-                配置文件
-              </label>
-              <select
-                value={config.profile}
-                onChange={(e) => handleUpdateConfig({ profile: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg"
-                style={{
-                  background: 'var(--glass-bg)',
-                  border: '1px solid var(--glass-border)',
-                  color: 'var(--text-primary)'
-                }}
-              >
-                <option value="minimal">minimal - 最小工具集</option>
-                <option value="standard">standard - 标准工具集</option>
-                <option value="full">full - 完整工具集</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-sm mb-1 block" style={{ color: 'var(--text-muted)' }}>
-                最大迭代次数
-              </label>
-              <input
-                type="number"
-                value={config.max_iterations}
-                onChange={(e) => handleUpdateConfig({ max_iterations: parseInt(e.target.value) || 5 })}
-                min={1}
-                max={10}
-                className="w-full px-3 py-2 rounded-lg"
-                style={{
-                  background: 'var(--glass-bg)',
-                  border: '1px solid var(--glass-border)',
-                  color: 'var(--text-primary)'
-                }}
-              />
-            </div>
-            <div>
-              <label className="text-sm mb-1 block" style={{ color: 'var(--text-muted)' }}>
-                超时时间（秒）
-              </label>
-              <input
-                type="number"
-                value={config.timeout_seconds}
-                onChange={(e) => handleUpdateConfig({ timeout_seconds: parseInt(e.target.value) || 30 })}
-                min={5}
-                max={120}
-                className="w-full px-3 py-2 rounded-lg"
-                style={{
-                  background: 'var(--glass-bg)',
-                  border: '1px solid var(--glass-border)',
-                  color: 'var(--text-primary)'
-                }}
-              />
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* 工具列表 */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Clock size={18} className="text-primary" />
-          <h2 className="font-medium" style={{ color: 'var(--text-primary)' }}>
-            可用工具 ({tools.length})
-          </h2>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {tools.map(tool => (
-            <ToolCard
-              key={tool.name}
-              tool={tool}
-              onToggle={handleToggleTool}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
+    </MainLayout>
   );
 };
 

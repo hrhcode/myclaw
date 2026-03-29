@@ -44,6 +44,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
       },
       { path: "/conversations", icon: <FolderOpen size={22} />, label: "会话" },
       { path: "/memory", icon: <Brain size={22} />, label: "记忆" },
+      { path: "/tools", icon: <Wrench size={22} />, label: "工具" },
       { path: "/settings", icon: <Settings size={22} />, label: "配置" },
       {
         path: "/logs",
