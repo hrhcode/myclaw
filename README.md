@@ -1,217 +1,216 @@
 <p align="center">
-  <h1 align="center">MyClaw - AI Chat Assistant</h1>
+  <h1 align="center">MyClaw - AI 聊天助手</h1>
   <p align="center">
-    <a href="README_CN.md">简体中文</a> | English
+    简体中文 | <a href="README_EN.md">English</a>
   </p>
 </p>
 
-An intelligent conversational AI assistant based on GLM-4.7-Flash, featuring semantic memory search, long-term memory management, and real-time log monitoring.
+基于 GLM-4.7-Flash 的智能对话 AI 助手，具备语义记忆搜索、长期记忆管理和实时日志监控功能。
 
-## ✨ Features
+## ✨ 功能特性
 
-- 🚀 **Modern Chat UI** - Clean and responsive interface with streaming output
-- 🧠 **Semantic Memory Search** - Vector-based hybrid search for messages and long-term memories
-- 💾 **Long-term Memory Management** - Store and retrieve important information persistently
-- 📊 **Real-time Log Monitoring** - WebSocket-based live log streaming with history view
-- 🌙 **Dark Mode** - Full dark theme support
-- 💬 **Conversation Management** - Create, switch, and delete conversations
-- 📝 **Markdown Rendering** - Rich text display with syntax highlighting
-- ⚙️ **Frontend Configuration** - Configure API Key directly in the UI
+- 🚀 **现代化聊天界面** - 界面简洁响应，支持流式输出
+- 🧠 **语义记忆搜索** - 基于向量的消息和长期记忆混合搜索
+- 💾 **长期记忆管理** - 持久化存储和检索重要信息
+- 📊 **实时日志监控** - 基于 WebSocket 的实时日志流和历史查看
+- 🌙 **深色模式** - 完整的深色主题支持
+- 💬 **对话管理** - 创建、切换和删除对话
+- 📝 **Markdown 渲染** - 富文本显示和代码高亮
+- ⚙️ **前端配置** - 直接在 UI 中配置 API Key
 
-## 🛠 Tech Stack
+## 🛠 技术栈
 
-| Layer     | Technology                                 |
+| 层级     | 技术栈                                     |
 | --------- | ------------------------------------------ |
-| Frontend  | React 19 + TypeScript + Vite + TailwindCSS |
-| Backend   | Python + FastAPI + SQLAlchemy (Async)      |
-| Database  | SQLite with sqlite-vec extension           |
-| AI Model  | GLM-4.7-Flash (Zhipu AI)                   |
-| Embedding | sentence-transformers                      |
+| 前端      | React 19 + TypeScript + Vite + TailwindCSS |
+| 后端      | Python + FastAPI + SQLAlchemy (Async)      |
+| 数据库    | SQLite with sqlite-vec extension           |
+| AI 模型   | GLM-4.7-Flash (智谱 AI)                   |
+| 向量嵌入  | sentence-transformers                      |
 
-## 📁 Project Structure
+## 📁 项目结构
 
 ```
 myclaw/
-├── frontend/                      # Frontend application
+├── frontend/                      # 前端应用
 │   ├── src/
-│   │   ├── components/            # React components
-│   │   │   ├── chat/              # Chat page & message components
-│   │   │   ├── conversations/     # Conversation list page
-│   │   │   ├── memory/            # Memory search & management
-│   │   │   ├── settings/          # Settings page
-│   │   │   └── layout/            # Layout components
-│   │   ├── contexts/              # React contexts
-│   │   ├── hooks/                 # Custom hooks
-│   │   ├── services/              # API services
-│   │   └── types/                 # TypeScript definitions
+│   │   ├── components/            # React 组件
+│   │   │   ├── chat/              # 聊天页面和消息组件
+│   │   │   ├── conversations/     # 对话列表页面
+│   │   │   ├── memory/            # 记忆搜索和管理
+│   │   │   ├── settings/          # 设置页面
+│   │   │   └── layout/            # 布局组件
+│   │   ├── contexts/              # React 上下文
+│   │   ├── hooks/                 # 自定义 Hooks
+│   │   ├── services/              # API 服务
+│   │   └── types/                 # TypeScript 类型定义
 │   └── package.json
 │
-├── backend/                       # Backend application
+├── backend/                       # 后端应用
 │   ├── app/
-│   │   ├── api/                   # API routes
-│   │   │   ├── chat.py            # Chat endpoints
-│   │   │   ├── history.py         # Conversation history
-│   │   │   ├── memory.py          # Memory search & long-term memory
-│   │   │   ├── config.py          # Configuration management
-│   │   │   └── logs.py            # Log streaming
-│   │   ├── services/              # Business logic
-│   │   ├── models.py              # SQLAlchemy models
-│   │   ├── schemas.py             # Pydantic schemas
-│   │   ├── database.py            # Database configuration
-│   │   ├── llm_service.py         # LLM integration
-│   │   ├── vector_search_service.py # Vector search
-│   │   └── main.py                # Application entry
+│   │   ├── api/                   # API 路由
+│   │   │   ├── chat.py            # 聊天接口
+│   │   │   ├── history.py         # 对话历史
+│   │   │   ├── memory.py          # 记忆搜索和长期记忆
+│   │   │   ├── config.py          # 配置管理
+│   │   │   └── logs.py            # 日志流
+│   │   ├── services/              # 业务逻辑
+│   │   ├── models.py              # SQLAlchemy 模型
+│   │   ├── schemas.py             # Pydantic 模式
+│   │   ├── database.py            # 数据库配置
+│   │   ├── llm_service.py         # LLM 集成
+│   │   ├── vector_search_service.py # 向量搜索
+│   │   └── main.py                # 应用入口
 │   └── requirements.txt
 │
-├── start_all.ps1                  # One-click start script (Windows)
+├── start_all.ps1                  # 一键启动脚本 (Windows)
 └── README.md
 ```
 
-## 🚀 Quick Start
+## 🚀 快速开始
 
-### Prerequisites
+### 前置要求
 
 - Python 3.10+
 - Node.js 18+
-- Zhipu AI API Key
+- 智谱 AI API Key
 
-### 1. Install Backend Dependencies
+### 1. 安装后端依赖
 
 ```bash
 cd backend
 pip install -r requirements.txt
 ```
 
-### 2. Install Frontend Dependencies
+### 2. 安装前端依赖
 
 ```bash
 cd frontend
 npm install
 ```
 
-### 3. Start Services
+### 3. 启动服务
 
-**Option A: One-click Start (Windows)**
+**方式 A: 一键启动 (Windows)**
 
 ```powershell
 .\start_all.ps1
 ```
 
-**Option B: Manual Start**
+**方式 B: 手动启动**
 
 ```bash
-# Terminal 1 - Backend
+# 终端 1 - 后端
 cd backend
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# Terminal 2 - Frontend
+# 终端 2 - 前端
 cd frontend
 npm run dev
 ```
 
-### 4. Configure API Key
+### 4. 配置 API Key
 
-1. Open <http://localhost:5173>
-2. Navigate to Settings
-3. Enter your Zhipu AI API Key
-4. Save configuration
+1. 打开 <http://localhost:5173>
+2. 进入设置页面
+3. 输入您的智谱 AI API Key
+4. 保存配置
 
-## 📚 API Documentation
+## 📚 API 文档
 
-After starting the backend, access the API documentation at:
+启动后端后，访问 API 文档：
 
 - Swagger UI: <http://localhost:8000/docs>
 - ReDoc: <http://localhost:8000/redoc>
 
-### Key Endpoints
+### 主要接口
 
-| Endpoint                           | Method    | Description               |
-| ---------------------------------- | --------- | ------------------------- |
-| `/api/chat/stream`                 | POST      | Streaming chat with AI    |
-| `/api/conversations`               | GET/POST  | List/Create conversations |
-| `/api/conversations/{id}`          | DELETE    | Delete a conversation     |
-| `/api/conversations/{id}/messages` | GET       | Get conversation messages |
-| `/api/memory/search`               | POST      | Semantic memory search    |
-| `/api/memory/long-term`            | GET/POST  | Long-term memory CRUD     |
-| `/api/logs/stream`                 | WebSocket | Real-time log streaming   |
-| `/api/config`                      | GET/PUT   | Configuration management  |
+| 接口                               | 方法     | 描述                     |
+| ---------------------------------- | -------- | ------------------------ |
+| `/api/chat/stream`                 | POST     | 与 AI 进行流式对话       |
+| `/api/conversations`               | GET/POST | 列表/创建对话            |
+| `/api/conversations/{id}`          | DELETE   | 删除对话                 |
+| `/api/conversations/{id}/messages` | GET      | 获取对话消息             |
+| `/api/memory/search`               | POST     | 语义记忆搜索             |
+| `/api/memory/long-term`            | GET/POST | 长期记忆 CRUD 操作       |
+| `/api/logs/stream`                 | WebSocket| 实时日志流               |
+| `/api/config`                      | GET/PUT  | 配置管理                 |
 
-## 🗄 Database Schema
+## 🗄 数据库结构
 
-### conversations
+### conversations（对话表）
 
-| Field       | Type     | Description                 |
-| ----------- | -------- | --------------------------- |
-| id          | INTEGER  | Primary key, auto-increment |
-| title       | TEXT     | Conversation title          |
-| created\_at | DATETIME | Creation time               |
-| updated\_at | DATETIME | Update time                 |
+| 字段       | 类型     | 描述                 |
+| ----------- | -------- | -------------------- |
+| id          | INTEGER  | 主键，自增           |
+| title       | TEXT     | 对话标题             |
+| created_at  | DATETIME | 创建时间             |
+| updated_at  | DATETIME | 更新时间             |
 
-### messages
+### messages（消息表）
 
-| Field            | Type     | Description                 |
-| ---------------- | -------- | --------------------------- |
-| id               | INTEGER  | Primary key                 |
-| conversation\_id | INTEGER  | Foreign key to conversation |
-| role             | TEXT     | Role (user/assistant)       |
-| content          | TEXT     | Message content             |
-| embedding        | BLOB     | Vector embedding            |
-| created\_at      | DATETIME | Creation time               |
+| 字段            | 类型     | 描述                 |
+| ---------------- | -------- | -------------------- |
+| id               | INTEGER  | 主键                 |
+| conversation_id  | INTEGER  | 对话外键             |
+| role             | TEXT     | 角色 (user/assistant)|
+| content          | TEXT     | 消息内容             |
+| embedding        | BLOB     | 向量嵌入             |
+| created_at       | DATETIME | 创建时间             |
 
-### long\_term\_memory
+### long_term_memory（长期记忆表）
 
-| Field       | Type     | Description            |
+| 字段       | 类型     | 描述                   |
 | ----------- | -------- | ---------------------- |
-| id          | INTEGER  | Primary key            |
-| key         | TEXT     | Memory key (optional)  |
-| content     | TEXT     | Memory content         |
-| embedding   | BLOB     | Vector embedding       |
-| importance  | FLOAT    | Importance score (0-1) |
-| source      | TEXT     | Memory source          |
-| created\_at | DATETIME | Creation time          |
+| id          | INTEGER  | 主键                   |
+| key         | TEXT     | 记忆键（可选）         |
+| content     | TEXT     | 记忆内容               |
+| embedding   | BLOB     | 向量嵌入               |
+| importance  | FLOAT    | 重要性分数 (0-1)       |
+| source      | TEXT     | 记忆来源               |
+| created_at  | DATETIME | 创建时间               |
 
-## 🔧 Memory Search Features
+## 🔧 记忆搜索功能
 
-The application supports advanced memory search capabilities:
+应用支持高级记忆搜索功能：
 
-- **Hybrid Search**: Combines vector similarity and text matching
-- **MMR Reranking**: Maximal Marginal Relevance for diverse results
-- **Temporal Decay**: Time-based relevance scoring
-- **Configurable Parameters**:
-  - `top_k`: Number of results
-  - `min_score`: Minimum similarity threshold
-  - `vector_weight` / `text_weight`: Hybrid search weights
-  - `mmr_lambda`: MMR balance parameter
-  - `half_life_days`: Temporal decay half-life
+- **混合搜索**: 结合向量相似度和文本匹配
+- **MMR 重排序**: 最大边际相关性实现多样化结果
+- **时间衰减**: 基于时间的相关性评分
+- **可配置参数**:
+  - `top_k`: 返回结果数量
+  - `min_score`: 最小相似度阈值
+  - `vector_weight` / `text_weight`: 混合搜索权重
+  - `mmr_lambda`: MMR 平衡参数
+  - `half_life_days`: 时间衰减半衰期
 
-## 📝 Development
+## 📝 开发
 
-### Frontend
+### 前端
 
 ```bash
 cd frontend
-npm run dev      # Development server
-npm run build    # Production build
-npm run preview  # Preview production build
-npm run lint     # Run ESLint
+npm run dev      # 开发服务器
+npm run build    # 生产构建
+npm run preview  # 预览生产构建
+npm run lint     # 运行 ESLint
 ```
 
-### Backend
+### 后端
 
 ```bash
 cd backend
-python -m uvicorn app.main:app --reload  # Development with hot reload
+python -m uvicorn app.main:app --reload  # 开发模式（热重载）
 ```
 
-## ⚠️ Notes
+## ⚠️ 注意事项
 
-1. Keep your API Key secure and never share it
-2. API Key is stored in browser's localStorage
-3. Each conversation calls the Zhipu AI API, monitor your usage
-4. Database file is created automatically on first run
-5. Vector embeddings are generated asynchronously after message save
+1. 请妥善保管您的 API Key，切勿分享给他人
+2. API Key 存储在浏览器的 localStorage 中
+3. 每次对话都会调用智谱 AI API，请注意使用量
+4. 数据库文件会在首次运行时自动创建
+5. 向量嵌入会在消息保存后异步生成
 
-## 📄 License
+## 📄 许可证
 
 MIT License
-
