@@ -4,28 +4,32 @@
 """
 import httpx
 import logging
-import struct
-import hashlib
 from typing import Optional, List
 from datetime import datetime, timedelta
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.api.config import get_config_value
-from app.models import EmbeddingCache
+from app.common.config import get_config_value
+from app.models.models import EmbeddingCache
+from app.common.constants import (
+    DEFAULT_EMBEDDING_MODEL,
+    OPENROUTER_BASE_URL,
+    OPENROUTER_API_KEY_KEY,
+    EMBEDDING_MODEL_KEY,
+    EMBEDDING_PROVIDER_KEY,
+    CACHE_ENABLED_KEY,
+    CACHE_MAX_ENTRIES_KEY,
+    EMBEDDING_PROVIDER_LOCAL,
+    EMBEDDING_PROVIDER_OPENROUTER,
+    LOG_SEPARATOR_SHORT,
+)
+from app.common.utils.embedding import (
+    embedding_to_bytes,
+    bytes_to_embedding,
+    cosine_similarity,
+    compute_content_hash,
+)
 
 logger = logging.getLogger(__name__)
-
-LOG_SEPARATOR = "─" * 40
-
-DEFAULT_EMBEDDING_MODEL = "nvidia/llama-nemotron-embed-vl-1b-v2:free"
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-OPENROUTER_API_KEY_KEY = "openrouter_api_key"
-EMBEDDING_MODEL_KEY = "embedding_model"
-EMBEDDING_PROVIDER_KEY = "embedding_provider"
-CACHE_ENABLED_KEY = "embedding_cache_enabled"
-CACHE_MAX_ENTRIES_KEY = "embedding_cache_max_entries"
-EMBEDDING_PROVIDER_LOCAL = "local"
-EMBEDDING_PROVIDER_OPENROUTER = "openrouter"
 
 
 class EmbeddingService:
@@ -49,18 +53,6 @@ class EmbeddingService:
         self.cache_enabled = cache_enabled
         self.cache_max_entries = cache_max_entries
     
-    def _compute_content_hash(self, content: str) -> str:
-        """
-        计算内容的SHA256哈希值
-        
-        Args:
-            content: 要哈希的内容
-            
-        Returns:
-            SHA256哈希字符串
-        """
-        return hashlib.sha256(content.encode('utf-8')).hexdigest()
-    
     async def _get_from_cache(self, db: AsyncSession, content_hash: str) -> Optional[bytes]:
         """
         从缓存中获取嵌入（使用独立数据库会话）
@@ -75,7 +67,7 @@ class EmbeddingService:
         if not self.cache_enabled:
             return None
         
-        from app.database import AsyncSessionLocal
+        from app.core.database import AsyncSessionLocal
         
         try:
             async with AsyncSessionLocal() as cache_db:
@@ -109,7 +101,7 @@ class EmbeddingService:
         if not self.cache_enabled:
             return
         
-        from app.database import AsyncSessionLocal
+        from app.core.database import AsyncSessionLocal
         
         try:
             async with AsyncSessionLocal() as cache_db:
@@ -336,59 +328,6 @@ class EmbeddingService:
         return results
 
 
-def embedding_to_bytes(embedding: List[float]) -> bytes:
-    """
-    将向量嵌入列表转换为字节存储
-    
-    Args:
-        embedding: 向量嵌入列表
-        
-    Returns:
-        字节表示
-    """
-    return struct.pack(f'{len(embedding)}f', *embedding)
-
-
-def bytes_to_embedding(data: bytes) -> List[float]:
-    """
-    将字节转换回向量嵌入列表
-    
-    Args:
-        data: 字节数据
-        
-    Returns:
-        向量嵌入列表
-    """
-    if not data:
-        return []
-    count = len(data) // 4
-    return list(struct.unpack(f'{count}f', data))
-
-
-def cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
-    """
-    计算两个向量的余弦相似度
-    
-    Args:
-        vec1: 向量1
-        vec2: 向量2
-        
-    Returns:
-        余弦相似度 (0-1)
-    """
-    if not vec1 or not vec2 or len(vec1) != len(vec2):
-        return 0.0
-    
-    dot_product = sum(a * b for a, b in zip(vec1, vec2))
-    norm1 = sum(a * a for a in vec1) ** 0.5
-    norm2 = sum(b * b for b in vec2) ** 0.5
-    
-    if norm1 == 0 or norm2 == 0:
-        return 0.0
-    
-    return dot_product / (norm1 * norm2)
-
-
 embedding_service_instance: Optional[EmbeddingService] = None
 local_embedding_service_instance: Optional['LocalEmbeddingService'] = None
 
@@ -427,18 +366,6 @@ class LocalEmbeddingService:
             logger.error(f"[本地嵌入] 模型加载失败: {str(e)}")
             raise
     
-    def _compute_content_hash(self, content: str) -> str:
-        """
-        计算内容的SHA256哈希值
-        
-        Args:
-            content: 要哈希的内容
-            
-        Returns:
-            SHA256哈希字符串
-        """
-        return hashlib.sha256(content.encode('utf-8')).hexdigest()
-    
     async def _get_from_cache(self, db: AsyncSession, content_hash: str) -> Optional[bytes]:
         """
         从缓存中获取嵌入
@@ -453,7 +380,7 @@ class LocalEmbeddingService:
         if not self.cache_enabled:
             return None
         
-        from app.database import AsyncSessionLocal
+        from app.core.database import AsyncSessionLocal
         
         try:
             async with AsyncSessionLocal() as cache_db:
@@ -487,7 +414,7 @@ class LocalEmbeddingService:
         if not self.cache_enabled:
             return
         
-        from app.database import AsyncSessionLocal
+        from app.core.database import AsyncSessionLocal
         
         try:
             async with AsyncSessionLocal() as cache_db:

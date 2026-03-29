@@ -13,7 +13,7 @@ from app.services.log_service import (
     setup_log_handlers,
     cleanup_log_handlers
 )
-from app.database import get_db
+from app.core.database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)

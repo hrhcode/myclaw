@@ -7,7 +7,7 @@ import struct
 from typing import List, Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select
-from app.models import Message, LongTermMemory
+from app.models.models import Message, LongTermMemory
 
 logger = logging.getLogger(__name__)
 

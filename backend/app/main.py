@@ -1,15 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import chat, history, config, memory, logs, tools
-from app.database import engine, Base
+from app.core.database import engine, Base
 from app.services.log_service import setup_log_handlers
+from app.common.logging_config import setup_logging, get_logger
 import logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+setup_logging()
+logger = get_logger(__name__)
 
 app = FastAPI(title="AI对话助手API", version="1.0.0")
 
