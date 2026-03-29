@@ -90,3 +90,28 @@ class Log(Base):
     __table_args__ = (
         {"sqlite_autoincrement": True}
     )
+
+
+class ToolCall(Base):
+    """
+    工具调用记录模型
+    用于记录 AI 工具调用的历史，便于调试和分析
+    """
+    __tablename__ = "tool_calls"
+
+    id = Column(Integer, primary_key=True, index=True)
+    message_id = Column(Integer, ForeignKey("messages.id"), nullable=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False, index=True)
+    tool_name = Column(String, nullable=False, index=True)
+    tool_call_id = Column(String, nullable=False)
+    arguments = Column(String, nullable=False)
+    result = Column(String, nullable=True)
+    status = Column(String, default="pending", index=True)
+    error = Column(String, nullable=True)
+    execution_time_ms = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        {"sqlite_autoincrement": True}
+    )

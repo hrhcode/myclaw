@@ -2,19 +2,35 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
-from app.models import Conversation, Message
+from app.models import Conversation, Message, ToolCall
 from app.schemas import ChatRequest, MemorySearchResult
 from app.llm_service import get_llm_service
 from app.api.config import get_config_value, API_KEY_KEY, LLM_MODEL_KEY
 from app.vector_search_service import index_message_embedding, hybrid_memory_search
-from typing import List
+from app.tools import tool_registry, tool_executor, tools_to_zhipu_schemas
+from app.tools.builtin import get_current_time_tool
+from typing import List, Dict, Any
 import logging
 import asyncio
+import json
+from datetime import datetime
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 LOG_SEPARATOR = "─" * 60
+
+
+def register_builtin_tools():
+    """
+    注册内置工具到工具注册表
+    """
+    if not tool_registry.get_tool("get_current_time"):
+        tool_registry.register(get_current_time_tool())
+        logger.info("[工具注册] 已注册内置工具: get_current_time")
+
+
+register_builtin_tools()
 
 
 def build_memory_context(memory_results: List[MemorySearchResult]) -> str:
@@ -110,6 +126,56 @@ async def save_message(db: AsyncSession, conversation_id: int, role: str, conten
     return message
 
 
+async def save_tool_call(
+    db: AsyncSession,
+    conversation_id: int,
+    message_id: int,
+    tool_name: str,
+    tool_call_id: str,
+    arguments: str,
+    result: str,
+    status: str,
+    error: str = None,
+    execution_time_ms: int = None
+) -> ToolCall:
+    """
+    保存工具调用记录
+    
+    Args:
+        db: 数据库会话
+        conversation_id: 会话ID
+        message_id: 消息ID
+        tool_name: 工具名称
+        tool_call_id: 工具调用ID
+        arguments: 参数JSON
+        result: 结果JSON
+        status: 状态
+        error: 错误信息
+        execution_time_ms: 执行时间(毫秒)
+        
+    Returns:
+        保存的工具调用对象
+    """
+    tool_call = ToolCall(
+        conversation_id=conversation_id,
+        message_id=message_id,
+        tool_name=tool_name,
+        tool_call_id=tool_call_id,
+        arguments=arguments,
+        result=result,
+        status=status,
+        error=error,
+        execution_time_ms=execution_time_ms,
+        completed_at=datetime.now() if status in ["success", "failed"] else None
+    )
+    db.add(tool_call)
+    await db.commit()
+    await db.refresh(tool_call)
+    
+    logger.info(f"[工具调用记录] 已保存 - 工具: {tool_name}, 状态: {status}")
+    return tool_call
+
+
 async def get_conversation_history(db: AsyncSession, conversation_id: int) -> list[dict]:
     """获取会话历史"""
     result = await db.execute(
@@ -123,13 +189,70 @@ async def get_conversation_history(db: AsyncSession, conversation_id: int) -> li
     return history
 
 
+async def process_tool_calls(
+    db: AsyncSession,
+    conversation_id: int,
+    message_id: int,
+    tool_calls: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """
+    处理工具调用列表
+    
+    Args:
+        db: 数据库会话
+        conversation_id: 会话ID
+        message_id: 消息ID
+        tool_calls: 工具调用列表
+        
+    Returns:
+        工具结果消息列表
+    """
+    tool_results = []
+    
+    for call in tool_calls:
+        tool_call_id = call.get("id", "")
+        tool_name = call.get("name", "")
+        arguments_str = call.get("arguments", "{}")
+        
+        try:
+            arguments = json.loads(arguments_str) if isinstance(arguments_str, str) else arguments_str
+        except json.JSONDecodeError:
+            arguments = {}
+        
+        logger.info(f"[工具调用] 执行工具: {tool_name}, 参数: {arguments}")
+        
+        result = await tool_executor.execute_tool(tool_name, arguments, message_id)
+        
+        result_json = json.dumps(result.to_dict(), ensure_ascii=False)
+        
+        await save_tool_call(
+            db=db,
+            conversation_id=conversation_id,
+            message_id=message_id,
+            tool_name=tool_name,
+            tool_call_id=tool_call_id,
+            arguments=arguments_str,
+            result=result_json,
+            status="success" if result.success else "failed",
+            error=result.error,
+            execution_time_ms=result.execution_time_ms
+        )
+        
+        tool_results.append({
+            "tool_call_id": tool_call_id,
+            "role": "tool",
+            "content": result_json
+        })
+    
+    return tool_results
+
+
 @router.post("/chat/stream")
 async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     """
-    发送聊天消息并获取AI流式回复（唯一聊天接口）
+    发送聊天消息并获取AI流式回复（支持工具调用）
     """
     from fastapi.responses import StreamingResponse
-    import json
 
     logger.info(LOG_SEPARATOR)
     logger.info(f"[聊天请求] 收到新消息")
@@ -145,6 +268,16 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     model = await get_config_value(db, LLM_MODEL_KEY)
     logger.debug(f"[配置] 使用模型: {model or '默认模型'}")
 
+    tool_enabled = await get_config_value(db, "tool_enabled")
+    tool_max_iterations = await get_config_value(db, "tool_max_iterations")
+    tool_timeout = await get_config_value(db, "tool_timeout_seconds")
+    
+    use_tools = tool_enabled == "true" if tool_enabled else True
+    max_iterations = int(tool_max_iterations) if tool_max_iterations else 5
+    timeout_seconds = int(tool_timeout) if tool_timeout else 30
+    
+    tool_executor.timeout_seconds = timeout_seconds
+
     conversation_id, conversation = await get_or_create_conversation(
         db, request.message, request.conversation_id
     )
@@ -154,7 +287,6 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     logger.info(LOG_SEPARATOR)
     logger.info("[记忆搜索】开始混合记忆搜索...")
     
-    # 从配置中读取记忆搜索参数
     memory_top_k = await get_config_value(db, "memory_top_k")
     memory_min_score = await get_config_value(db, "memory_min_score")
     memory_use_hybrid = await get_config_value(db, "memory_use_hybrid")
@@ -191,13 +323,15 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     async def generate():
         """生成流式响应"""
         full_content = ""
+        tool_calls_info = []
 
         try:
             logger.info(LOG_SEPARATOR)
             logger.info(f"[LLM调用] 开始调用AI模型生成回复")
             logger.info(f"  ├─ 模型: {model or '默认'}")
             logger.info(f"  ├─ 历史消息数: {len(message_history)}")
-            logger.info(f"  └─ 记忆上下文: {'已注入' if memory_context else '无'}")
+            logger.info(f"  ├─ 记忆上下文: {'已注入' if memory_context else '无'}")
+            logger.info(f"  └─ 工具调用: {'启用' if use_tools else '禁用'}")
             
             llm = get_llm_service(api_key)
 
@@ -211,14 +345,101 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
                 full_messages = message_history
                 logger.debug(f"[LLM调用] 消息结构: {len(message_history)}条历史")
 
-            async for content in llm.chat_stream(messages=full_messages, model=model, thinking=True):
-                if content:
-                    full_content += content
-                    response_data = {
-                        "content": content,
-                        "conversation_id": conversation_id
+            tools = None
+            if use_tools:
+                tools = tools_to_zhipu_schemas(tool_registry.list_enabled_tools())
+                logger.info(f"[工具调用] 已加载 {len(tools)} 个工具")
+
+            iteration = 0
+            while iteration < max_iterations:
+                iteration += 1
+                logger.info(f"[LLM调用] 第 {iteration} 次调用")
+                
+                has_tool_calls = False
+                current_tool_calls = []
+                
+                async for chunk in llm.chat_stream_with_tools(messages=full_messages, tools=tools, model=model, thinking=True):
+                    chunk_type = chunk.get("type")
+                    
+                    if chunk_type == "content":
+                        content = chunk.get("content", "")
+                        if content:
+                            full_content += content
+                            response_data = {
+                                "type": "content",
+                                "content": content,
+                                "conversation_id": conversation_id
+                            }
+                            yield f"data: {json.dumps(response_data)}\n\n"
+                    
+                    elif chunk_type == "reasoning":
+                        reasoning = chunk.get("content", "")
+                        if reasoning:
+                            response_data = {
+                                "type": "reasoning",
+                                "content": reasoning
+                            }
+                            yield f"data: {json.dumps(response_data)}\n\n"
+                    
+                    elif chunk_type == "tool_calls":
+                        current_tool_calls = chunk.get("tool_calls", [])
+                        if current_tool_calls:
+                            has_tool_calls = True
+                            tool_calls_info.extend(current_tool_calls)
+                            
+                            for tc in current_tool_calls:
+                                response_data = {
+                                    "type": "tool_call",
+                                    "tool_name": tc.get("name"),
+                                    "tool_call_id": tc.get("id"),
+                                    "arguments": tc.get("arguments")
+                                }
+                                yield f"data: {json.dumps(response_data)}\n\n"
+                
+                if has_tool_calls and current_tool_calls:
+                    logger.info(f"[工具调用] 检测到 {len(current_tool_calls)} 个工具调用")
+                    
+                    assistant_message = {
+                        "role": "assistant",
+                        "content": full_content or None,
+                        "tool_calls": [
+                            {
+                                "id": tc.get("id"),
+                                "type": "function",
+                                "function": {
+                                    "name": tc.get("name"),
+                                    "arguments": tc.get("arguments")
+                                }
+                            }
+                            for tc in current_tool_calls
+                        ]
                     }
-                    yield f"data: {json.dumps(response_data)}\n\n"
+                    full_messages.append(assistant_message)
+                    
+                    tool_results = await process_tool_calls(
+                        db=db,
+                        conversation_id=conversation_id,
+                        message_id=None,
+                        tool_calls=current_tool_calls
+                    )
+                    
+                    for tr in tool_results:
+                        response_data = {
+                            "type": "tool_result",
+                            "tool_call_id": tr.get("tool_call_id"),
+                            "content": tr.get("content")
+                        }
+                        yield f"data: {json.dumps(response_data)}\n\n"
+                        
+                        full_messages.append({
+                            "role": "tool",
+                            "tool_call_id": tr.get("tool_call_id"),
+                            "content": tr.get("content")
+                        })
+                    
+                    full_content = ""
+                else:
+                    break
 
             logger.info(f"[LLM调用] 回复生成完成，长度: {len(full_content)} 字符")
             await save_message(db, conversation_id, "assistant", full_content)
@@ -229,6 +450,7 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
         except Exception as e:
             logger.error(f"[LLM调用] 失败: {str(e)}")
             error_data = {
+                "type": "error",
                 "error": str(e),
                 "status": 500
             }
