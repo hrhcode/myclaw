@@ -6,7 +6,12 @@ import {
   useCallback,
 } from "react";
 import type { ReactNode } from "react";
-import type { Conversation, Message } from "../types";
+import type {
+  Conversation,
+  Message,
+  ToolCallInfo,
+  ToolResultInfo,
+} from "../types";
 import {
   getConversations,
   getMessages,
@@ -76,11 +81,38 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   /**
    * 加载消息列表
+   * 将后端返回的工具调用记录转换为前端显示格式
    */
   const loadMessages = useCallback(async (conversationId: number) => {
     try {
       const data = await getMessages(conversationId);
-      setMessages(data);
+      const processedMessages: Message[] = data.map((msg) => {
+        if (msg.tool_calls && msg.tool_calls.length > 0) {
+          const toolCalls: ToolCallInfo[] = msg.tool_calls.map((tc) => ({
+            toolName: tc.tool_name,
+            toolCallId: tc.tool_call_id,
+            arguments: tc.arguments,
+          }));
+
+          const toolResults = new Map<string, ToolResultInfo>();
+          msg.tool_calls.forEach((tc) => {
+            if (tc.result) {
+              toolResults.set(tc.tool_call_id, {
+                toolCallId: tc.tool_call_id,
+                content: tc.result,
+              });
+            }
+          });
+
+          return {
+            ...msg,
+            toolCalls,
+            toolResults,
+          };
+        }
+        return msg;
+      });
+      setMessages(processedMessages);
     } catch (error) {
       console.error("Failed to load messages:", error);
     }

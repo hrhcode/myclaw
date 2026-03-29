@@ -29,10 +29,31 @@ class MessageBase(BaseModel):
     content: str
 
 
+class ToolCallInMessage(BaseModel):
+    """
+    消息中嵌套的工具调用信息
+    用于在消息响应中返回关联的工具调用记录
+    """
+    id: int
+    tool_name: str
+    tool_call_id: str
+    arguments: str
+    result: Optional[str] = None
+    status: str
+    error: Optional[str] = None
+    execution_time_ms: Optional[int] = None
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
 class MessageResponse(MessageBase):
     id: int
     conversation_id: int
     created_at: datetime
+    tool_calls: List[ToolCallInMessage] = []
 
     class Config:
         from_attributes = True

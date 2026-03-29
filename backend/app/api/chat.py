@@ -16,6 +16,7 @@ from app.services.vector_search_service import hybrid_memory_search
 from app.tools import tool_registry, tool_executor, tools_to_zhipu_schemas
 from app.tools.builtin import get_current_time_tool
 from app.common.constants import LOG_SEPARATOR
+from app.dao.tool_call_dao import ToolCallDAO
 from typing import List
 import logging
 import json
@@ -272,7 +273,12 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
                     break
 
             logger.info(f"[LLM调用] 回复生成完成，长度: {len(full_content)} 字符")
-            await message_service.save(db, conversation_id, "assistant", full_content)
+            assistant_message = await message_service.save(db, conversation_id, "assistant", full_content)
+            if tool_calls_info:
+                logger.info(f"[工具调用] 关联 {len(tool_calls_info)} 个工具调用记录到消息ID: {assistant_message.id}")
+                for tc in tool_calls_info:
+                    tool_call_id = tc.get("id", "")
+                    await ToolCallDAO.update_message_id(db, tool_call_id, assistant_message.id)
             logger.info(f"[聊天完成] 会话ID: {conversation_id}")
             logger.info(LOG_SEPARATOR)
             yield "data: [DONE]\n\n"

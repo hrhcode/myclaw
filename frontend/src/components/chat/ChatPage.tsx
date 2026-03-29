@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle } from "lucide-react";
@@ -31,18 +31,6 @@ const ChatPage: React.FC = () => {
 
   const [isSending, setIsSending] = useState(false);
   const [initialLoaded, setInitialLoaded] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  /**
-   * 滚动到底部
-   */
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
 
   useEffect(() => {
     checkConfiguration();
@@ -272,7 +260,6 @@ const ChatPage: React.FC = () => {
         </AnimatePresence>
 
         <MessageList messages={messages} />
-        <div ref={messagesEndRef} />
         <MessageInput
           onSendMessage={handleSendMessage}
           disabled={isSending}

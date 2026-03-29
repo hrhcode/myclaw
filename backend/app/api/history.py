@@ -9,7 +9,8 @@ from typing import List
 from app.core.database import get_db
 from app.dao.conversation_dao import ConversationDAO
 from app.dao.message_dao import MessageDAO
-from app.schemas.schemas import ConversationResponse, MessageResponse, ConversationCreate, ConversationUpdate
+from app.dao.tool_call_dao import ToolCallDAO
+from app.schemas.schemas import ConversationResponse, MessageResponse, ConversationCreate, ConversationUpdate, ToolCallInMessage
 import logging
 
 router = APIRouter()
@@ -84,11 +85,42 @@ async def get_conversation_messages(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    获取指定会话的所有消息
+    获取指定会话的所有消息（包含关联的工具调用记录）
     """
     conversation = await ConversationDAO.get_by_id(db, conversation_id)
     if not conversation:
         raise HTTPException(status_code=404, detail="会话不存在")
 
     messages = await MessageDAO.get_conversation_history(db, conversation_id)
-    return messages
+
+    response_messages = []
+    for msg in messages:
+        tool_calls = []
+        if msg.role == "assistant":
+            tool_call_records = await ToolCallDAO.list_by_message(db, msg.id)
+            tool_calls = [
+                ToolCallInMessage(
+                    id=tc.id,
+                    tool_name=tc.tool_name,
+                    tool_call_id=tc.tool_call_id,
+                    arguments=tc.arguments,
+                    result=tc.result,
+                    status=tc.status,
+                    error=tc.error,
+                    execution_time_ms=tc.execution_time_ms,
+                    created_at=tc.created_at,
+                    completed_at=tc.completed_at
+                )
+                for tc in tool_call_records
+            ]
+
+        response_messages.append(MessageResponse(
+            id=msg.id,
+            conversation_id=msg.conversation_id,
+            role=msg.role,
+            content=msg.content,
+            created_at=msg.created_at,
+            tool_calls=tool_calls
+        ))
+
+    return response_messages

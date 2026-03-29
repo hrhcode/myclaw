@@ -11,6 +11,22 @@ export interface ToolResultInfo {
   content: string;
 }
 
+/**
+ * 后端返回的工具调用记录（从数据库加载）
+ */
+export interface ToolCallFromDB {
+  id: number;
+  tool_name: string;
+  tool_call_id: string;
+  arguments: string;
+  result: string | null;
+  status: string;
+  error: string | null;
+  execution_time_ms: number | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
 export interface Message {
   id: number;
   conversation_id: number;
@@ -19,6 +35,7 @@ export interface Message {
   created_at: string;
   toolCalls?: ToolCallInfo[];
   toolResults?: Map<string, ToolResultInfo>;
+  tool_calls?: ToolCallFromDB[];
 }
 
 export interface Conversation {

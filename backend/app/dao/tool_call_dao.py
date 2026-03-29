@@ -231,3 +231,31 @@ class ToolCallDAO:
             .where(ToolCall.conversation_id == conversation_id)
         )
         return result.scalar() or 0
+
+    @staticmethod
+    async def update_message_id(
+        db: AsyncSession,
+        tool_call_id: str,
+        message_id: int
+    ) -> Optional[ToolCall]:
+        """
+        更新工具调用记录的消息ID
+
+        Args:
+            db: 数据库会话
+            tool_call_id: 工具调用ID（字符串）
+            message_id: 消息ID
+
+        Returns:
+            更新后的工具调用记录对象
+        """
+        tool_call = await ToolCallDAO.get_by_tool_call_id(db, tool_call_id)
+        if not tool_call:
+            logger.warning(f"[DAO-ToolCall] 更新消息ID失败，记录不存在，tool_call_id: {tool_call_id}")
+            return None
+
+        tool_call.message_id = message_id
+        await db.commit()
+        await db.refresh(tool_call)
+        logger.info(f"[DAO-ToolCall] 工具调用记录已关联消息，tool_call_id: {tool_call_id}, message_id: {message_id}")
+        return tool_call

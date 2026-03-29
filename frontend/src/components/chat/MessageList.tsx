@@ -1,8 +1,18 @@
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
-import { Bot, User, Sparkles, Wrench, CheckCircle, XCircle, Loader2, ChevronDown, ChevronUp } from "lucide-react";
-import React, { useState } from "react";
+import {
+  Bot,
+  User,
+  Sparkles,
+  Wrench,
+  CheckCircle,
+  XCircle,
+  Loader2,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import type { Message, ToolCallInfo, ToolResultInfo } from "../../types";
 import CodeBlock from "./CodeBlock";
 
@@ -92,7 +102,12 @@ const ToolCallCard: React.FC<{
 }> = ({ call, result }) => {
   const [expanded, setExpanded] = useState(false);
 
-  const parseResult = (): { success?: boolean; content?: unknown; error?: string; execution_time_ms?: number } | null => {
+  const parseResult = (): {
+    success?: boolean;
+    content?: unknown;
+    error?: string;
+    execution_time_ms?: number;
+  } | null => {
     if (!result?.content) return null;
     try {
       return JSON.parse(result.content);
@@ -118,7 +133,10 @@ const ToolCallCard: React.FC<{
       >
         <div className="flex items-center gap-2">
           <Wrench size={14} className="text-primary" />
-          <span className="font-medium" style={{ color: "var(--text-primary)" }}>
+          <span
+            className="font-medium"
+            style={{ color: "var(--text-primary)" }}
+          >
             {call.toolName}
           </span>
           {result ? (
@@ -139,9 +157,15 @@ const ToolCallCard: React.FC<{
       </div>
 
       {expanded && (
-        <div className="px-3 py-2 space-y-2" style={{ background: "var(--bg-secondary)" }}>
+        <div
+          className="px-3 py-2 space-y-2"
+          style={{ background: "var(--bg-secondary)" }}
+        >
           <div>
-            <div className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>
+            <div
+              className="text-xs mb-1"
+              style={{ color: "var(--text-muted)" }}
+            >
               参数
             </div>
             <pre
@@ -149,14 +173,18 @@ const ToolCallCard: React.FC<{
               style={{
                 background: "var(--glass-bg)",
                 color: "var(--text-primary)",
-                border: "1px solid var(--glass-border)"
+                border: "1px solid var(--glass-border)",
               }}
             >
               {(() => {
                 try {
-                  return JSON.stringify(JSON.parse(call.arguments || '{}'), null, 2);
+                  return JSON.stringify(
+                    JSON.parse(call.arguments || "{}"),
+                    null,
+                    2,
+                  );
                 } catch {
-                  return call.arguments || '{}';
+                  return call.arguments || "{}";
                 }
               })()}
             </pre>
@@ -164,20 +192,25 @@ const ToolCallCard: React.FC<{
 
           {result && resultData && (
             <div>
-              <div className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>
+              <div
+                className="text-xs mb-1"
+                style={{ color: "var(--text-muted)" }}
+              >
                 结果
               </div>
               <pre
                 className="text-xs p-2 rounded overflow-x-auto max-h-40"
                 style={{
-                  background: isSuccess ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                  color: isSuccess ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)',
-                  border: `1px solid ${isSuccess ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
+                  background: isSuccess
+                    ? "rgba(34, 197, 94, 0.1)"
+                    : "rgba(239, 68, 68, 0.1)",
+                  color: isSuccess ? "rgb(34, 197, 94)" : "rgb(239, 68, 68)",
+                  border: `1px solid ${isSuccess ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)"}`,
                 }}
               >
                 {resultData.content
                   ? JSON.stringify(resultData.content, null, 2)
-                  : resultData.error || '未知结果'}
+                  : resultData.error || "未知结果"}
               </pre>
             </div>
           )}
@@ -218,10 +251,65 @@ const ToolCallsDisplay: React.FC<{
 /**
  * 消息列表组件 - 显示对话中的所有消息
  * 采用玻璃拟态设计，支持动画效果和主题切换
+ * 支持智能滚动：自动滚动到底部，但用户向上滚动时停止自动滚动
  */
 const MessageList: React.FC<MessageListProps> = ({ messages }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  const isInitialLoad = useRef(true);
+
+  /**
+   * 滚动到底部
+   */
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
+  }, []);
+
+  /**
+   * 检测用户是否滚动到底部附近
+   */
+  const handleScroll = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+
+    if (isNearBottom) {
+      setShouldAutoScroll(true);
+    } else {
+      setShouldAutoScroll(false);
+    }
+  }, []);
+
+  /**
+   * 初始加载时滚动到底部（立即滚动，不使用动画）
+   */
+  useEffect(() => {
+    if (messages.length > 0 && isInitialLoad.current) {
+      setTimeout(() => {
+        scrollToBottom("instant");
+        isInitialLoad.current = false;
+      }, 100);
+    }
+  }, [messages.length, scrollToBottom]);
+
+  /**
+   * 消息更新时，如果允许自动滚动则滚动到底部
+   */
+  useEffect(() => {
+    if (shouldAutoScroll && messages.length > 0) {
+      scrollToBottom("smooth");
+    }
+  }, [messages, shouldAutoScroll, scrollToBottom]);
+
   return (
-    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+    <div
+      ref={containerRef}
+      className="flex-1 overflow-y-auto p-6 space-y-6"
+      onScroll={handleScroll}
+    >
       {messages.length === 0 ? (
         <EmptyState />
       ) : (
@@ -256,7 +344,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                     toolResults={message.toolResults}
                   />
                 )}
-                
+
                 {message.content === "" ? (
                   <TypingIndicator />
                 ) : (
@@ -310,6 +398,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
           </motion.div>
         ))
       )}
+      <div ref={messagesEndRef} />
     </div>
   );
 };
