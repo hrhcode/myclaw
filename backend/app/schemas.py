@@ -158,3 +158,66 @@ class MemorySearchResponseExtended(BaseModel):
     search_mode: str
     provider: Optional[str] = None
     model: Optional[str] = None
+
+
+ 
+
+ 
+class ToolCallBase(BaseModel):
+    """工具调用基础 Schema"""
+    tool_name: str
+    tool_call_id: str
+    arguments: str
+
+
+class ToolCallCreate(ToolCallBase):
+    """创建工具调用"""
+    pass
+
+
+class ToolCallResponse(ToolCallBase):
+    """工具调用响应"""
+    id: int
+    message_id: Optional[int] = None
+    conversation_id: int
+    result: Optional[str] = None
+    status: str
+    error: Optional[str] = None
+    execution_time_ms: Optional[int] = None
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ToolConfigRequest(BaseModel):
+    """工具配置请求"""
+    profile: Optional[str] = "standard"
+    allow: Optional[List[str]] = None
+    deny: Optional[List[str]] = None
+    max_iterations: Optional[int] = 5
+    timeout_seconds: Optional[int] = 30
+
+
+class ToolConfigResponse(BaseModel):
+    """工具配置响应"""
+    profile: str
+    allow: List[str]
+    deny: List[str]
+    max_iterations: int
+    timeout_seconds: int
+
+
+class ToolInfo(BaseModel):
+    """工具信息"""
+    name: str
+    description: str
+    enabled: bool
+    parameters: dict
+
+
+class ToolListResponse(BaseModel):
+    """工具列表响应"""
+    tools: List[ToolInfo]
+    total: int

@@ -9,7 +9,7 @@ import ThemeToggle from "../common/ThemeToggle";
 import ConversationSelect from "../common/ConversationSelect";
 import { useApp } from "../../contexts/AppContext";
 import { sendMessageStream, getConfig } from "../../services/api";
-import type { Message } from "../../types";
+import type { Message, ToolCallInfo, ToolResultInfo } from "../../types";
 
 /**
  * 聊天页面组件 - 主聊天界面
@@ -153,6 +153,8 @@ const ChatPage: React.FC = () => {
       role: "assistant",
       content: "",
       created_at: new Date().toISOString(),
+      toolCalls: [],
+      toolResults: new Map(),
     };
     setMessages((prev) => [...prev, tempAiMessage]);
 
@@ -182,6 +184,39 @@ const ChatPage: React.FC = () => {
                 ? { ...msg, content: "发送失败，请检查是否已配置API Key" }
                 : msg,
             ),
+          );
+        },
+        (toolName, toolCallId, argumentsStr) => {
+          setMessages((prev) =>
+            prev.map((msg) => {
+              if (msg.id === tempAiMessage.id) {
+                const newToolCall: ToolCallInfo = {
+                  toolName,
+                  toolCallId,
+                  arguments: argumentsStr,
+                };
+                return {
+                  ...msg,
+                  toolCalls: [...(msg.toolCalls || []), newToolCall],
+                };
+              }
+              return msg;
+            }),
+          );
+        },
+        (toolCallId, content) => {
+          setMessages((prev) =>
+            prev.map((msg) => {
+              if (msg.id === tempAiMessage.id) {
+                const newResults = new Map(msg.toolResults || new Map());
+                newResults.set(toolCallId, { toolCallId, content });
+                return {
+                  ...msg,
+                  toolResults: newResults,
+                };
+              }
+              return msg;
+            }),
           );
         },
       );

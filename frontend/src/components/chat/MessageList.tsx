@@ -1,9 +1,9 @@
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
-import { Bot, User, Sparkles } from "lucide-react";
-import React from "react";
-import type { Message } from "../../types";
+import { Bot, User, Sparkles, Wrench, CheckCircle, XCircle, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import React, { useState } from "react";
+import type { Message, ToolCallInfo, ToolResultInfo } from "../../types";
 import CodeBlock from "./CodeBlock";
 
 interface MessageListProps {
@@ -84,6 +84,138 @@ const EmptyState: React.FC = () => (
 );
 
 /**
+ * 工具调用卡片组件
+ */
+const ToolCallCard: React.FC<{
+  call: ToolCallInfo;
+  result?: ToolResultInfo;
+}> = ({ call, result }) => {
+  const [expanded, setExpanded] = useState(false);
+
+  const parseResult = (): { success?: boolean; content?: unknown; error?: string; execution_time_ms?: number } | null => {
+    if (!result?.content) return null;
+    try {
+      return JSON.parse(result.content);
+    } catch {
+      return { content: result.content };
+    }
+  };
+
+  const resultData = parseResult();
+  const isSuccess = resultData?.success;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 5 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="glass-card rounded-lg overflow-hidden text-sm"
+      style={{ border: "1px solid var(--glass-border)" }}
+    >
+      <div
+        className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-white/5"
+        onClick={() => setExpanded(!expanded)}
+        style={{ background: "var(--glass-bg)" }}
+      >
+        <div className="flex items-center gap-2">
+          <Wrench size={14} className="text-primary" />
+          <span className="font-medium" style={{ color: "var(--text-primary)" }}>
+            {call.toolName}
+          </span>
+          {result ? (
+            isSuccess ? (
+              <CheckCircle size={14} className="text-green-500" />
+            ) : (
+              <XCircle size={14} className="text-red-500" />
+            )
+          ) : (
+            <Loader2 size={14} className="animate-spin text-primary" />
+          )}
+        </div>
+        {expanded ? (
+          <ChevronUp size={14} style={{ color: "var(--text-muted)" }} />
+        ) : (
+          <ChevronDown size={14} style={{ color: "var(--text-muted)" }} />
+        )}
+      </div>
+
+      {expanded && (
+        <div className="px-3 py-2 space-y-2" style={{ background: "var(--bg-secondary)" }}>
+          <div>
+            <div className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>
+              参数
+            </div>
+            <pre
+              className="text-xs p-2 rounded overflow-x-auto"
+              style={{
+                background: "var(--glass-bg)",
+                color: "var(--text-primary)",
+                border: "1px solid var(--glass-border)"
+              }}
+            >
+              {(() => {
+                try {
+                  return JSON.stringify(JSON.parse(call.arguments || '{}'), null, 2);
+                } catch {
+                  return call.arguments || '{}';
+                }
+              })()}
+            </pre>
+          </div>
+
+          {result && resultData && (
+            <div>
+              <div className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>
+                结果
+              </div>
+              <pre
+                className="text-xs p-2 rounded overflow-x-auto max-h-40"
+                style={{
+                  background: isSuccess ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                  color: isSuccess ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)',
+                  border: `1px solid ${isSuccess ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
+                }}
+              >
+                {resultData.content
+                  ? JSON.stringify(resultData.content, null, 2)
+                  : resultData.error || '未知结果'}
+              </pre>
+            </div>
+          )}
+
+          {resultData?.execution_time_ms && (
+            <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+              执行时间: {resultData.execution_time_ms}ms
+            </div>
+          )}
+        </div>
+      )}
+    </motion.div>
+  );
+};
+
+/**
+ * 工具调用列表组件
+ */
+const ToolCallsDisplay: React.FC<{
+  toolCalls?: ToolCallInfo[];
+  toolResults?: Map<string, ToolResultInfo>;
+}> = ({ toolCalls, toolResults }) => {
+  if (!toolCalls || toolCalls.length === 0) return null;
+
+  return (
+    <div className="mb-2 space-y-2">
+      {toolCalls.map((call) => (
+        <ToolCallCard
+          key={call.toolCallId}
+          call={call}
+          result={toolResults?.get(call.toolCallId)}
+        />
+      ))}
+    </div>
+  );
+};
+
+/**
  * 消息列表组件 - 显示对话中的所有消息
  * 采用玻璃拟态设计，支持动画效果和主题切换
  */
@@ -118,6 +250,13 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                   message.role === "user" ? "message-user" : "message-ai"
                 }`}
               >
+                {message.role === "assistant" && (
+                  <ToolCallsDisplay
+                    toolCalls={message.toolCalls}
+                    toolResults={message.toolResults}
+                  />
+                )}
+                
                 {message.content === "" ? (
                   <TypingIndicator />
                 ) : (
@@ -135,7 +274,6 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                             const language = match ? match[1] : "";
                             const value = String(children).replace(/\n$/, "");
 
-                            // 如果有语言标识符，则认为是代码块
                             if (language) {
                               return (
                                 <CodeBlock language={language} value={value} />

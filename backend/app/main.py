@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import chat, history, config, memory, logs
+from app.api import chat, history, config, memory, logs, tools
 from app.database import engine, Base
 from app.services.log_service import setup_log_handlers
 import logging
@@ -26,6 +26,7 @@ app.include_router(history.router, prefix="/api", tags=["历史记录"])
 app.include_router(config.router, prefix="/api", tags=["配置管理"])
 app.include_router(memory.router, prefix="/api", tags=["记忆搜索"])
 app.include_router(logs.router, prefix="/api", tags=["日志"])
+app.include_router(tools.router, prefix="/api", tags=["工具管理"])
 
 @app.on_event("startup")
 async def startup_event():
@@ -43,6 +44,8 @@ async def startup_event():
     logger.info(f"  - /api/conversations (会话管理)")
     logger.info(f"  - /api/config (配置管理)")
     logger.info(f"  - /api/memory (记忆搜索)")
+    logger.info(f"  - /api/logs (日志)")
+    logger.info(f"  - /api/tools (工具管理)")
     logger.info(f"  - /api/logs/stream (日志WebSocket)")
     logger.info(f"  - /api/logs/history (历史日志)")
     logger.info(f"  - /api/logs/stats (日志统计)")

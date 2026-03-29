@@ -10,11 +10,25 @@ const api = axios.create({
   },
 });
 
+export interface StreamMessage {
+  type: 'content' | 'reasoning' | 'tool_call' | 'tool_result' | 'error';
+  content?: string;
+  tool_name?: string;
+  tool_call_id?: string;
+  arguments?: string;
+  conversation_id?: number;
+  error?: string;
+  status?: number;
+}
+
 export const sendMessageStream = async (
   data: ChatRequest,
   onChunk: (content: string) => void,
   onComplete: (message: Message, conversationId: number) => void,
-  onError: (error: Error) => void
+  onError: (error: Error) => void,
+  onToolCall?: (toolName: string, toolCallId: string, arguments: string) => void,
+  onToolResult?: (toolCallId: string, content: string) => void,
+  onReasoning?: (content: string) => void
 ) => {
   try {
     const response = await fetch(`${API_BASE_URL}/chat/stream`, {
@@ -63,11 +77,33 @@ export const sendMessageStream = async (
           }
 
           try {
-            const parsed = JSON.parse(data);
-            if (parsed.content) {
+            const parsed: StreamMessage = JSON.parse(data);
+            
+            if (parsed.type === 'content' && parsed.content) {
               fullContent += parsed.content;
               onChunk(parsed.content);
             }
+            
+            if (parsed.type === 'reasoning' && parsed.content && onReasoning) {
+              onReasoning(parsed.content);
+            }
+            
+            if (parsed.type === 'tool_call' && onToolCall) {
+              onToolCall(
+                parsed.tool_name || '',
+                parsed.tool_call_id || '',
+                parsed.arguments || '{}'
+              );
+            }
+            
+            if (parsed.type === 'tool_result' && onToolResult) {
+              onToolResult(parsed.tool_call_id || '', parsed.content || '{}');
+            }
+            
+            if (parsed.type === 'error') {
+              onError(new Error(parsed.error || 'Unknown error'));
+            }
+            
             if (parsed.conversation_id) {
               conversationId = parsed.conversation_id;
             }
@@ -227,5 +263,47 @@ export const indexConversation = async (conversationId: number): Promise<{
   indexed_count: number;
 }> => {
   const response = await api.post(`/memory/index/${conversationId}`);
+  return response.data;
+};
+
+export interface ToolInfo {
+  name: string;
+  description: string;
+  enabled: boolean;
+  parameters: Record<string, unknown>;
+}
+
+export interface ToolListResponse {
+  tools: ToolInfo[];
+  total: number;
+}
+
+export interface ToolConfig {
+  profile: string;
+  allow: string[];
+  deny: string[];
+  max_iterations: number;
+  timeout_seconds: number;
+}
+
+export const getTools = async (): Promise<ToolListResponse> => {
+  const response = await api.get<ToolListResponse>('/tools');
+  return response.data;
+};
+
+export const getToolConfig = async (): Promise<ToolConfig> => {
+  const response = await api.get<ToolConfig>('/tools/config');
+  return response.data;
+};
+
+export const updateToolConfig = async (config: Partial<ToolConfig>): Promise<{ success: boolean; message: string }> => {
+  const response = await api.put<{ success: boolean; message: string }>('/tools/config', config);
+  return response.data;
+};
+
+export const toggleTool = async (toolName: string, enabled: boolean): Promise<{ success: boolean; message: string }> => {
+  const response = await api.put<{ success: boolean; message: string }>(`/tools/${toolName}/toggle`, null, {
+    params: { enabled }
+  });
   return response.data;
 };

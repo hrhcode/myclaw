@@ -6,6 +6,7 @@ import ConversationsPage from "./components/conversations/ConversationsPage";
 import SettingsPage from "./components/settings/SettingsPage";
 import MemoryPage from "./components/memory";
 import { LogsPage, HistoryLogsPage } from "./components/logs";
+import ToolsPage from "./components/tools/ToolsPage";
 import "./App.css";
 
 /**
@@ -23,6 +24,7 @@ const App: React.FC = () => {
             <Route path="/conversations" element={<ConversationsPage />} />
             <Route path="/memory" element={<MemoryPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/tools" element={<ToolsPage />} />
             <Route
               path="/logs"
               element={<Navigate to="/logs/realtime" replace />}

@@ -1,11 +1,24 @@
 export type MessageRole = 'user' | 'assistant';
 
+export interface ToolCallInfo {
+  toolName: string;
+  toolCallId: string;
+  arguments: string;
+}
+
+export interface ToolResultInfo {
+  toolCallId: string;
+  content: string;
+}
+
 export interface Message {
   id: number;
   conversation_id: number;
   role: MessageRole;
   content: string;
   created_at: string;
+  toolCalls?: ToolCallInfo[];
+  toolResults?: Map<string, ToolResultInfo>;
 }
 
 export interface Conversation {
@@ -64,4 +77,35 @@ export interface LongTermMemory {
   source: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ToolInfo {
+  name: string;
+  description: string;
+  enabled: boolean;
+  parameters: Record<string, unknown>;
+}
+
+export interface ToolListResponse {
+  tools: ToolInfo[];
+  total: number;
+}
+
+export interface ToolConfig {
+  profile: string;
+  allow: string[];
+  deny: string[];
+  max_iterations: number;
+  timeout_seconds: number;
+}
+
+export interface ToolCallInfo {
+  tool_name: string;
+  tool_call_id: string;
+  arguments: string;
+}
+
+export interface ToolResultInfo {
+  tool_call_id: string;
+  content: string;
 }

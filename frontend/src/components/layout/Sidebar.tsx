@@ -8,6 +8,7 @@ import {
   Brain,
   ScrollText,
   Bot,
+  Wrench,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 
