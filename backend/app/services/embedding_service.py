@@ -180,7 +180,7 @@ class EmbeddingService:
             logger.warning("[嵌入生成] 输入文本为空，跳过嵌入生成")
             return None
         
-        content_hash = self._compute_content_hash(text.strip())
+        content_hash = compute_content_hash(text.strip())
         logger.debug(f"[嵌入生成] 开始处理，文本长度: {len(text)}, 哈希: {content_hash[:16]}...")
         
         if use_cache:
@@ -255,7 +255,7 @@ class EmbeddingService:
         if not valid_texts:
             return []
         
-        content_hashes = [self._compute_content_hash(text) for text in valid_texts]
+        content_hashes = [compute_content_hash(text) for text in valid_texts]
         
         cached_results = {}
         if use_cache:
@@ -484,7 +484,7 @@ class LocalEmbeddingService:
             logger.error("[本地嵌入] 模型未加载")
             return None
         
-        content_hash = self._compute_content_hash(text.strip())
+        content_hash = compute_content_hash(text.strip())
         logger.debug(f"[本地嵌入] 开始处理，文本长度: {len(text)}, 哈希: {content_hash[:16]}...")
         
         if use_cache:

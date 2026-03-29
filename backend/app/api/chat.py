@@ -1,22 +1,24 @@
+"""
+聊天API
+提供聊天功能的HTTP接口
+业务逻辑已委托给Service层，API层仅处理HTTP请求/响应
+"""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from app.core.database import get_db
-from app.models.models import Conversation, Message, ToolCall
-from app.schemas.schemas import ChatRequest, MemorySearchResult
+from app.schemas.schemas import ChatRequest
 from app.services.llm_service import get_llm_service
+from app.services.conversation_service import ConversationService
+from app.services.message_service import MessageService
 from app.common.config import get_config_value
 from app.common.constants import API_KEY_KEY, LLM_MODEL_KEY
-from app.services.vector_search_service import index_message_embedding, hybrid_memory_search
+from app.services.vector_search_service import hybrid_memory_search
 from app.tools import tool_registry, tool_executor, tools_to_zhipu_schemas
 from app.tools.builtin import get_current_time_tool
-from app.common.utils.logging import log_search_start, log_search_result
 from app.common.constants import LOG_SEPARATOR
-from typing import List, Dict, Any
+from typing import List
 import logging
-import asyncio
 import json
-from datetime import datetime
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -34,7 +36,7 @@ def register_builtin_tools():
 register_builtin_tools()
 
 
-def build_memory_context(memory_results: List[MemorySearchResult]) -> str:
+def build_memory_context(memory_results: List) -> str:
     """
     将记忆搜索结果格式化为上下文提示
 
@@ -49,211 +51,34 @@ def build_memory_context(memory_results: List[MemorySearchResult]) -> str:
         return ""
 
     logger.info(f"[记忆上下文] 构建记忆上下文，共 {len(memory_results)} 条结果")
-    
+
     lines = ["## 相关记忆"]
     for i, result in enumerate(memory_results, 1):
         source_label = "消息" if result.source == "message" else "长期记忆"
         lines.append(f"- [{source_label}] {result.content} (相关度: {result.score:.2f})")
         logger.debug(f"[记忆上下文] #{i}: [{source_label}] {result.content[:50]}... (分数: {result.score:.3f})")
-    
+
     lines.append("")
-    
+
     context = "\n".join(lines)
     logger.debug(f"[记忆上下文] 上下文长度: {len(context)} 字符")
     return context
-
-
-async def get_or_create_conversation(db: AsyncSession, message: str, conversation_id: int | None = None) -> tuple[int, Conversation]:
-    """
-    获取或创建会话
-
-    Returns:
-        tuple: (conversation_id, conversation对象)
-    """
-    if not conversation_id:
-        logger.info(f"[会话管理] 创建新会话，标题: {message[:20]}...")
-        new_conversation = Conversation(
-            title=message[:20] + "..." if len(message) > 20 else message
-        )
-        db.add(new_conversation)
-        await db.commit()
-        await db.refresh(new_conversation)
-        logger.info(f"[会话管理] 新会话已创建，ID: {new_conversation.id}")
-        return new_conversation.id, new_conversation
-    else:
-        logger.debug(f"[会话管理] 获取现有会话，ID: {conversation_id}")
-        conversation = await db.get(Conversation, conversation_id)
-        if not conversation:
-            logger.error(f"[会话管理] 会话不存在，ID: {conversation_id}")
-            raise HTTPException(status_code=404, detail="会话不存在")
-        logger.debug(f"[会话管理] 会话已找到，标题: {conversation.title}")
-        return conversation_id, conversation
-
-
-async def save_message(db: AsyncSession, conversation_id: int, role: str, content: str, generate_embedding: bool = True) -> Message:
-    """
-    保存消息
-    
-    Args:
-        db: 数据库会话
-        conversation_id: 会话ID
-        role: 角色 (user/assistant)
-        content: 消息内容
-        generate_embedding: 是否生成向量嵌入
-        
-    Returns:
-        保存的消息对象
-    """
-    logger.debug(f"[消息存储] 保存消息 - 会话ID: {conversation_id}, 角色: {role}, 内容长度: {len(content)}")
-    
-    message = Message(
-        conversation_id=conversation_id,
-        role=role,
-        content=content
-    )
-    db.add(message)
-    await db.commit()
-    await db.refresh(message)
-    
-    logger.info(f"[消息存储] 消息已保存，ID: {message.id}, 角色: {role}")
-    
-    if generate_embedding:
-        try:
-            asyncio.create_task(index_message_embedding(message.id))
-            logger.info(f"[向量嵌入] 已创建异步嵌入任务，消息ID: {message.id}")
-        except Exception as e:
-            logger.warning(f"[向量嵌入] 创建向量嵌入任务失败: {str(e)}")
-    
-    return message
-
-
-async def save_tool_call(
-    db: AsyncSession,
-    conversation_id: int,
-    message_id: int,
-    tool_name: str,
-    tool_call_id: str,
-    arguments: str,
-    result: str,
-    status: str,
-    error: str = None,
-    execution_time_ms: int = None
-) -> ToolCall:
-    """
-    保存工具调用记录
-    
-    Args:
-        db: 数据库会话
-        conversation_id: 会话ID
-        message_id: 消息ID
-        tool_name: 工具名称
-        tool_call_id: 工具调用ID
-        arguments: 参数JSON
-        result: 结果JSON
-        status: 状态
-        error: 错误信息
-        execution_time_ms: 执行时间(毫秒)
-        
-    Returns:
-        保存的工具调用对象
-    """
-    tool_call = ToolCall(
-        conversation_id=conversation_id,
-        message_id=message_id,
-        tool_name=tool_name,
-        tool_call_id=tool_call_id,
-        arguments=arguments,
-        result=result,
-        status=status,
-        error=error,
-        execution_time_ms=execution_time_ms,
-        completed_at=datetime.now() if status in ["success", "failed"] else None
-    )
-    db.add(tool_call)
-    await db.commit()
-    await db.refresh(tool_call)
-    
-    logger.info(f"[工具调用记录] 已保存 - 工具: {tool_name}, 状态: {status}")
-    return tool_call
-
-
-async def get_conversation_history(db: AsyncSession, conversation_id: int) -> list[dict]:
-    """获取会话历史"""
-    result = await db.execute(
-        select(Message)
-        .where(Message.conversation_id == conversation_id)
-        .order_by(Message.created_at)
-    )
-    messages = result.scalars().all()
-    history = [{"role": msg.role, "content": msg.content} for msg in messages]
-    logger.debug(f"[会话历史] 获取会话 {conversation_id} 的历史消息，共 {len(history)} 条")
-    return history
-
-
-async def process_tool_calls(
-    db: AsyncSession,
-    conversation_id: int,
-    message_id: int,
-    tool_calls: List[Dict[str, Any]]
-) -> List[Dict[str, Any]]:
-    """
-    处理工具调用列表
-    
-    Args:
-        db: 数据库会话
-        conversation_id: 会话ID
-        message_id: 消息ID
-        tool_calls: 工具调用列表
-        
-    Returns:
-        工具结果消息列表
-    """
-    tool_results = []
-    
-    for call in tool_calls:
-        tool_call_id = call.get("id", "")
-        tool_name = call.get("name", "")
-        arguments_str = call.get("arguments", "{}")
-        
-        try:
-            arguments = json.loads(arguments_str) if isinstance(arguments_str, str) else arguments_str
-        except json.JSONDecodeError:
-            arguments = {}
-        
-        logger.info(f"[工具调用] 执行工具: {tool_name}, 参数: {arguments}")
-        
-        result = await tool_executor.execute_tool(tool_name, arguments, message_id)
-        
-        result_json = json.dumps(result.to_dict(), ensure_ascii=False)
-        
-        await save_tool_call(
-            db=db,
-            conversation_id=conversation_id,
-            message_id=message_id,
-            tool_name=tool_name,
-            tool_call_id=tool_call_id,
-            arguments=arguments_str,
-            result=result_json,
-            status="success" if result.success else "failed",
-            error=result.error,
-            execution_time_ms=result.execution_time_ms
-        )
-        
-        tool_results.append({
-            "tool_call_id": tool_call_id,
-            "role": "tool",
-            "content": result_json
-        })
-    
-    return tool_results
 
 
 @router.post("/chat/stream")
 async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     """
     发送聊天消息并获取AI流式回复（支持工具调用）
+
+    业务逻辑说明：
+    1. 配置验证（API Key、模型参数）
+    2. 会话获取/创建
+    3. 消息保存
+    4. 记忆搜索
+    5. LLM流式对话（可能包含工具调用）
     """
-    from fastapi.responses import StreamingResponse
+    conversation_service = ConversationService()
+    message_service = MessageService()
 
     logger.info(LOG_SEPARATOR)
     logger.info(f"[聊天请求] 收到新消息")
@@ -272,22 +97,25 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     tool_enabled = await get_config_value(db, "tool_enabled")
     tool_max_iterations = await get_config_value(db, "tool_max_iterations")
     tool_timeout = await get_config_value(db, "tool_timeout_seconds")
-    
+
     use_tools = tool_enabled == "true" if tool_enabled else True
     max_iterations = int(tool_max_iterations) if tool_max_iterations else 5
     timeout_seconds = int(tool_timeout) if tool_timeout else 30
-    
+
     tool_executor.timeout_seconds = timeout_seconds
 
-    conversation_id, conversation = await get_or_create_conversation(
-        db, request.message, request.conversation_id
-    )
+    try:
+        conversation_id, conversation = await conversation_service.get_or_create(
+            db, request.message, request.conversation_id
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
-    await save_message(db, conversation_id, "user", request.message)
-    
+    await message_service.save(db, conversation_id, "user", request.message)
+
     logger.info(LOG_SEPARATOR)
-    logger.info("[记忆搜索】开始混合记忆搜索...")
-    
+    logger.info("[记忆搜索] 开始混合记忆搜索...")
+
     memory_top_k = await get_config_value(db, "memory_top_k")
     memory_min_score = await get_config_value(db, "memory_min_score")
     memory_use_hybrid = await get_config_value(db, "memory_use_hybrid")
@@ -297,9 +125,9 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     memory_mmr_lambda = await get_config_value(db, "memory_mmr_lambda")
     memory_enable_temporal_decay = await get_config_value(db, "memory_enable_temporal_decay")
     memory_half_life_days = await get_config_value(db, "memory_half_life_days")
-    
-    message_history = await get_conversation_history(db, conversation_id)
-    
+
+    message_history = await message_service.get_history(db, conversation_id)
+
     memory_results = await hybrid_memory_search(
         db=db,
         query=request.message,
@@ -316,9 +144,9 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
         enable_temporal_decay=(memory_enable_temporal_decay == "true") if memory_enable_temporal_decay else True,
         half_life_days=int(memory_half_life_days) if memory_half_life_days else 30
     )
-    
+
     logger.info(f"[记忆搜索] 搜索完成，找到 {len(memory_results)} 条相关记忆")
-    
+
     memory_context = build_memory_context(memory_results)
 
     async def generate():
@@ -333,7 +161,7 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
             logger.info(f"  ├─ 历史消息数: {len(message_history)}")
             logger.info(f"  ├─ 记忆上下文: {'已注入' if memory_context else '无'}")
             logger.info(f"  └─ 工具调用: {'启用' if use_tools else '禁用'}")
-            
+
             llm = get_llm_service(api_key)
 
             if memory_context:
@@ -355,13 +183,13 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
             while iteration < max_iterations:
                 iteration += 1
                 logger.info(f"[LLM调用] 第 {iteration} 次调用")
-                
+
                 has_tool_calls = False
                 current_tool_calls = []
-                
+
                 async for chunk in llm.chat_stream_with_tools(messages=full_messages, tools=tools, model=model, thinking=True):
                     chunk_type = chunk.get("type")
-                    
+
                     if chunk_type == "content":
                         content = chunk.get("content", "")
                         if content:
@@ -372,7 +200,7 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
                                 "conversation_id": conversation_id
                             }
                             yield f"data: {json.dumps(response_data)}\n\n"
-                    
+
                     elif chunk_type == "reasoning":
                         reasoning = chunk.get("content", "")
                         if reasoning:
@@ -381,13 +209,13 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
                                 "content": reasoning
                             }
                             yield f"data: {json.dumps(response_data)}\n\n"
-                    
+
                     elif chunk_type == "tool_calls":
                         current_tool_calls = chunk.get("tool_calls", [])
                         if current_tool_calls:
                             has_tool_calls = True
                             tool_calls_info.extend(current_tool_calls)
-                            
+
                             for tc in current_tool_calls:
                                 response_data = {
                                     "type": "tool_call",
@@ -396,10 +224,10 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
                                     "arguments": tc.get("arguments")
                                 }
                                 yield f"data: {json.dumps(response_data)}\n\n"
-                
+
                 if has_tool_calls and current_tool_calls:
                     logger.info(f"[工具调用] 检测到 {len(current_tool_calls)} 个工具调用")
-                    
+
                     assistant_message = {
                         "role": "assistant",
                         "content": full_content or None,
@@ -416,14 +244,15 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
                         ]
                     }
                     full_messages.append(assistant_message)
-                    
-                    tool_results = await process_tool_calls(
+
+                    tool_results = await message_service.process_tool_calls(
                         db=db,
                         conversation_id=conversation_id,
                         message_id=None,
-                        tool_calls=current_tool_calls
+                        tool_calls=current_tool_calls,
+                        tool_executor=tool_executor
                     )
-                    
+
                     for tr in tool_results:
                         response_data = {
                             "type": "tool_result",
@@ -431,19 +260,19 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
                             "content": tr.get("content")
                         }
                         yield f"data: {json.dumps(response_data)}\n\n"
-                        
+
                         full_messages.append({
                             "role": "tool",
                             "tool_call_id": tr.get("tool_call_id"),
                             "content": tr.get("content")
                         })
-                    
+
                     full_content = ""
                 else:
                     break
 
             logger.info(f"[LLM调用] 回复生成完成，长度: {len(full_content)} 字符")
-            await save_message(db, conversation_id, "assistant", full_content)
+            await message_service.save(db, conversation_id, "assistant", full_content)
             logger.info(f"[聊天完成] 会话ID: {conversation_id}")
             logger.info(LOG_SEPARATOR)
             yield "data: [DONE]\n\n"
@@ -456,6 +285,8 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
                 "status": 500
             }
             yield f"data: {json.dumps(error_data)}\n\n"
+
             yield "data: [DONE]\n\n"
 
+    from fastapi.responses import StreamingResponse
     return StreamingResponse(generate(), media_type="text/plain")

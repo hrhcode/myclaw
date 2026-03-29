@@ -48,6 +48,8 @@ from app.services.vector_search_service import (
     mmr_rerank,
     apply_temporal_decay,
 )
+from app.services.conversation_service import ConversationService
+from app.services.message_service import MessageService
 
 __all__ = [
     "LogEntry",
@@ -86,4 +88,6 @@ __all__ = [
     "hybrid_search",
     "mmr_rerank",
     "apply_temporal_decay",
+    "ConversationService",
+    "MessageService",
 ]

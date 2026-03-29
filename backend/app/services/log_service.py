@@ -108,25 +108,25 @@ class WebSocketLogHandler(logging.Handler):
     async def _broadcast_log(self, log_entry: LogEntry) -> None:
         """
         广播日志到所有连接的 WebSocket 客户端
-        
+
         Args:
             log_entry: 日志条目
         """
         if not self._connections:
             return
-        
+
         message = json.dumps({
             "type": "log",
             "data": log_entry.to_dict()
         }, ensure_ascii=False)
-        
+
         disconnected = set()
-        for websocket in self._connections:
+        for websocket in list(self._connections):
             try:
                 await websocket.send_text(message)
             except Exception:
                 disconnected.add(websocket)
-        
+
         for ws in disconnected:
             self._connections.discard(ws)
     

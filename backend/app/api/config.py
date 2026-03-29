@@ -1,8 +1,13 @@
+"""
+配置管理API
+提供配置项查询和管理的HTTP接口
+业务逻辑已委托给DAO层，API层仅处理HTTP请求/响应
+"""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from typing import List
 from app.core.database import get_db
-from app.models.models import Config
+from app.dao.config_dao import ConfigDAO
 from app.schemas.schemas import ConfigCreate, ConfigUpdate, ConfigResponse
 from app.common.constants import (
     API_KEY_KEY,
@@ -14,7 +19,6 @@ from app.common.constants import (
     PROVIDERS,
     EMBEDDING_PROVIDERS,
 )
-from app.common.config import get_config_value, set_config_value
 import logging
 
 router = APIRouter()
@@ -77,33 +81,40 @@ async def get_config(key: str, db: AsyncSession = Depends(get_db)):
     获取指定配置项的值
     """
     logger.info(f"获取配置: {key}")
-    value = await get_config_value(db, key)
+    value = await ConfigDAO.get_value(db, key)
     if value is None:
         raise HTTPException(status_code=404, detail=f"配置项 '{key}' 不存在")
     return value
 
 
 @router.put("/config/{key}", response_model=ConfigResponse)
-async def update_config(key: str, config_update: ConfigUpdate, db: AsyncSession = Depends(get_db)):
+async def update_config(
+    key: str,
+    config_update: ConfigUpdate,
+    db: AsyncSession = Depends(get_db)
+):
     """
     更新或创建配置项
     """
     logger.info(f"更新配置: {key}")
-    config = await set_config_value(db, key, config_update.value, config_update.description)
+    config = await ConfigDAO.upsert(db, key, config_update.value, config_update.description)
     return config
 
 
 @router.post("/config", response_model=ConfigResponse)
-async def create_config(config_create: ConfigCreate, db: AsyncSession = Depends(get_db)):
+async def create_config(
+    config_create: ConfigCreate,
+    db: AsyncSession = Depends(get_db)
+):
     """
     创建新的配置项
     """
     logger.info(f"创建配置: {config_create.key}")
-    existing = await get_config_value(db, config_create.key)
-    if existing is not None:
+    existing = await ConfigDAO.exists(db, config_create.key)
+    if existing:
         raise HTTPException(status_code=400, detail=f"配置项 '{config_create.key}' 已存在")
 
-    config = await set_config_value(db, config_create.key, config_create.value, config_create.description)
+    config = await ConfigDAO.create(db, config_create.key, config_create.value, config_create.description)
     return config
 
 
@@ -113,8 +124,7 @@ async def list_configs(db: AsyncSession = Depends(get_db)):
     获取所有配置项
     """
     logger.info("获取所有配置")
-    result = await db.execute(select(Config).order_by(Config.key))
-    configs = result.scalars().all()
+    configs = await ConfigDAO.list_all(db)
     return configs
 
 
@@ -124,12 +134,7 @@ async def delete_config(key: str, db: AsyncSession = Depends(get_db)):
     删除配置项
     """
     logger.info(f"删除配置: {key}")
-    result = await db.execute(select(Config).where(Config.key == key))
-    config = result.scalar_one_or_none()
-
-    if not config:
+    success = await ConfigDAO.delete(db, key)
+    if not success:
         raise HTTPException(status_code=404, detail=f"配置项 '{key}' 不存在")
-
-    await db.delete(config)
-    await db.commit()
     return {"message": f"配置项 '{key}' 已删除"}
