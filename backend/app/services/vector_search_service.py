@@ -4,6 +4,7 @@
 支持sqlite-vec加速和Python降级
 """
 import logging
+import re
 from typing import List, Optional, Tuple, Dict
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +28,40 @@ from app.common.config import get_config_value
 from app.common.constants import EMBEDDING_MODEL_KEY, OPENROUTER_API_KEY_KEY
 
 logger = logging.getLogger(__name__)
+
+
+def escape_fts_query(query: str) -> str:
+    """
+    转义 FTS5 查询字符串，避免特殊字符被误解析为列限定符
+    
+    参考 openclaw 项目的实现，通过双引号包裹每个 token 来避免
+    类似 "command:" 这样的模式被 FTS5 解析为列限定符
+    
+    Args:
+        query: 原始查询字符串
+        
+    Returns:
+        转义后的查询字符串，每个 token 用双引号包裹并用 AND 连接
+    """
+    if not query or not query.strip():
+        return ""
+    
+    # 提取所有字母、数字、中文、下划线
+    # \w 匹配字母、数字、下划线
+    # \u4e00-\u9fff 匹配中文字符
+    tokens = re.findall(r'[\w\u4e00-\u9fff]+', query)
+    
+    if not tokens:
+        return ""
+    
+    # 每个token用双引号包裹，转义内部的双引号
+    quoted_tokens = []
+    for token in tokens:
+        escaped_token = token.replace('"', '""')
+        quoted_tokens.append(f'"{escaped_token}"')
+    
+    # 用 AND 连接所有 token
+    return " AND ".join(quoted_tokens)
 
 
 _sqlite_vec_available = None
@@ -544,6 +579,12 @@ async def search_messages_by_bm25(
             logger.warning("messages_fts表不存在，BM25搜索不可用，请运行数据库迁移")
             return []
         
+        # 转义查询以避免FTS5特殊字符问题
+        escaped_query = escape_fts_query(query)
+        if not escaped_query:
+            logger.warning(f"BM25搜索查询为空，原查询: {query}")
+            return []
+        
         base_query = """
             SELECT m.*, bm25(messages_fts) AS bm25_score
             FROM messages m
@@ -551,7 +592,7 @@ async def search_messages_by_bm25(
             WHERE messages_fts MATCH :query
         """
         
-        params = {"query": query}
+        params = {"query": escaped_query}
         
         if conversation_id:
             base_query += " AND m.conversation_id = :conversation_id"
@@ -603,6 +644,12 @@ async def search_long_term_memory_by_bm25(
             logger.warning("long_term_memory_fts表不存在，BM25搜索不可用，请运行数据库迁移")
             return []
         
+        # 转义查询以避免FTS5特殊字符问题
+        escaped_query = escape_fts_query(query)
+        if not escaped_query:
+            logger.warning(f"BM25搜索查询为空，原查询: {query}")
+            return []
+        
         query_sql = """
             SELECT m.*, bm25(long_term_memory_fts) AS bm25_score
             FROM long_term_memory m
@@ -614,7 +661,7 @@ async def search_long_term_memory_by_bm25(
         
         result = await db.execute(
             text(query_sql),
-            {"query": query, "limit": top_k * 4}
+            {"query": escaped_query, "limit": top_k * 4}
         )
         rows = result.fetchall()
         
