@@ -6,7 +6,7 @@ import logging
 from typing import List, Optional
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models.models import Conversation, Message
+from app.models.models import Conversation, Message, ToolCall
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ class ConversationDAO:
     @staticmethod
     async def delete(db: AsyncSession, conversation_id: int) -> bool:
         """
-        删除会话及其所有消息
+        删除会话及其所有消息和工具调用记录
 
         Args:
             db: 数据库会话
@@ -115,11 +115,14 @@ class ConversationDAO:
             return False
 
         await db.execute(
+            delete(ToolCall).where(ToolCall.conversation_id == conversation_id)
+        )
+        await db.execute(
             delete(Message).where(Message.conversation_id == conversation_id)
         )
         await db.delete(conversation)
         await db.commit()
-        logger.info(f"[DAO-Conversation] 会话已删除，ID: {conversation_id}")
+        logger.info(f"[DAO-Conversation] 会话已删除，ID: {conversation_id}（包含消息和工具调用记录）")
         return True
 
     @staticmethod

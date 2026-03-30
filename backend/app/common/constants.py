@@ -11,6 +11,15 @@ OPENROUTER_API_KEY_KEY = "openrouter_api_key"
 EMBEDDING_PROVIDER_KEY = "embedding_provider"
 EMBEDDING_MODEL_KEY = "embedding_model"
 
+# 网络搜索配置键
+WEB_SEARCH_PROVIDER_KEY = "web_search_provider"
+TAVILY_API_KEY_KEY = "tavily_api_key"
+WEB_SEARCH_MAX_RESULTS_KEY = "web_search_max_results"
+WEB_SEARCH_DEPTH_KEY = "web_search_depth"
+WEB_SEARCH_INCLUDE_ANSWER_KEY = "web_search_include_answer"
+WEB_SEARCH_TIMEOUT_KEY = "web_search_timeout"
+WEB_SEARCH_CACHE_TTL_KEY = "web_search_cache_ttl"
+
 # LLM提供商配置
 PROVIDERS = {
     "zhipu": {

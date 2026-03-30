@@ -47,8 +47,14 @@ async def delete_conversation(
 ):
     """
     删除指定会话及其所有消息
+    注意：如果这是最后一个会话，则不允许删除
     """
     logger.info(f"删除会话: conversation_id={conversation_id}")
+
+    all_conversations = await ConversationDAO.list_all(db)
+    if len(all_conversations) <= 1:
+        logger.warning(f"拒绝删除最后一个会话: conversation_id={conversation_id}")
+        raise HTTPException(status_code=400, detail="无法删除最后一个会话，系统至少需要保留一个会话")
 
     success = await ConversationDAO.delete(db, conversation_id)
     if not success:

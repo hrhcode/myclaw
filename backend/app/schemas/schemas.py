@@ -242,3 +242,25 @@ class ToolListResponse(BaseModel):
     """工具列表响应"""
     tools: List[ToolInfo]
     total: int
+
+
+class WebSearchConfig(BaseModel):
+    """网络搜索配置"""
+    provider: str = "tavily"
+    tavily_api_key: Optional[str] = None
+    max_results: int = 5
+    search_depth: str = "basic"
+    include_answer: bool = True
+    timeout_seconds: int = 30
+    cache_ttl_minutes: int = 15
+
+
+class WebSearchConfigResponse(BaseModel):
+    """网络搜索配置响应"""
+    provider: str
+    tavily_api_key: Optional[str] = None
+    max_results: int
+    search_depth: str
+    include_answer: bool
+    timeout_seconds: int
+    cache_ttl_minutes: int

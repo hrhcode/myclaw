@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Save,
   Cpu,
   CheckCircle,
   AlertCircle,
@@ -17,12 +16,48 @@ import {
   getEmbeddingProviderModels,
   getConfig,
   setConfig,
+  getWebSearchConfig,
+  setWebSearchConfig,
 } from "../../services/api";
 import type { Provider, Model } from "../../types";
+import type { WebSearchConfig } from "../../services/api";
+import WebSearchConfigPanel from "./WebSearchConfigPanel";
+
+/**
+ * Toast 通知组件 - 固定在屏幕中上角
+ */
+const Toast: React.FC<{
+  message: { type: "success" | "error"; text: string } | null;
+}> = ({ message }) => {
+  return (
+    <AnimatePresence>
+      {message && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-xl flex items-center gap-3 shadow-lg ${
+            message.type === "success"
+              ? "bg-green-500/20 border border-green-500/30 text-green-400"
+              : "bg-red-500/20 border border-red-500/30 text-red-400"
+          }`}
+        >
+          {message.type === "success" ? (
+            <CheckCircle size={18} />
+          ) : (
+            <AlertCircle size={18} />
+          )}
+          <span className="text-sm">{message.text}</span>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
 
 /**
  * 配置页面组件 - 配置API和模型参数
  * 采用玻璃拟态设计，支持动画效果和主题切换
+ * 实时保存配置，无需手动点击保存按钮
  */
 const SettingsPage: React.FC = () => {
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -40,11 +75,52 @@ const SettingsPage: React.FC = () => {
   const [openrouterApiKey, setOpenrouterApiKey] = useState<string>("");
   const [showOpenrouterKey, setShowOpenrouterKey] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
+
+  const [webSearchConfig, setWebSearchConfig] = useState<WebSearchConfig>({
+    enabled: true,
+    provider: "tavily",
+    tavily_api_key: "",
+    brave_api_key: "",
+    perplexity_api_key: "",
+    max_results: 5,
+    search_depth: "basic",
+    include_answer: true,
+    timeout_seconds: 30,
+    cache_ttl_minutes: 15,
+  });
+  const [existingWebSearchKeys, setExistingWebSearchKeys] = useState({
+    tavily: false,
+    brave: false,
+    perplexity: false,
+  });
+
+  const prevProviderRef = useRef<string>("");
+  const prevEmbeddingProviderRef = useRef<string>("");
+
+  /**
+   * 显示保存状态提示
+   */
+  const showMessage = (type: "success" | "error", text: string) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+  /**
+   * 保存单个配置项
+   */
+  const saveConfigItem = async (key: string, value: string) => {
+    try {
+      await setConfig(key, value);
+      showMessage("success", `${key} 已保存`);
+    } catch (error) {
+      console.error(`Failed to save ${key}:`, error);
+      showMessage("error", `保存 ${key} 失败`);
+    }
+  };
 
   /**
    * 加载模型列表
@@ -120,14 +196,18 @@ const SettingsPage: React.FC = () => {
 
       if (savedProvider) {
         setSelectedProvider(savedProvider);
+        prevProviderRef.current = savedProvider;
       } else if (providerList.length > 0) {
         setSelectedProvider(providerList[0].id);
+        prevProviderRef.current = providerList[0].id;
       }
 
       if (savedEmbeddingProvider) {
         setSelectedEmbeddingProvider(savedEmbeddingProvider);
+        prevEmbeddingProviderRef.current = savedEmbeddingProvider;
       } else if (embeddingProviderList.length > 0) {
         setSelectedEmbeddingProvider(embeddingProviderList[0].id);
+        prevEmbeddingProviderRef.current = embeddingProviderList[0].id;
       }
 
       if (savedApiKey) {
@@ -145,9 +225,33 @@ const SettingsPage: React.FC = () => {
       if (savedEmbeddingModel) {
         setSelectedEmbeddingModel(savedEmbeddingModel);
       }
+
+      try {
+        const webSearchCfg = await getWebSearchConfig();
+        setWebSearchConfig({
+          enabled: webSearchCfg.enabled,
+          provider: webSearchCfg.provider as WebSearchConfig["provider"],
+          tavily_api_key: webSearchCfg.tavily_api_key || "",
+          brave_api_key: webSearchCfg.brave_api_key || "",
+          perplexity_api_key: webSearchCfg.perplexity_api_key || "",
+          max_results: webSearchCfg.max_results,
+          search_depth:
+            webSearchCfg.search_depth as WebSearchConfig["search_depth"],
+          include_answer: webSearchCfg.include_answer,
+          timeout_seconds: webSearchCfg.timeout_seconds,
+          cache_ttl_minutes: webSearchCfg.cache_ttl_minutes,
+        });
+        setExistingWebSearchKeys({
+          tavily: !!webSearchCfg.tavily_api_key,
+          brave: !!webSearchCfg.brave_api_key,
+          perplexity: !!webSearchCfg.perplexity_api_key,
+        });
+      } catch (error) {
+        console.error("Failed to load web search config:", error);
+      }
     } catch (error) {
       console.error("Failed to load settings:", error);
-      setMessage({ type: "error", text: "加载设置失败" });
+      showMessage("error", "加载设置失败");
     } finally {
       setIsLoading(false);
     }
@@ -170,55 +274,111 @@ const SettingsPage: React.FC = () => {
   }, [selectedEmbeddingProvider, loadEmbeddingModels]);
 
   /**
-   * 保存设置
+   * 处理 LLM 提供商变更（实时保存）
    */
-  const handleSave = async () => {
-    if (!apiKey.trim()) {
-      setMessage({ type: "error", text: "请输入智谱AI API Key" });
-      return;
+  const handleProviderChange = async (value: string) => {
+    setSelectedProvider(value);
+    if (value && value !== prevProviderRef.current) {
+      await saveConfigItem("llm_provider", value);
+      prevProviderRef.current = value;
     }
+  };
 
-    if (!selectedProvider) {
-      setMessage({ type: "error", text: "请选择LLM提供商" });
-      return;
+  /**
+   * 处理 LLM 模型变更（实时保存）
+   */
+  const handleModelChange = async (value: string) => {
+    setSelectedModel(value);
+    if (value) {
+      await saveConfigItem("llm_model", value);
     }
+  };
 
-    if (!selectedModel) {
-      setMessage({ type: "error", text: "请选择LLM模型" });
-      return;
+  /**
+   * 处理 Embedding 提供商变更（实时保存）
+   */
+  const handleEmbeddingProviderChange = async (value: string) => {
+    setSelectedEmbeddingProvider(value);
+    if (value && value !== prevEmbeddingProviderRef.current) {
+      await saveConfigItem("embedding_provider", value);
+      prevEmbeddingProviderRef.current = value;
     }
+  };
 
-    if (!selectedEmbeddingProvider) {
-      setMessage({ type: "error", text: "请选择Embedding提供商" });
-      return;
+  /**
+   * 处理 Embedding 模型变更（实时保存）
+   */
+  const handleEmbeddingModelChange = async (value: string) => {
+    setSelectedEmbeddingModel(value);
+    if (value) {
+      await saveConfigItem("embedding_model", value);
     }
+  };
 
-    if (!selectedEmbeddingModel) {
-      setMessage({ type: "error", text: "请选择Embedding模型" });
-      return;
+  /**
+   * 处理 API Key 失焦保存
+   */
+  const handleApiKeyBlur = async () => {
+    if (apiKey.trim()) {
+      await saveConfigItem("zhipu_api_key", apiKey);
     }
+  };
+
+  /**
+   * 处理 OpenRouter API Key 失焦保存
+   */
+  const handleOpenrouterKeyBlur = async () => {
+    if (openrouterApiKey.trim()) {
+      await saveConfigItem("openrouter_api_key", openrouterApiKey);
+    }
+  };
+
+  /**
+   * 处理网络搜索配置变更（实时保存）
+   */
+  const handleWebSearchConfigChange = async (
+    key: keyof WebSearchConfig,
+    value: string | boolean | number,
+  ) => {
+    const newConfig = {
+      ...webSearchConfig,
+      [key]: value,
+    };
+    setWebSearchConfig(newConfig);
 
     try {
-      setIsSaving(true);
-      setMessage(null);
-
-      await setConfig("zhipu_api_key", apiKey);
-      await setConfig("llm_provider", selectedProvider);
-      await setConfig("llm_model", selectedModel);
-
-      if (openrouterApiKey.trim()) {
-        await setConfig("openrouter_api_key", openrouterApiKey);
-      }
-
-      await setConfig("embedding_provider", selectedEmbeddingProvider);
-      await setConfig("embedding_model", selectedEmbeddingModel);
-
-      setMessage({ type: "success", text: "设置保存成功！" });
+      await setWebSearchConfig(newConfig);
+      showMessage("success", "网络搜索配置已保存");
     } catch (error) {
-      console.error("Failed to save settings:", error);
-      setMessage({ type: "error", text: "保存设置失败" });
-    } finally {
-      setIsSaving(false);
+      console.error("Failed to save web search config:", error);
+      showMessage("error", "保存网络搜索配置失败");
+    }
+  };
+
+  /**
+   * 处理网络搜索 API Key 保存
+   */
+  const handleSaveWebSearchKey = async (
+    _key: keyof WebSearchConfig,
+    value: string,
+  ) => {
+    const newConfig = {
+      ...webSearchConfig,
+      tavily_api_key: value,
+    };
+    setWebSearchConfig(newConfig);
+
+    try {
+      await setWebSearchConfig(newConfig);
+      showMessage("success", "Tavily API Key 已保存");
+      setExistingWebSearchKeys((prev) => ({
+        ...prev,
+        tavily: true,
+      }));
+    } catch (error) {
+      console.error(`Failed to save tavily_api_key:`, error);
+      showMessage("error", "保存 API Key 失败");
+      throw error;
     }
   };
 
@@ -239,30 +399,9 @@ const SettingsPage: React.FC = () => {
 
   return (
     <MainLayout headerTitle="配置">
+      <Toast message={message} />
       <div className="h-full overflow-y-auto p-6">
         <div className="max-w-6xl mx-auto pb-8">
-          <AnimatePresence mode="wait">
-            {message && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className={`mb-6 p-4 rounded-xl flex items-center gap-3 ${
-                  message.type === "success"
-                    ? "bg-green-500/10 border border-green-500/20 text-green-400"
-                    : "bg-red-500/10 border border-red-500/20 text-red-400"
-                }`}
-              >
-                {message.type === "success" ? (
-                  <CheckCircle size={20} />
-                ) : (
-                  <AlertCircle size={20} />
-                )}
-                <span>{message.text}</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -283,7 +422,7 @@ const SettingsPage: React.FC = () => {
                     LLM配置
                   </h2>
                   <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    选择AI模型提供商和模型
+                    选择AI模型提供商和模型（自动保存）
                   </p>
                 </div>
               </div>
@@ -298,7 +437,7 @@ const SettingsPage: React.FC = () => {
                   </label>
                   <select
                     value={selectedProvider}
-                    onChange={(e) => setSelectedProvider(e.target.value)}
+                    onChange={(e) => handleProviderChange(e.target.value)}
                     className="w-full px-4 py-3 glass-input rounded-xl appearance-none cursor-pointer"
                     style={{
                       color: "var(--text-primary)",
@@ -326,7 +465,7 @@ const SettingsPage: React.FC = () => {
                   </label>
                   <select
                     value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value)}
+                    onChange={(e) => handleModelChange(e.target.value)}
                     disabled={!selectedProvider}
                     className="w-full px-4 py-3 glass-input rounded-xl appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{
@@ -358,6 +497,7 @@ const SettingsPage: React.FC = () => {
                       type={showApiKey ? "text" : "password"}
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
+                      onBlur={handleApiKeyBlur}
                       placeholder="请输入您的智谱AI API Key"
                       className="w-full px-4 py-3 pr-12 glass-input rounded-xl"
                       style={{ color: "var(--text-primary)" }}
@@ -381,7 +521,7 @@ const SettingsPage: React.FC = () => {
                     className="mt-2 text-xs"
                     style={{ color: "var(--text-muted)" }}
                   >
-                    用于智谱AI聊天功能，API Key将安全存储在数据库中
+                    用于智谱AI聊天功能，输入后点击其他位置自动保存
                   </p>
                 </div>
               </div>
@@ -406,7 +546,7 @@ const SettingsPage: React.FC = () => {
                     Embedding配置
                   </h2>
                   <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    向量嵌入模型（用于记忆搜索）
+                    向量嵌入模型（用于记忆搜索，自动保存）
                   </p>
                 </div>
               </div>
@@ -422,7 +562,7 @@ const SettingsPage: React.FC = () => {
                   <select
                     value={selectedEmbeddingProvider}
                     onChange={(e) =>
-                      setSelectedEmbeddingProvider(e.target.value)
+                      handleEmbeddingProviderChange(e.target.value)
                     }
                     className="w-full px-4 py-3 glass-input rounded-xl appearance-none cursor-pointer"
                     style={{
@@ -451,7 +591,7 @@ const SettingsPage: React.FC = () => {
                   </label>
                   <select
                     value={selectedEmbeddingModel}
-                    onChange={(e) => setSelectedEmbeddingModel(e.target.value)}
+                    onChange={(e) => handleEmbeddingModelChange(e.target.value)}
                     disabled={!selectedEmbeddingProvider}
                     className="w-full px-4 py-3 glass-input rounded-xl appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{
@@ -483,6 +623,7 @@ const SettingsPage: React.FC = () => {
                       type={showOpenrouterKey ? "text" : "password"}
                       value={openrouterApiKey}
                       onChange={(e) => setOpenrouterApiKey(e.target.value)}
+                      onBlur={handleOpenrouterKeyBlur}
                       placeholder="请输入您的OpenRouter API Key"
                       className="w-full px-4 py-3 pr-12 glass-input rounded-xl"
                       style={{ color: "var(--text-primary)" }}
@@ -510,7 +651,7 @@ const SettingsPage: React.FC = () => {
                     className="mt-2 text-xs"
                     style={{ color: "var(--text-muted)" }}
                   >
-                    用于记忆搜索功能的向量嵌入生成
+                    用于记忆搜索功能的向量嵌入生成，输入后点击其他位置自动保存
                   </p>
                 </div>
               </div>
@@ -520,37 +661,15 @@ const SettingsPage: React.FC = () => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="flex justify-end mt-6"
+            transition={{ delay: 0.25 }}
+            className="w-full mt-6"
           >
-            <motion.button
-              onClick={handleSave}
-              disabled={isSaving}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="btn-primary flex items-center gap-2"
-            >
-              {isSaving ? (
-                <>
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{
-                      duration: 1,
-                      repeat: Infinity,
-                      ease: "linear",
-                    }}
-                  >
-                    <Loader2 size={16} />
-                  </motion.div>
-                  <span>保存中...</span>
-                </>
-              ) : (
-                <>
-                  <Save size={16} />
-                  <span>保存设置</span>
-                </>
-              )}
-            </motion.button>
+            <WebSearchConfigPanel
+              config={webSearchConfig}
+              onChange={handleWebSearchConfigChange}
+              onSaveKey={handleSaveWebSearchKey}
+              tavilyApiKeySet={existingWebSearchKeys.tavily}
+            />
           </motion.div>
         </div>
       </div>

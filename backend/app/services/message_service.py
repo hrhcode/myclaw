@@ -50,7 +50,7 @@ class MessageService:
         if generate_embedding:
             try:
                 asyncio.create_task(index_message_embedding(message.id))
-                logger.info(f"[MessageService] 已创建异步嵌入任务，消息ID: {message.id}")
+                logger.debug(f"[MessageService] 已创建异步嵌入任务，消息ID: {message.id}")
             except Exception as e:
                 logger.warning(f"[MessageService] 创建向量嵌入任务失败: {str(e)}")
 
@@ -121,25 +121,52 @@ class MessageService:
         Returns:
             工具结果消息列表
         """
+        from app.common.config import get_config_value
+        from app.common.constants import TAVILY_API_KEY_KEY
+
+        logger.info(f"[MessageService] ════════════════════════════════════════════")
+        logger.info(f"[MessageService] 开始处理工具调用")
+        logger.info(f"[MessageService] 会话ID: {conversation_id}")
+        logger.info(f"[MessageService] 工具调用数量: {len(tool_calls)}")
+        logger.info(f"[MessageService] ────────────────────────────────────────────")
+
         tool_results = []
 
-        for call in tool_calls:
+        for i, call in enumerate(tool_calls, 1):
             tool_call_id = call.get("id", "")
             tool_name = call.get("name", "")
             arguments_str = call.get("arguments", "{}")
 
+            logger.info(f"[MessageService] [{i}/{len(tool_calls)}] 工具调用: {tool_name}")
+            logger.info(f"[MessageService]   Call ID: {tool_call_id}")
+
             try:
                 arguments = json.loads(arguments_str) if isinstance(arguments_str, str) else arguments_str
             except json.JSONDecodeError:
+                logger.error(f"[MessageService]   参数解析失败，使用空参数")
                 arguments = {}
 
-            logger.info(f"[MessageService] 执行工具: {tool_name}, 参数: {arguments}")
+            if tool_name == "web_search":
+                tavily_key = await get_config_value(db, TAVILY_API_KEY_KEY)
+                if tavily_key:
+                    arguments["tavily_api_key"] = tavily_key
+                    logger.info(f"[MessageService]   ✓ 已获取 Tavily API Key 注入")
+                else:
+                    logger.warning(f"[MessageService]   ✗ Tavily API Key 未配置")
+
+            safe_args = {}
+            for k, v in arguments.items():
+                if "key" in k.lower() or "token" in k.lower():
+                    safe_args[k] = "***"
+                else:
+                    safe_args[k] = v
+            logger.info(f"[MessageService]   参数: {json.dumps(safe_args, ensure_ascii=False)[:200]}")
 
             result = await tool_executor.execute_tool(tool_name, arguments, message_id)
 
             result_json = json.dumps(result.to_dict(), ensure_ascii=False)
 
-            await self.save_tool_call(
+            save_result = await self.save_tool_call(
                 db=db,
                 conversation_id=conversation_id,
                 message_id=message_id,
@@ -152,11 +179,21 @@ class MessageService:
                 execution_time_ms=result.execution_time_ms
             )
 
+            logger.info(f"[MessageService]   结果已保存，Record ID: {save_result.id}")
+            logger.info(f"[MessageService]   执行状态: {'成功' if result.success else '失败'}")
+            if not result.success:
+                logger.error(f"[MessageService]   错误信息: {result.error}")
+
             tool_results.append({
                 "tool_call_id": tool_call_id,
                 "role": "tool",
                 "content": result_json
             })
+
+        logger.info(f"[MessageService] ════════════════════════════════════════════")
+        logger.info(f"[MessageService] 工具调用处理完成")
+        logger.info(f"[MessageService] 成功: {sum(1 for r in tool_results if json.loads(r['content']).get('success'))}/{len(tool_results)}")
+        logger.info(f"[MessageService] ════════════════════════════════════════════")
 
         return tool_results
 

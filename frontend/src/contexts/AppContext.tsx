@@ -62,11 +62,24 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   /**
    * 加载会话列表
+   * 如果当前没有选中会话且有会话存在，自动选择第一个
    */
   const loadConversations = useCallback(async () => {
     try {
       const data = await getConversations();
       setConversations(data);
+
+      setCurrentConversationId((prevId) => {
+        if (data.length > 0 && prevId === null) {
+          const sortedConversations = [...data].sort(
+            (a, b) =>
+              new Date(b.updated_at).getTime() -
+              new Date(a.updated_at).getTime(),
+          );
+          return sortedConversations[0].id;
+        }
+        return prevId;
+      });
     } catch (error) {
       console.error("Failed to load conversations:", error);
     }

@@ -8,3 +8,19 @@ python-dotenv==1.0.1
 zai-sdk==0.2.2
 sentence-transformers==2.2.0
 sqlite-vec==0.1.4
+
+# Web 工具依赖
+aiohttp>=3.9.0
+
+# HTML 解析和内容提取
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+
+# PDF 处理
+PyPDF2>=3.0.0
+
+# 图像处理
+Pillow>=10.0.0
+
+# 时区支持
+pytz>=2024.1

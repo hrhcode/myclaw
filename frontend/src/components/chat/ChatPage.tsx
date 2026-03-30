@@ -30,7 +30,6 @@ const ChatPage: React.FC = () => {
   } = useApp();
 
   const [isSending, setIsSending] = useState(false);
-  const [initialLoaded, setInitialLoaded] = useState(false);
 
   useEffect(() => {
     checkConfiguration();
@@ -38,35 +37,25 @@ const ChatPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!initialLoaded || conversations.length === 0) {
-      setInitialLoaded(true);
-      return;
-    }
-
     if (conversationId) {
       const id = parseInt(conversationId, 10);
       if (!isNaN(id) && id !== currentConversationId) {
         selectConversation(id);
       }
-    } else if (currentConversationId === null) {
+    }
+  }, [conversationId, selectConversation, currentConversationId]);
+
+  useEffect(() => {
+    if (!currentConversationId && conversations.length > 0) {
       const sortedConversations = [...conversations].sort(
         (a, b) =>
           new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
       );
-      if (sortedConversations.length > 0) {
-        const mostRecent = sortedConversations[0];
-        selectConversation(mostRecent.id);
-        navigate(`/chat/${mostRecent.id}`, { replace: true });
-      }
+      const mostRecent = sortedConversations[0];
+      selectConversation(mostRecent.id);
+      navigate(`/chat/${mostRecent.id}`, { replace: true });
     }
-  }, [
-    conversationId,
-    selectConversation,
-    conversations,
-    navigate,
-    initialLoaded,
-    currentConversationId,
-  ]);
+  }, [conversations, currentConversationId, selectConversation, navigate]);
 
   /**
    * 检查配置状态
@@ -108,23 +97,14 @@ const ChatPage: React.FC = () => {
       return;
     }
 
+    if (!currentConversationId) {
+      alert("会话加载中，请稍后重试");
+      return;
+    }
+
     setIsSending(true);
 
-    let conversationIdToUse = currentConversationId;
-
-    if (!conversationIdToUse) {
-      const newConversation = await createNewConversation(
-        trimmedContent.substring(0, 20) + "...",
-      );
-      if (newConversation) {
-        conversationIdToUse = newConversation.id;
-        selectConversation(newConversation.id);
-        navigate(`/chat/${newConversation.id}`, { replace: true });
-      } else {
-        setIsSending(false);
-        return;
-      }
-    }
+    const conversationIdToUse = currentConversationId;
 
     const userMessage: Message = {
       id: Date.now(),

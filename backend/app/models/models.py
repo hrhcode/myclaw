@@ -19,7 +19,7 @@ class Message(Base):
     __tablename__ = "messages"
 
     id = Column(Integer, primary_key=True, index=True)
-    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False, index=True)
     role = Column(String, nullable=False)
     content = Column(String, nullable=False)
     embedding = Column(LargeBinary, nullable=True)
@@ -27,6 +27,7 @@ class Message(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     conversation = relationship("Conversation", back_populates="messages")
+    tool_calls = relationship("ToolCall", back_populates="message", cascade="all, delete-orphan")
 
     __table_args__ = (
         {"sqlite_autoincrement": True}
@@ -100,8 +101,8 @@ class ToolCall(Base):
     __tablename__ = "tool_calls"
 
     id = Column(Integer, primary_key=True, index=True)
-    message_id = Column(Integer, ForeignKey("messages.id"), nullable=True, index=True)
-    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False, index=True)
+    message_id = Column(Integer, ForeignKey("messages.id", ondelete="CASCADE"), nullable=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False, index=True)
     tool_name = Column(String, nullable=False, index=True)
     tool_call_id = Column(String, nullable=False)
     arguments = Column(String, nullable=False)
@@ -111,6 +112,9 @@ class ToolCall(Base):
     execution_time_ms = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    message = relationship("Message", back_populates="tool_calls")
+    conversation = relationship("Conversation")
 
     __table_args__ = (
         {"sqlite_autoincrement": True}

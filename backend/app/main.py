@@ -1,13 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import chat, history, config, memory, logs, tools
-from app.core.database import engine, Base
+from app.core.database import engine, Base, AsyncSessionLocal
 from app.services.log_service import setup_log_handlers
 from app.common.logging_config import setup_logging, get_logger
+from app.tools import tool_registry
+from app.tools.builtin import register_all_builtin_tools
+from app.dao.conversation_dao import ConversationDAO
 import logging
 
 setup_logging()
 logger = get_logger(__name__)
+
+DEFAULT_CONVERSATION_TITLE = "main"
 
 app = FastAPI(title="AI对话助手API", version="1.0.0")
 
@@ -26,12 +31,33 @@ app.include_router(memory.router, prefix="/api", tags=["记忆搜索"])
 app.include_router(logs.router, prefix="/api", tags=["日志"])
 app.include_router(tools.router, prefix="/api", tags=["工具管理"])
 
+
+async def ensure_default_conversation():
+    """
+    确保至少存在一个默认会话
+    如果没有任何会话，则创建名为"main"的默认会话
+    """
+    async with AsyncSessionLocal() as db:
+        conversations = await ConversationDAO.list_all(db, limit=1)
+        if not conversations:
+            logger.info("[初始化] 未发现任何会话，创建默认会话 'main'")
+            await ConversationDAO.create(db, DEFAULT_CONVERSATION_TITLE)
+            logger.info("[初始化] 默认会话 'main' 创建成功")
+        else:
+            logger.debug(f"[初始化] 已存在 {len(conversations)} 个会话，无需创建默认会话")
+
+
 @app.on_event("startup")
 async def startup_event():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
     await setup_log_handlers()
+
+    await ensure_default_conversation()
+
+    register_all_builtin_tools(tool_registry)
+    logger.info(f"已注册 {len(tool_registry.list_tools())} 个内置工具")
 
     logger.info("=" * 50)
     logger.info("MyClaw AI对话助手 后端服务启动")

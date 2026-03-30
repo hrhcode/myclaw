@@ -1,14 +1,19 @@
 /**
  * 工具管理页面
- * 
+ *
  * 显示所有可用工具，支持启用/禁用工具
  */
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Wrench, Settings, Loader2, Clock, Info } from 'lucide-react';
-import MainLayout from '../layout/MainLayout';
-import { getTools, getToolConfig, updateToolConfig, toggleTool } from '../../services/api';
-import type { ToolInfo, ToolConfig } from '../../services/api';
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { Wrench, Settings, Loader2, Clock, Info } from "lucide-react";
+import MainLayout from "../layout/MainLayout";
+import {
+  getTools,
+  getToolConfig,
+  updateToolConfig,
+  toggleTool,
+} from "../../services/api";
+import type { ToolInfo, ToolConfig } from "../../services/api";
 
 interface ToolCardProps {
   tool: ToolInfo;
@@ -28,7 +33,10 @@ const ToolCard: React.FC<ToolCardProps> = ({ tool, onToggle }) => {
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
-            <h3 className="font-medium" style={{ color: 'var(--text-primary)' }}>
+            <h3
+              className="font-medium"
+              style={{ color: "var(--text-primary)" }}
+            >
               {tool.name}
             </h3>
             {tool.enabled ? (
@@ -41,29 +49,34 @@ const ToolCard: React.FC<ToolCardProps> = ({ tool, onToggle }) => {
               </span>
             )}
           </div>
-          <p className="text-sm mb-3" style={{ color: 'var(--text-muted)' }}>
+          <p className="text-sm mb-3" style={{ color: "var(--text-muted)" }}>
             {tool.description}
           </p>
           {Object.keys(tool.parameters?.properties || {}).length > 0 && (
             <div className="mt-2">
-              <div className="flex items-center gap-1 text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
+              <div
+                className="flex items-center gap-1 text-xs mb-1"
+                style={{ color: "var(--text-muted)" }}
+              >
                 <Info size={12} />
                 <span>参数</span>
               </div>
               <div className="flex flex-wrap gap-1">
-                {Object.entries(tool.parameters?.properties || {}).map(([key]) => (
-                  <span
-                    key={key}
-                    className="px-2 py-0.5 text-xs rounded"
-                    style={{
-                      background: 'var(--glass-bg)',
-                      color: 'var(--text-muted)',
-                      border: '1px solid var(--glass-border)'
-                    }}
-                  >
-                    {key}
-                  </span>
-                ))}
+                {Object.entries(tool.parameters?.properties || {}).map(
+                  ([key]) => (
+                    <span
+                      key={key}
+                      className="px-2 py-0.5 text-xs rounded"
+                      style={{
+                        background: "var(--glass-bg)",
+                        color: "var(--text-muted)",
+                        border: "1px solid var(--glass-border)",
+                      }}
+                    >
+                      {key}
+                    </span>
+                  ),
+                )}
               </div>
             </div>
           )}
@@ -72,15 +85,13 @@ const ToolCard: React.FC<ToolCardProps> = ({ tool, onToggle }) => {
           onClick={() => onToggle(tool.name, !tool.enabled)}
           className={`relative w-12 h-6 rounded-full transition-colors ${
             tool.enabled
-              ? 'bg-gradient-to-r from-primary to-primary-dark'
-              : 'bg-gray-600'
+              ? "bg-gradient-to-r from-primary to-primary-dark"
+              : "bg-gray-600"
           }`}
         >
           <span
             className={`block w-4 h-4 rounded-full bg-white shadow-md transition-transform absolute top-1 ${
-              tool.enabled
-                ? 'left-[calc(100%-1.25rem)]'
-                : 'left-1'
+              tool.enabled ? "left-[calc(100%-1.25rem)]" : "left-1"
             }`}
           />
         </button>
@@ -106,13 +117,13 @@ const ToolsPage: React.FC = () => {
       setLoading(true);
       const [toolsResponse, configResponse] = await Promise.all([
         getTools(),
-        getToolConfig()
+        getToolConfig(),
       ]);
       setTools(toolsResponse.tools);
       setConfig(configResponse);
       setError(null);
     } catch (err) {
-      setError('加载工具列表失败');
+      setError("加载工具列表失败");
       console.error(err);
     } finally {
       setLoading(false);
@@ -129,11 +140,11 @@ const ToolsPage: React.FC = () => {
   const handleToggleTool = async (name: string, enabled: boolean) => {
     try {
       await toggleTool(name, enabled);
-      setTools(prev => prev.map(tool => 
-        tool.name === name ? { ...tool, enabled } : tool
-      ));
+      setTools((prev) =>
+        prev.map((tool) => (tool.name === name ? { ...tool, enabled } : tool)),
+      );
     } catch (err) {
-      console.error('切换工具状态失败:', err);
+      console.error("切换工具状态失败:", err);
     }
   };
 
@@ -143,9 +154,9 @@ const ToolsPage: React.FC = () => {
   const handleUpdateConfig = async (updates: Partial<ToolConfig>) => {
     try {
       await updateToolConfig(updates);
-      setConfig(prev => prev ? { ...prev, ...updates } : null);
+      setConfig((prev) => (prev ? { ...prev, ...updates } : null));
     } catch (err) {
-      console.error('更新配置失败:', err);
+      console.error("更新配置失败:", err);
     }
   };
 
@@ -168,7 +179,7 @@ const ToolsPage: React.FC = () => {
     return (
       <MainLayout headerTitle="工具">
         <div className="h-full flex items-center justify-center">
-          <p style={{ color: 'var(--text-muted)' }}>{error}</p>
+          <p style={{ color: "var(--text-muted)" }}>{error}</p>
         </div>
       </MainLayout>
     );
@@ -187,23 +198,31 @@ const ToolsPage: React.FC = () => {
             >
               <div className="flex items-center gap-2 mb-4">
                 <Settings size={18} className="text-primary" />
-                <h2 className="font-medium" style={{ color: 'var(--text-primary)' }}>
+                <h2
+                  className="font-medium"
+                  style={{ color: "var(--text-primary)" }}
+                >
                   全局配置
                 </h2>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="text-sm mb-1 block" style={{ color: 'var(--text-muted)' }}>
+                  <label
+                    className="text-sm mb-1 block"
+                    style={{ color: "var(--text-muted)" }}
+                  >
                     配置文件
                   </label>
                   <select
                     value={config.profile}
-                    onChange={(e) => handleUpdateConfig({ profile: e.target.value })}
+                    onChange={(e) =>
+                      handleUpdateConfig({ profile: e.target.value })
+                    }
                     className="w-full px-3 py-2 rounded-lg"
                     style={{
-                      background: 'var(--glass-bg)',
-                      border: '1px solid var(--glass-border)',
-                      color: 'var(--text-primary)'
+                      background: "var(--glass-bg)",
+                      border: "1px solid var(--glass-border)",
+                      color: "var(--text-primary)",
                     }}
                   >
                     <option value="minimal">minimal - 最小工具集</option>
@@ -212,38 +231,52 @@ const ToolsPage: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm mb-1 block" style={{ color: 'var(--text-muted)' }}>
+                  <label
+                    className="text-sm mb-1 block"
+                    style={{ color: "var(--text-muted)" }}
+                  >
                     最大迭代次数
                   </label>
                   <input
                     type="number"
                     value={config.max_iterations}
-                    onChange={(e) => handleUpdateConfig({ max_iterations: parseInt(e.target.value) || 5 })}
+                    onChange={(e) =>
+                      handleUpdateConfig({
+                        max_iterations: parseInt(e.target.value) || 5,
+                      })
+                    }
                     min={1}
                     max={10}
                     className="w-full px-3 py-2 rounded-lg"
                     style={{
-                      background: 'var(--glass-bg)',
-                      border: '1px solid var(--glass-border)',
-                      color: 'var(--text-primary)'
+                      background: "var(--glass-bg)",
+                      border: "1px solid var(--glass-border)",
+                      color: "var(--text-primary)",
                     }}
                   />
                 </div>
                 <div>
-                  <label className="text-sm mb-1 block" style={{ color: 'var(--text-muted)' }}>
+                  <label
+                    className="text-sm mb-1 block"
+                    style={{ color: "var(--text-muted)" }}
+                  >
                     超时时间（秒）
                   </label>
                   <input
                     type="number"
                     value={config.timeout_seconds}
-                    onChange={(e) => handleUpdateConfig({ timeout_seconds: parseInt(e.target.value) || 30 })}
+                    onChange={(e) =>
+                      handleUpdateConfig({
+                        timeout_seconds: parseInt(e.target.value) || 30,
+                      })
+                    }
                     min={5}
                     max={120}
                     className="w-full px-3 py-2 rounded-lg"
                     style={{
-                      background: 'var(--glass-bg)',
-                      border: '1px solid var(--glass-border)',
-                      color: 'var(--text-primary)'
+                      background: "var(--glass-bg)",
+                      border: "1px solid var(--glass-border)",
+                      color: "var(--text-primary)",
                     }}
                   />
                 </div>
@@ -255,12 +288,15 @@ const ToolsPage: React.FC = () => {
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <Clock size={18} className="text-primary" />
-              <h2 className="font-medium" style={{ color: 'var(--text-primary)' }}>
+              <h2
+                className="font-medium"
+                style={{ color: "var(--text-primary)" }}
+              >
                 可用工具 ({tools.length})
               </h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {tools.map(tool => (
+              {tools.map((tool) => (
                 <ToolCard
                   key={tool.name}
                   tool={tool}

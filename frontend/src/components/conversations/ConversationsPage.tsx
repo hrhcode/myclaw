@@ -302,14 +302,23 @@ const ConversationsPage: React.FC = () => {
 
   /**
    * 处理删除会话
+   * 如果只剩一个会话，则不允许删除
    */
   const handleDelete = async () => {
     if (deleteTarget === null) return;
+    
+    if (conversations.length <= 1) {
+      alert("无法删除最后一个会话，系统至少需要保留一个会话");
+      setDeleteTarget(null);
+      return;
+    }
+    
     try {
       await removeConversation(deleteTarget);
       setDeleteTarget(null);
     } catch (error) {
       console.error("Failed to delete conversation:", error);
+      alert("删除会话失败，请稍后重试");
     }
   };
 

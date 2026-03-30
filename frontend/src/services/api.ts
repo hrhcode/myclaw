@@ -26,7 +26,7 @@ export const sendMessageStream = async (
   onChunk: (content: string) => void,
   onComplete: (message: Message, conversationId: number) => void,
   onError: (error: Error) => void,
-  onToolCall?: (toolName: string, toolCallId: string, arguments: string) => void,
+  onToolCall?: (toolName: string, toolCallId: string, toolArgs: string) => void,
   onToolResult?: (toolCallId: string, content: string) => void,
   onReasoning?: (content: string) => void
 ) => {
@@ -305,5 +305,35 @@ export const toggleTool = async (toolName: string, enabled: boolean): Promise<{ 
   const response = await api.put<{ success: boolean; message: string }>(`/tools/${toolName}/toggle`, null, {
     params: { enabled }
   });
+  return response.data;
+};
+
+export interface WebSearchConfig {
+  provider: string;
+  tavily_api_key?: string;
+  max_results: number;
+  search_depth: "basic" | "advanced";
+  include_answer: boolean;
+  timeout_seconds: number;
+  cache_ttl_minutes: number;
+}
+
+export interface WebSearchConfigResponse {
+  provider: string;
+  tavily_api_key?: string;
+  max_results: number;
+  search_depth: string;
+  include_answer: boolean;
+  timeout_seconds: number;
+  cache_ttl_minutes: number;
+}
+
+export const getWebSearchConfig = async (): Promise<WebSearchConfigResponse> => {
+  const response = await api.get<WebSearchConfigResponse>('/config/web-search');
+  return response.data;
+};
+
+export const setWebSearchConfig = async (config: WebSearchConfig): Promise<{ message: string }> => {
+  const response = await api.put<{ message: string }>('/config/web-search', config);
   return response.data;
 };
