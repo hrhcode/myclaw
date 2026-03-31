@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from app.core.database import get_db
 from app.dao.config_dao import ConfigDAO
-from app.schemas.schemas import ConfigCreate, ConfigUpdate, ConfigResponse, WebSearchConfig, WebSearchConfigResponse
+from app.schemas.schemas import ConfigCreate, ConfigUpdate, ConfigResponse, WebSearchConfig, WebSearchConfigResponse, BrowserConfig, BrowserConfigResponse
 from app.common.constants import (
     API_KEY_KEY,
     LLM_MODEL_KEY,
@@ -25,6 +25,17 @@ from app.common.constants import (
     WEB_SEARCH_INCLUDE_ANSWER_KEY,
     WEB_SEARCH_TIMEOUT_KEY,
     WEB_SEARCH_CACHE_TTL_KEY,
+    BROWSER_DEFAULT_TYPE_KEY,
+    BROWSER_HEADLESS_KEY,
+    BROWSER_VIEWPORT_WIDTH_KEY,
+    BROWSER_VIEWPORT_HEIGHT_KEY,
+    BROWSER_TIMEOUT_MS_KEY,
+    BROWSER_SSRF_ALLOW_PRIVATE_KEY,
+    BROWSER_SSRF_WHITELIST_KEY,
+    BROWSER_MAX_INSTANCES_KEY,
+    BROWSER_IDLE_TIMEOUT_MS_KEY,
+    BROWSER_USE_SYSTEM_BROWSER_KEY,
+    BROWSER_SYSTEM_BROWSER_CHANNEL_KEY,
 )
 import logging
 
@@ -119,17 +130,73 @@ async def update_web_search_config(
     logger.info("更新网络搜索配置")
 
     await ConfigDAO.upsert(db, WEB_SEARCH_PROVIDER_KEY, config.provider, "搜索引擎提供商")
-
     if config.tavily_api_key:
         await ConfigDAO.upsert(db, TAVILY_API_KEY_KEY, config.tavily_api_key, "Tavily API Key")
-
     await ConfigDAO.upsert(db, WEB_SEARCH_MAX_RESULTS_KEY, str(config.max_results), "最大搜索结果数")
     await ConfigDAO.upsert(db, WEB_SEARCH_DEPTH_KEY, config.search_depth, "搜索深度")
     await ConfigDAO.upsert(db, WEB_SEARCH_INCLUDE_ANSWER_KEY, str(config.include_answer).lower(), "是否包含AI答案")
     await ConfigDAO.upsert(db, WEB_SEARCH_TIMEOUT_KEY, str(config.timeout_seconds), "搜索超时时间")
     await ConfigDAO.upsert(db, WEB_SEARCH_CACHE_TTL_KEY, str(config.cache_ttl_minutes), "缓存过期时间")
-
     return {"message": "网络搜索配置已更新"}
+
+
+@router.get("/config/browser", response_model=BrowserConfigResponse)
+async def get_browser_config(db: AsyncSession = Depends(get_db)):
+    """
+    获取浏览器配置
+    """
+    logger.info("获取浏览器配置")
+    
+    default_type = await ConfigDAO.get_value(db, BROWSER_DEFAULT_TYPE_KEY)
+    headless_str = await ConfigDAO.get_value(db, BROWSER_HEADLESS_KEY)
+    viewport_width_str = await ConfigDAO.get_value(db, BROWSER_VIEWPORT_WIDTH_KEY)
+    viewport_height_str = await ConfigDAO.get_value(db, BROWSER_VIEWPORT_HEIGHT_KEY)
+    timeout_ms_str = await ConfigDAO.get_value(db, BROWSER_TIMEOUT_MS_KEY)
+    ssrf_allow_private_str = await ConfigDAO.get_value(db, BROWSER_SSRF_ALLOW_PRIVATE_KEY)
+    ssrf_whitelist = await ConfigDAO.get_value(db, BROWSER_SSRF_WHITELIST_KEY)
+    max_instances_str = await ConfigDAO.get_value(db, BROWSER_MAX_INSTANCES_KEY)
+    idle_timeout_ms_str = await ConfigDAO.get_value(db, BROWSER_IDLE_TIMEOUT_MS_KEY)
+    use_system_browser_str = await ConfigDAO.get_value(db, "browser_use_system_browser")
+    system_browser_channel = await ConfigDAO.get_value(db, "browser_system_browser_channel")
+    
+    return BrowserConfigResponse(
+        default_type=default_type or "chromium",
+        headless=headless_str.lower() == "true" if headless_str else False,
+        viewport_width=int(viewport_width_str) if viewport_width_str else 1280,
+        viewport_height=int(viewport_height_str) if viewport_height_str else 720,
+        timeout_ms=int(timeout_ms_str) if timeout_ms_str else 30000,
+        ssrf_allow_private=ssrf_allow_private_str.lower() == "true" if ssrf_allow_private_str else False,
+        ssrf_whitelist=ssrf_whitelist or "",
+        max_instances=int(max_instances_str) if max_instances_str else 1,
+        idle_timeout_ms=int(idle_timeout_ms_str) if idle_timeout_ms_str else 300000,
+        use_system_browser=use_system_browser_str.lower() == "true" if use_system_browser_str else True,
+        system_browser_channel=system_browser_channel or "chrome"
+    )
+
+
+@router.put("/config/browser")
+async def update_browser_config(
+    config: BrowserConfig,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    更新浏览器配置
+    """
+    logger.info("更新浏览器配置")
+    
+    await ConfigDAO.upsert(db, BROWSER_DEFAULT_TYPE_KEY, config.default_type, "默认浏览器类型")
+    await ConfigDAO.upsert(db, BROWSER_HEADLESS_KEY, str(config.headless).lower(), "是否无头模式")
+    await ConfigDAO.upsert(db, BROWSER_VIEWPORT_WIDTH_KEY, str(config.viewport_width), "视口宽度")
+    await ConfigDAO.upsert(db, BROWSER_VIEWPORT_HEIGHT_KEY, str(config.viewport_height), "视口高度")
+    await ConfigDAO.upsert(db, BROWSER_TIMEOUT_MS_KEY, str(config.timeout_ms), "超时时间（毫秒）")
+    await ConfigDAO.upsert(db, BROWSER_SSRF_ALLOW_PRIVATE_KEY, str(config.ssrf_allow_private).lower(), "是否允许访问内网")
+    await ConfigDAO.upsert(db, BROWSER_SSRF_WHITELIST_KEY, config.ssrf_whitelist, "URL 白名单")
+    await ConfigDAO.upsert(db, BROWSER_MAX_INSTANCES_KEY, str(config.max_instances), "最大浏览器实例数")
+    await ConfigDAO.upsert(db, BROWSER_IDLE_TIMEOUT_MS_KEY, str(config.idle_timeout_ms), "空闲超时时间（毫秒）")
+    await ConfigDAO.upsert(db, "browser_use_system_browser", str(config.use_system_browser).lower(), "是否使用系统浏览器")
+    await ConfigDAO.upsert(db, "browser_system_browser_channel", config.system_browser_channel, "系统浏览器 channel")
+
+    return {"message": "浏览器配置已更新"}
 
 
 @router.get("/config", response_model=list[ConfigResponse])

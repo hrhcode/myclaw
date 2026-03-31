@@ -11,6 +11,7 @@ from app.models.models import Config
 from app.schemas.schemas import ToolInfo, ToolListResponse, ToolConfigRequest, ToolConfigResponse
 from app.tools import tool_registry
 from app.common.config import get_config_value, set_config_value
+from app.common.constants import TOOL_ENABLED_PREFIX
 from typing import List
 import logging
 
@@ -98,7 +99,8 @@ async def update_tool_config(
 @router.put("/tools/{tool_name}/toggle")
 async def toggle_tool(
     tool_name: str,
-    enabled: bool
+    enabled: bool,
+    db: AsyncSession = Depends(get_db)
 ):
     """
     切换工具启用状态
@@ -114,6 +116,11 @@ async def toggle_tool(
     if not tool:
         raise HTTPException(status_code=404, detail=f"工具 '{tool_name}' 不存在")
     
+    # 持久化工具启用状态到数据库
+    config_key = f"{TOOL_ENABLED_PREFIX}{tool_name}"
+    await set_config_value(db, config_key, str(enabled).lower())
+    
+    # 更新内存中的工具状态
     tool.enabled = enabled
     logger.info(f"[工具状态] 工具 '{tool_name}' 已{'启用' if enabled else '禁用'}")
     

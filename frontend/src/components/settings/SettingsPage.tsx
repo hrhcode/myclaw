@@ -17,11 +17,14 @@ import {
   getConfig,
   setConfig,
   getWebSearchConfig,
-  setWebSearchConfig,
+  setWebSearchConfig as setWebSearchConfigApi,
+  getBrowserConfig,
+  setBrowserConfig as setBrowserConfigApi,
 } from "../../services/api";
 import type { Provider, Model } from "../../types";
-import type { WebSearchConfig } from "../../services/api";
+import type { WebSearchConfig, BrowserConfig } from "../../services/api";
 import WebSearchConfigPanel from "./WebSearchConfigPanel";
+import BrowserConfigPanel from "./BrowserConfigPanel";
 
 /**
  * Toast 通知组件 - 固定在屏幕中上角
@@ -80,8 +83,8 @@ const SettingsPage: React.FC = () => {
     text: string;
   } | null>(null);
 
-  const [webSearchConfig, setWebSearchConfig] = useState<WebSearchConfig>({
-    enabled: true,
+  const [webSearchConfig, setWebSearchConfigState] = useState<WebSearchConfig>({
+    enabled: false,
     provider: "tavily",
     tavily_api_key: "",
     brave_api_key: "",
@@ -96,6 +99,20 @@ const SettingsPage: React.FC = () => {
     tavily: false,
     brave: false,
     perplexity: false,
+  });
+
+  const [browserConfig, setBrowserConfigState] = useState<BrowserConfig>({
+    default_type: "chromium",
+    headless: false,
+    viewport_width: 1280,
+    viewport_height: 720,
+    timeout_ms: 30000,
+    ssrf_allow_private: false,
+    ssrf_whitelist: "",
+    max_instances: 1,
+    idle_timeout_ms: 300000,
+    use_system_browser: true,
+    system_browser_channel: "chrome",
   });
 
   const prevProviderRef = useRef<string>("");
@@ -228,7 +245,8 @@ const SettingsPage: React.FC = () => {
 
       try {
         const webSearchCfg = await getWebSearchConfig();
-        setWebSearchConfig({
+        // 使用函数式更新避免依赖旧的 state
+        const newWebSearchConfig = {
           enabled: webSearchCfg.enabled,
           provider: webSearchCfg.provider as WebSearchConfig["provider"],
           tavily_api_key: webSearchCfg.tavily_api_key || "",
@@ -240,7 +258,10 @@ const SettingsPage: React.FC = () => {
           include_answer: webSearchCfg.include_answer,
           timeout_seconds: webSearchCfg.timeout_seconds,
           cache_ttl_minutes: webSearchCfg.cache_ttl_minutes,
-        });
+        };
+        // 注意：这里不能直接调用 setWebSearchConfig，因为它被 useState 覆盖了
+        // 我们需要使用一个不同的变量名来存储状态设置函数
+        setWebSearchConfigState(newWebSearchConfig);
         setExistingWebSearchKeys({
           tavily: !!webSearchCfg.tavily_api_key,
           brave: !!webSearchCfg.brave_api_key,
@@ -248,6 +269,25 @@ const SettingsPage: React.FC = () => {
         });
       } catch (error) {
         console.error("Failed to load web search config:", error);
+      }
+
+      try {
+        const browserCfg = await getBrowserConfig();
+        setBrowserConfigState({
+          default_type: browserCfg.default_type,
+          headless: browserCfg.headless,
+          viewport_width: browserCfg.viewport_width,
+          viewport_height: browserCfg.viewport_height,
+          timeout_ms: browserCfg.timeout_ms,
+          ssrf_allow_private: browserCfg.ssrf_allow_private,
+          ssrf_whitelist: browserCfg.ssrf_whitelist,
+          max_instances: browserCfg.max_instances,
+          idle_timeout_ms: browserCfg.idle_timeout_ms,
+          use_system_browser: browserCfg.use_system_browser,
+          system_browser_channel: browserCfg.system_browser_channel,
+        });
+      } catch (error) {
+        console.error("Failed to load browser config:", error);
       }
     } catch (error) {
       console.error("Failed to load settings:", error);
@@ -344,10 +384,10 @@ const SettingsPage: React.FC = () => {
       ...webSearchConfig,
       [key]: value,
     };
-    setWebSearchConfig(newConfig);
+    setWebSearchConfigState(newConfig);
 
     try {
-      await setWebSearchConfig(newConfig);
+      await setWebSearchConfigApi(newConfig);
       showMessage("success", "网络搜索配置已保存");
     } catch (error) {
       console.error("Failed to save web search config:", error);
@@ -366,10 +406,10 @@ const SettingsPage: React.FC = () => {
       ...webSearchConfig,
       tavily_api_key: value,
     };
-    setWebSearchConfig(newConfig);
+    setWebSearchConfigState(newConfig);
 
     try {
-      await setWebSearchConfig(newConfig);
+      await setWebSearchConfigApi(newConfig);
       showMessage("success", "Tavily API Key 已保存");
       setExistingWebSearchKeys((prev) => ({
         ...prev,
@@ -379,6 +419,28 @@ const SettingsPage: React.FC = () => {
       console.error(`Failed to save tavily_api_key:`, error);
       showMessage("error", "保存 API Key 失败");
       throw error;
+    }
+  };
+
+  /**
+   * 处理浏览器配置变更（实时保存）
+   */
+  const handleBrowserConfigChange = async (
+    key: keyof BrowserConfig,
+    value: string | boolean | number,
+  ) => {
+    const newConfig = {
+      ...browserConfig,
+      [key]: value,
+    };
+    setBrowserConfigState(newConfig);
+
+    try {
+      await setBrowserConfigApi(newConfig);
+      showMessage("success", "浏览器配置已保存");
+    } catch (error) {
+      console.error("Failed to save browser config:", error);
+      showMessage("error", "保存浏览器配置失败");
     }
   };
 
@@ -669,6 +731,18 @@ const SettingsPage: React.FC = () => {
               onChange={handleWebSearchConfigChange}
               onSaveKey={handleSaveWebSearchKey}
               tavilyApiKeySet={existingWebSearchKeys.tavily}
+            />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="w-full mt-6"
+          >
+            <BrowserConfigPanel
+              config={browserConfig}
+              onChange={handleBrowserConfigChange}
             />
           </motion.div>
         </div>

@@ -337,3 +337,41 @@ export const setWebSearchConfig = async (config: WebSearchConfig): Promise<{ mes
   const response = await api.put<{ message: string }>('/config/web-search', config);
   return response.data;
 };
+
+export interface BrowserConfig {
+  default_type: string;
+  headless: boolean;
+  viewport_width: number;
+  viewport_height: number;
+  timeout_ms: number;
+  ssrf_allow_private: boolean;
+  ssrf_whitelist: string;
+  max_instances: number;
+  idle_timeout_ms: number;
+  use_system_browser: boolean;
+  system_browser_channel: string;
+}
+
+export interface BrowserConfigResponse {
+  default_type: string;
+  headless: boolean;
+  viewport_width: number;
+  viewport_height: number;
+  timeout_ms: number;
+  ssrf_allow_private: boolean;
+  ssrf_whitelist: string;
+  max_instances: number;
+  idle_timeout_ms: number;
+  use_system_browser: boolean;
+  system_browser_channel: string;
+}
+
+export const getBrowserConfig = async (): Promise<BrowserConfigResponse> => {
+  const response = await api.get<BrowserConfigResponse>('/config/browser');
+  return response.data;
+};
+
+export const setBrowserConfig = async (config: BrowserConfig): Promise<{ message: string }> => {
+  const response = await api.put<{ message: string }>('/config/browser', config);
+  return response.data;
+};

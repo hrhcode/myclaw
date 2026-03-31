@@ -12,6 +12,8 @@ An intelligent conversational AI assistant based on GLM-4.7-Flash, featuring sem
 - 🚀 **Modern Chat UI** - Clean and responsive interface with streaming output
 - 🧠 **Semantic Memory Search** - Vector-based hybrid search for messages and long-term memories
 - 💾 **Long-term Memory Management** - Store and retrieve important information persistently
+- 🔧 **Tool System** - Dynamic tool registration and execution
+- 🖥️ **Browser Automation** - Support for browser startup, navigation, screenshots, and clicks
 - 📊 **Real-time Log Monitoring** - WebSocket-based live log streaming with history view
 - 🌙 **Dark Mode** - Full dark theme support
 - 💬 **Conversation Management** - Create, switch, and delete conversations
@@ -54,14 +56,24 @@ myclaw/
 │   │   │   ├── memory.py          # Memory search & long-term memory
 │   │   │   ├── config.py          # Configuration management
 │   │   │   └── logs.py            # Log streaming
+│   │   │
 │   │   ├── services/              # Business logic
-│   │   ├── models.py              # SQLAlchemy models
-│   │   ├── schemas.py             # Pydantic schemas
-│   │   ├── database.py            # Database configuration
-│   │   ├── llm_service.py         # LLM integration
-│   │   ├── vector_search_service.py # Vector search
+│   │   ├── dao/                  # Data access layer
+│   │   ├── models/               # ORM models
+│   │   ├── schemas/              # Pydantic schemas
+│   │   ├── tools/                # Tool system
+│   │   │   ├── registry.py        # Tool registry
+│   │   │   ├── executor.py        # Tool executor
+│   │   │   ├── base.py            # Tool base class
+│   │   │   ├── schemas.py        # Tool schemas
+│   │   │   └── builtin/           # Built-in tools
+│   │   │       ├── time_tool.py   # Get current time
+│   │   │       ├── browser_tool.py # Browser automation tool
+│   │   │       └── web_search_tool.py # Web search tool
+│   │   ├── common/               # Common components
+│   │   ├── utils/                # Utility functions
+│   │   ├── core/                 # Core configuration
 │   │   └── main.py                # Application entry
-│   └── requirements.txt
 │
 ├── start_all.ps1                  # One-click start script (Windows)
 └── README.md
@@ -183,6 +195,26 @@ The application supports advanced memory search capabilities:
   - `vector_weight` / `text_weight`: Hybrid search weights
   - `mmr_lambda`: MMR balance parameter
   - `half_life_days`: Temporal decay half-life
+
+## 🔧 Tool System
+
+The tool system uses a registry pattern for dynamic tool registration and management:
+
+- **Register Tools**: Register new tools through `ToolRegistry`
+- **Execute Tools**: Execute tool calls through `ToolExecutor`
+- **Built-in Tools**:
+  - `get_current_time` - Get current time
+  - `browser_start` - Start browser
+  - `browser_navigate` - Navigate to URL
+  - `browser_snapshot` - Get page snapshot
+  - `browser_screenshot` - Take page or element screenshot
+  - `browser_click` - Click page element
+  - `browser_type` - Type text in element
+  - `browser_hover` - Hover over page element
+  - `browser_wait` - Wait for condition
+  - `browser_stop` - Stop browser
+  - `web_search` - Web search
+- **Tool Filtering**: Support allow/deny lists to control available tools
 
 ## 📝 Development
 

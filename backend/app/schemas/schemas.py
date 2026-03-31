@@ -264,3 +264,33 @@ class WebSearchConfigResponse(BaseModel):
     include_answer: bool
     timeout_seconds: int
     cache_ttl_minutes: int
+
+
+class BrowserConfig(BaseModel):
+    """浏览器配置"""
+    default_type: str = "chromium"
+    headless: bool = False
+    viewport_width: int = 1280
+    viewport_height: int = 720
+    timeout_ms: int = 30000
+    ssrf_allow_private: bool = False
+    ssrf_whitelist: str = ""
+    max_instances: int = 1
+    idle_timeout_ms: int = 300000
+    use_system_browser: bool = True
+    system_browser_channel: str = "chrome"
+
+
+class BrowserConfigResponse(BaseModel):
+    """浏览器配置响应"""
+    default_type: str
+    headless: bool
+    viewport_width: int
+    viewport_height: int
+    timeout_ms: int
+    ssrf_allow_private: bool
+    ssrf_whitelist: str
+    max_instances: int
+    idle_timeout_ms: int
+    use_system_browser: bool
+    system_browser_channel: str

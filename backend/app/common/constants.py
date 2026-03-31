@@ -20,6 +20,23 @@ WEB_SEARCH_INCLUDE_ANSWER_KEY = "web_search_include_answer"
 WEB_SEARCH_TIMEOUT_KEY = "web_search_timeout"
 WEB_SEARCH_CACHE_TTL_KEY = "web_search_cache_ttl"
 
+# 浏览器配置键
+BROWSER_ENABLED_KEY = "browser_enabled"
+BROWSER_DEFAULT_TYPE_KEY = "browser_default_type"
+BROWSER_HEADLESS_KEY = "browser_headless"
+BROWSER_VIEWPORT_WIDTH_KEY = "browser_viewport_width"
+BROWSER_VIEWPORT_HEIGHT_KEY = "browser_viewport_height"
+BROWSER_TIMEOUT_MS_KEY = "browser_timeout_ms"
+BROWSER_SSRF_ALLOW_PRIVATE_KEY = "browser_ssrf_allow_private"
+BROWSER_SSRF_WHITELIST_KEY = "browser_ssrf_whitelist"
+BROWSER_MAX_INSTANCES_KEY = "browser_max_instances"
+BROWSER_IDLE_TIMEOUT_MS_KEY = "browser_idle_timeout_ms"
+BROWSER_USE_SYSTEM_BROWSER_KEY = "browser_use_system_browser"
+BROWSER_SYSTEM_BROWSER_CHANNEL_KEY = "browser_system_browser_channel"
+
+# 工具启用状态配置键
+TOOL_ENABLED_PREFIX = "tool_enabled_"
+
 # LLM提供商配置
 PROVIDERS = {
     "zhipu": {

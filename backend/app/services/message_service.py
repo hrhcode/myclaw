@@ -154,6 +154,37 @@ class MessageService:
                 else:
                     logger.warning(f"[MessageService]   ✗ Tavily API Key 未配置")
 
+            if tool_name.startswith("browser_"):
+                from app.common.constants import (
+                    BROWSER_DEFAULT_TYPE_KEY,
+                    BROWSER_HEADLESS_KEY,
+                    BROWSER_VIEWPORT_WIDTH_KEY,
+                    BROWSER_VIEWPORT_HEIGHT_KEY,
+                    BROWSER_TIMEOUT_MS_KEY,
+                    BROWSER_SSRF_ALLOW_PRIVATE_KEY,
+                    BROWSER_SSRF_WHITELIST_KEY,
+                    BROWSER_MAX_INSTANCES_KEY,
+                    BROWSER_IDLE_TIMEOUT_MS_KEY,
+                    BROWSER_USE_SYSTEM_BROWSER_KEY,
+                    BROWSER_SYSTEM_BROWSER_CHANNEL_KEY,
+                )
+
+                config = {}
+                config["default_type"] = await get_config_value(db, BROWSER_DEFAULT_TYPE_KEY) or "chromium"
+                config["headless"] = (await get_config_value(db, BROWSER_HEADLESS_KEY) or "false").lower() == "true"
+                config["viewport_width"] = int(await get_config_value(db, BROWSER_VIEWPORT_WIDTH_KEY) or "1280")
+                config["viewport_height"] = int(await get_config_value(db, BROWSER_VIEWPORT_HEIGHT_KEY) or "720")
+                config["timeout_ms"] = int(await get_config_value(db, BROWSER_TIMEOUT_MS_KEY) or "30000")
+                config["ssrf_allow_private"] = (await get_config_value(db, BROWSER_SSRF_ALLOW_PRIVATE_KEY) or "false").lower() == "true"
+                config["ssrf_whitelist"] = await get_config_value(db, BROWSER_SSRF_WHITELIST_KEY) or ""
+                config["max_instances"] = int(await get_config_value(db, BROWSER_MAX_INSTANCES_KEY) or "1")
+                config["idle_timeout_ms"] = int(await get_config_value(db, BROWSER_IDLE_TIMEOUT_MS_KEY) or "300000")
+                config["use_system_browser"] = (await get_config_value(db, BROWSER_USE_SYSTEM_BROWSER_KEY) or "true").lower() == "true"
+                config["system_browser_channel"] = await get_config_value(db, BROWSER_SYSTEM_BROWSER_CHANNEL_KEY) or "chrome"
+
+                arguments["_config"] = config
+                logger.info(f"[MessageService]   ✓ 已获取浏览器配置注入")
+
             safe_args = {}
             for k, v in arguments.items():
                 if "key" in k.lower() or "token" in k.lower():

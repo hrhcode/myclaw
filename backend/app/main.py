@@ -1,3 +1,10 @@
+import sys
+import asyncio
+
+# Windows 系统需要设置事件循环策略以支持子进程
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import chat, history, config, memory, logs, tools
@@ -51,12 +58,15 @@ async def ensure_default_conversation():
 async def startup_event():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-
+    
     await setup_log_handlers()
-
+    
     await ensure_default_conversation()
-
-    register_all_builtin_tools(tool_registry)
+    
+    # 注册内置工具，传递数据库会话以加载工具启用状态
+    async with AsyncSessionLocal() as db:
+        await register_all_builtin_tools(tool_registry, db)
+    
     logger.info(f"已注册 {len(tool_registry.list_tools())} 个内置工具")
 
     logger.info("=" * 50)
