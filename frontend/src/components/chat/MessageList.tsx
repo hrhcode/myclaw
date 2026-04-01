@@ -1,6 +1,6 @@
-﻿import { motion } from 'framer-motion';
-import ReactMarkdown from 'react-markdown';
-import type { Components } from 'react-markdown';
+﻿﻿import { motion } from "framer-motion";
+import ReactMarkdown from "react-markdown";
+import type { Components } from "react-markdown";
 import {
   Bot,
   Loader2,
@@ -10,22 +10,33 @@ import {
   Wrench,
   AlertTriangle,
   CheckCircle2,
-} from 'lucide-react';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import type { AgentTraceEvent, Message } from '../../types';
-import CodeBlock from './CodeBlock';
+} from "lucide-react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import type { AgentTraceEvent, Message } from "../../types";
+import CodeBlock from "./CodeBlock";
 
 interface MessageListProps {
   messages: Message[];
 }
 
-const MessageAvatar = React.memo(({ role }: { role: 'user' | 'assistant' }) => (
-  <div className={`message-avatar ${role === 'user' ? 'is-user' : 'is-assistant'}`}>
-    {role === 'user' ? <User size={16} style={{ color: 'var(--text-primary)' }} /> : <Bot size={16} className="text-primary" />}
+interface TraceDisplayItem {
+  event: AgentTraceEvent;
+  linkedToolResultContent?: string;
+}
+
+const MessageAvatar = React.memo(({ role }: { role: "user" | "assistant" }) => (
+  <div
+    className={`message-avatar ${role === "user" ? "is-user" : "is-assistant"}`}
+  >
+    {role === "user" ? (
+      <User size={16} style={{ color: "var(--text-primary)" }} />
+    ) : (
+      <Bot size={16} className="text-primary" />
+    )}
   </div>
 ));
 
-MessageAvatar.displayName = 'MessageAvatar';
+MessageAvatar.displayName = "MessageAvatar";
 
 const TypingIndicator: React.FC = () => (
   <div className="typing-indicator">
@@ -45,16 +56,23 @@ const EmptyState: React.FC = () => (
     <div className="chat-empty-state">
       <motion.div
         animate={{ scale: [1, 1.04, 1] }}
-        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
         className="chat-empty-icon"
       >
         <Sparkles size={40} className="text-primary" />
       </motion.div>
-      <h3 className="text-xl font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+      <h3
+        className="text-xl font-semibold mb-2"
+        style={{ color: "var(--text-primary)" }}
+      >
         开始一段新的对话
       </h3>
-      <p className="text-sm max-w-xs mx-auto" style={{ color: 'var(--text-muted)' }}>
-        这里适合研究、编码、分析和多步骤推理。AI 的回复与执行轨迹会保持清晰、克制地展开。
+      <p
+        className="text-sm max-w-xs mx-auto"
+        style={{ color: "var(--text-muted)" }}
+      >
+        这里适合研究、编码、分析和多步骤推理。AI
+        的回复与执行轨迹会保持清晰、克制地展开。
       </p>
     </div>
   </motion.div>
@@ -62,7 +80,7 @@ const EmptyState: React.FC = () => (
 
 const tryFormatJson = (value?: string) => {
   if (!value) {
-    return '';
+    return "";
   }
 
   try {
@@ -89,16 +107,92 @@ const parseToolResult = (value?: string) => {
   }
 };
 
+const isPostToolReflection = (event: AgentTraceEvent) =>
+  event.type === "reasoning" && event.payload.phase === "post_tool_reflection";
+
+const normalizePostToolReflectionContent = (content: string) =>
+  content.replace(/^\s*关键信息[：:]\s*/gm, "");
+
+const buildTraceDisplayItems = (
+  events: AgentTraceEvent[] = [],
+): TraceDisplayItem[] => {
+  const consumedToolResultIndexes = new Set<number>();
+  const items: TraceDisplayItem[] = [];
+
+  for (let index = 0; index < events.length; index += 1) {
+    const event = events[index];
+
+    if (event.type === "tool_result" && consumedToolResultIndexes.has(index)) {
+      continue;
+    }
+
+    if (event.type === "tool_call") {
+      const matchedIndex = events.findIndex(
+        (candidate, candidateIndex) =>
+          candidateIndex > index &&
+          !consumedToolResultIndexes.has(candidateIndex) &&
+          candidate.type === "tool_result" &&
+          candidate.payload.tool_call_id &&
+          candidate.payload.tool_call_id === event.payload.tool_call_id,
+      );
+
+      if (matchedIndex !== -1) {
+        consumedToolResultIndexes.add(matchedIndex);
+        items.push({
+          event,
+          linkedToolResultContent: events[matchedIndex].payload.content,
+        });
+        continue;
+      }
+    }
+
+    items.push({ event });
+  }
+
+  return items;
+};
+
+const AssistantMarkdownBody: React.FC<{ content: string }> = ({ content }) => (
+  <div className="prose prose-sm max-w-none assistant-prose">
+    <ReactMarkdown
+      components={
+        {
+          pre({ children }) {
+            return <>{children}</>;
+          },
+          code({ className, children, ...props }) {
+            const match = /language-(\w+)/.exec(className || "");
+            const language = match ? match[1] : "";
+            const value = String(children).replace(/\n$/, "");
+
+            if (language) {
+              return <CodeBlock language={language} value={value} />;
+            }
+
+            return (
+              <code className={className} {...props}>
+                {children}
+              </code>
+            );
+          },
+        } satisfies Components
+      }
+    >
+      {content}
+    </ReactMarkdown>
+  </div>
+);
+
 const shouldExpandTraceEventByDefault = (event: AgentTraceEvent) => {
-  if (event.type === 'reasoning') {
+  if (event.type === "reasoning") {
     return true;
   }
 
-  if (event.type === 'tool_call') {
+  if (event.type === "tool_call") {
     return false;
   }
 
-  if (event.type === 'tool_result') {
+  if (event.type === "tool_result") {
     const result = parseToolResult(event.payload.content);
     return result?.success === false;
   }
@@ -106,35 +200,52 @@ const shouldExpandTraceEventByDefault = (event: AgentTraceEvent) => {
   return true;
 };
 
-const TraceEventCard: React.FC<{ event: AgentTraceEvent }> = ({ event }) => {
-  const [expanded, setExpanded] = useState(() => shouldExpandTraceEventByDefault(event));
-  const resultData = event.type === 'tool_result' ? parseToolResult(event.payload.content) : null;
+const TraceEventCard: React.FC<{
+  event: AgentTraceEvent;
+  linkedToolResultContent?: string;
+}> = ({ event, linkedToolResultContent }) => {
+  const [expanded, setExpanded] = useState(() =>
+    shouldExpandTraceEventByDefault(event),
+  );
+  const resultData =
+    event.type === "tool_result"
+      ? parseToolResult(event.payload.content)
+      : null;
+  const linkedResultData = linkedToolResultContent
+    ? parseToolResult(linkedToolResultContent)
+    : null;
 
   const meta = {
     reasoning: {
       icon: <Search size={14} className="text-primary" />,
-      label: '思考',
-      accent: 'rgba(59, 130, 246, 0.08)',
+      label: "思考",
+      accent: "rgba(59, 130, 246, 0.08)",
     },
     tool_call: {
       icon: <Wrench size={14} className="text-primary" />,
-      label: event.payload.tool_name || '工具调用',
-      accent: 'rgba(14, 165, 233, 0.06)',
+      label: event.payload.tool_name || "工具调用",
+      accent: "rgba(14, 165, 233, 0.06)",
     },
     tool_result: {
-      icon: resultData?.success ? <CheckCircle2 size={14} className="text-emerald-500" /> : <Loader2 size={14} className="text-primary" />,
-      label: '工具结果',
-      accent: resultData?.success ? 'rgba(16, 185, 129, 0.06)' : 'rgba(249, 115, 22, 0.08)',
+      icon: resultData?.success ? (
+        <CheckCircle2 size={14} className="text-emerald-500" />
+      ) : (
+        <Loader2 size={14} className="text-primary" />
+      ),
+      label: "工具结果",
+      accent: resultData?.success
+        ? "rgba(16, 185, 129, 0.06)"
+        : "rgba(249, 115, 22, 0.08)",
     },
     progress_warning: {
       icon: <AlertTriangle size={14} className="text-amber-500" />,
-      label: '进度提醒',
-      accent: 'rgba(245, 158, 11, 0.08)',
+      label: "进度提醒",
+      accent: "rgba(245, 158, 11, 0.08)",
     },
     loop_warning: {
       icon: <AlertTriangle size={14} className="text-rose-500" />,
-      label: '循环提醒',
-      accent: 'rgba(244, 63, 94, 0.08)',
+      label: "循环提醒",
+      accent: "rgba(244, 63, 94, 0.08)",
     },
   }[event.type];
 
@@ -151,57 +262,85 @@ const TraceEventCard: React.FC<{ event: AgentTraceEvent }> = ({ event }) => {
         className="w-full flex items-center justify-between px-4 py-3 text-left"
       >
         <div className="flex items-center gap-3 min-w-0">
-          <div className="trace-event-icon">
-            {meta.icon}
-          </div>
+          <div className="trace-event-icon">{meta.icon}</div>
           <div className="min-w-0">
-            <div className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+            <div
+              className="text-sm font-medium truncate"
+              style={{ color: "var(--text-primary)" }}
+            >
               {meta.label}
             </div>
-            <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
-              {event.type === 'tool_call' && event.payload.arguments
-                ? tryFormatJson(event.payload.arguments)
-                : event.type === 'tool_result'
+            <div
+              className="text-xs truncate"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {event.type === "tool_call" && event.payload.arguments
+                ? linkedResultData
+                  ? linkedResultData.success
+                    ? "工具执行成功"
+                    : linkedResultData.error || "工具执行失败"
+                  : tryFormatJson(event.payload.arguments)
+                : event.type === "tool_result"
                   ? resultData?.success
-                    ? '工具执行成功'
-                    : resultData?.error || '等待工具输出'
-                  : event.payload.message || event.payload.content || '执行活动'}
+                    ? "工具执行成功"
+                    : resultData?.error || "等待工具输出"
+                  : event.payload.message ||
+                    event.payload.content ||
+                    "执行活动"}
             </div>
           </div>
         </div>
-        <span className="trace-event-toggle">{expanded ? '收起' : '展开'}</span>
+        <span className="trace-event-toggle">{expanded ? "收起" : "展开"}</span>
       </button>
 
       {expanded && (
         <div className="px-4 pb-4 space-y-3">
-          {event.type === 'reasoning' && (
+          {event.type === "reasoning" && (
             <div className="trace-event-content trace-event-reasoning">
-              {event.payload.content || 'No reasoning text captured.'}
+              {event.payload.content || "No reasoning text captured."}
             </div>
           )}
 
-          {event.type === 'tool_call' && (
-            <pre className="trace-event-content text-xs overflow-x-auto">
-              {tryFormatJson(event.payload.arguments || '{}')}
-            </pre>
+          {event.type === "tool_call" && (
+            <>
+              <pre className="trace-event-content text-xs overflow-x-auto">
+                {tryFormatJson(event.payload.arguments || "{}")}
+              </pre>
+              {linkedResultData ? (
+                <>
+                  {linkedResultData.execution_time_ms ? (
+                    <div
+                      className="text-xs"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      执行耗时：{linkedResultData.execution_time_ms} ms
+                    </div>
+                  ) : null}
+                  <pre className="trace-event-content text-xs overflow-x-auto max-h-80">
+                    {tryFormatJson(linkedToolResultContent || "")}
+                  </pre>
+                </>
+              ) : null}
+            </>
           )}
 
-          {event.type === 'tool_result' && (
+          {event.type === "tool_result" && (
             <>
               {resultData?.execution_time_ms ? (
-                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                <div className="text-xs" style={{ color: "var(--text-muted)" }}>
                   执行耗时：{resultData.execution_time_ms} ms
                 </div>
               ) : null}
               <pre className="trace-event-content text-xs overflow-x-auto max-h-80">
-                {tryFormatJson(event.payload.content || '')}
+                {tryFormatJson(event.payload.content || "")}
               </pre>
             </>
           )}
 
-          {(event.type === 'progress_warning' || event.type === 'loop_warning') && (
+          {(event.type === "progress_warning" ||
+            event.type === "loop_warning") && (
             <div className="trace-event-content text-sm whitespace-pre-wrap">
-              {event.payload.message || '检测到进展停滞后，AI 已调整执行策略。'}
+              {event.payload.message || "检测到进展停滞后，AI 已调整执行策略。"}
             </div>
           )}
         </div>
@@ -216,7 +355,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const isInitialLoad = useRef(true);
 
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     messagesEndRef.current?.scrollIntoView({ behavior });
   }, []);
 
@@ -234,7 +373,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
   useEffect(() => {
     if (messages.length > 0 && isInitialLoad.current) {
       setTimeout(() => {
-        scrollToBottom('instant');
+        scrollToBottom("instant");
         isInitialLoad.current = false;
       }, 100);
     }
@@ -242,7 +381,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
 
   useEffect(() => {
     if (shouldAutoScroll && messages.length > 0) {
-      scrollToBottom('smooth');
+      scrollToBottom("smooth");
     }
   }, [messages, shouldAutoScroll, scrollToBottom]);
 
@@ -257,27 +396,53 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-            className={`message-row ${message.role === 'user' ? 'is-user' : 'is-assistant'}`}
+            className={`message-row ${message.role === "user" ? "is-user" : "is-assistant"}`}
           >
-            <div className={`message-shell ${message.role === 'user' ? 'is-user' : 'is-assistant'}`}>
+            <div
+              className={`message-shell ${message.role === "user" ? "is-user" : "is-assistant"}`}
+            >
               <div className="message-meta">
                 <div className="message-meta-main">
                   <MessageAvatar role={message.role} />
-                  <span className="message-role-label">{message.role === 'user' ? '你' : 'AI'}</span>
+                  <span className="message-role-label">
+                    {message.role === "user" ? "你" : "AI"}
+                  </span>
                 </div>
                 <span className="message-time">
-                  {new Date(message.created_at).toLocaleTimeString('zh-CN', {
-                    hour: '2-digit',
-                    minute: '2-digit',
+                  {new Date(message.created_at).toLocaleTimeString("zh-CN", {
+                    hour: "2-digit",
+                    minute: "2-digit",
                   })}
                 </span>
               </div>
 
-              <div className={`message-bubble ${message.role === 'user' ? 'message-user' : 'message-ai'}`}>
-                {message.role === 'assistant' && (
+              <div
+                className={`message-bubble ${message.role === "user" ? "message-user" : "message-ai"}`}
+              >
+                {message.role === "assistant" && (
                   <div className="trace-inline-list">
-                    {(message.traceEvents || []).map((event) => <TraceEventCard key={event.id} event={event} />)}
-                    {message.isStreaming && (message.traceEvents?.length || 0) === 0 ? (
+                    {buildTraceDisplayItems(message.traceEvents || []).map(
+                      (item) =>
+                        isPostToolReflection(item.event) ? (
+                          <AssistantMarkdownBody
+                            key={item.event.id}
+                            content={normalizePostToolReflectionContent(
+                              item.event.payload.content || "",
+                            )}
+                          />
+                        ) : (
+                          <TraceEventCard
+                            key={item.event.id}
+                            event={item.event}
+                            linkedToolResultContent={
+                              item.linkedToolResultContent
+                            }
+                          />
+                        ),
+                    )}
+                    {message.isStreaming &&
+                    (buildTraceDisplayItems(message.traceEvents || []).length ||
+                      0) === 0 ? (
                       <div className="trace-inline-pending">
                         <Loader2 size={14} className="animate-spin" />
                         <span>AI 正在准备执行步骤…</span>
@@ -286,34 +451,13 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                   </div>
                 )}
 
-                {message.content === '' ? (
+                {message.content === "" ? (
                   <TypingIndicator />
+                ) : message.role === "assistant" ? (
+                  <AssistantMarkdownBody content={message.content} />
                 ) : (
-                  <div className={`prose prose-sm max-w-none ${message.role === 'assistant' ? 'assistant-prose' : ''}`}>
-                    <ReactMarkdown
-                      components={{
-                        pre({ children }) {
-                          return <>{children}</>;
-                        },
-                        code({ className, children, ...props }) {
-                          const match = /language-(\w+)/.exec(className || '');
-                          const language = match ? match[1] : '';
-                          const value = String(children).replace(/\n$/, '');
-
-                          if (language) {
-                            return <CodeBlock language={language} value={value} />;
-                          }
-
-                          return (
-                            <code className={className} {...props}>
-                              {children}
-                            </code>
-                          );
-                        },
-                      } satisfies Components}
-                    >
-                      {message.content}
-                    </ReactMarkdown>
+                  <div className="prose prose-sm max-w-none">
+                    <ReactMarkdown>{message.content}</ReactMarkdown>
                   </div>
                 )}
               </div>

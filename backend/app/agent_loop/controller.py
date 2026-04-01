@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import hashlib
 import json
@@ -103,6 +103,8 @@ class AgentLoopController:
             current_tool_calls: List[Dict[str, Any]] = []
             current_content = ""
             current_reasoning = ""
+            reasoning_for_assistant_turn = ""
+            reasoning_emitted = False
             saw_tool_calls = False
 
             if tools is None:
@@ -163,6 +165,7 @@ class AgentLoopController:
                 elif chunk_type == "reasoning":
                     reasoning = chunk.get("content", "")
                     if reasoning:
+                        reasoning_emitted = True
                         current_reasoning += reasoning
                         yield await self._emit_event(
                             db,
@@ -182,6 +185,7 @@ class AgentLoopController:
                         saw_tool_calls = True
                         state.tool_calls_info.extend(current_tool_calls)
                         if current_reasoning.strip():
+                            reasoning_for_assistant_turn = current_reasoning.strip()
                             await self._persist_trace_event(
                                 db,
                                 state,
@@ -211,6 +215,8 @@ class AgentLoopController:
                             )
 
             if current_reasoning.strip():
+                if not reasoning_for_assistant_turn:
+                    reasoning_for_assistant_turn = current_reasoning.strip()
                 await self._persist_trace_event(
                     db,
                     state,
@@ -225,7 +231,13 @@ class AgentLoopController:
                 state.stop_reason = "final_answer"
                 break
 
-            state.messages.append(self._build_assistant_tool_message(current_content, current_tool_calls))
+            state.messages.append(
+                self._build_assistant_tool_message(
+                    current_content,
+                    current_tool_calls,
+                    reasoning_for_assistant_turn,
+                )
+            )
             state.final_answer = ""
 
             tool_results = await self.message_service.process_tool_calls(
@@ -283,6 +295,28 @@ class AgentLoopController:
                         "content": sanitized_content,
                     }
                 )
+
+            if not reasoning_emitted:
+                post_tool_reasoning = await self._generate_post_tool_reasoning(
+                    llm=llm,
+                    state=state,
+                    model=model,
+                )
+                if post_tool_reasoning:
+                    yield await self._emit_event(
+                        db,
+                        state,
+                        {
+                            "type": "reasoning",
+                            "content": post_tool_reasoning,
+                            "conversation_id": conversation_id,
+                            "run_id": state.run_id,
+                            "iteration": state.iteration,
+                            "phase": "post_tool_reflection",
+                        },
+                        persist=True,
+                        event_type="reasoning",
+                    )
 
             progress_hint = self._assess_progress(state)
             if progress_hint:
@@ -413,8 +447,9 @@ class AgentLoopController:
         self,
         content: str,
         tool_calls: List[Dict[str, Any]],
+        reasoning_content: str = "",
     ) -> Dict[str, Any]:
-        return {
+        message = {
             "role": "assistant",
             "content": content or None,
             "tool_calls": [
@@ -429,6 +464,9 @@ class AgentLoopController:
                 for tool_call in tool_calls
             ],
         }
+        if reasoning_content:
+            message["reasoning_content"] = reasoning_content
+        return message
 
     def _assess_progress(self, state: AgentRunState) -> Optional[Dict[str, Any]]:
         if not state.tool_history:
@@ -688,3 +726,44 @@ class AgentLoopController:
             sequence=state.event_sequence,
             message_id=None,
         )
+
+    async def _generate_post_tool_reasoning(
+        self,
+        llm: Any,
+        state: AgentRunState,
+        model: Optional[str],
+    ) -> str:
+        if not state.tool_history:
+            return ""
+
+        latest = state.tool_history[-1]
+        tool_result_preview = self._truncate_text(latest.sanitized_content, 420)
+        prompt = (
+            f"用户目标：{self._truncate_text(state.user_message, 180)}\n"
+            f"最近工具：{latest.tool_name}\n"
+            f"是否成功：{'是' if latest.success else '否'}\n"
+            f"工具输出：{tool_result_preview}\n"
+            "请输出一段简短思考，包含：1) 这次工具执行得到的关键信息；"
+            "2) 下一步打算。不要给最终答案，不要使用 Markdown，控制在 120 字以内。"
+        )
+        messages = [
+            {
+                "role": "system",
+                "content": "你是多步工具代理的内部思考器，只输出简短思考文本。",
+            },
+            {"role": "user", "content": prompt},
+        ]
+
+        chunks: List[str] = []
+        try:
+            async for content in llm.chat_stream(
+                messages=messages,
+                model=model,
+                thinking=False,
+            ):
+                if content:
+                    chunks.append(content)
+            return self._truncate_text("".join(chunks).strip(), 300)
+        except Exception:
+            logger.exception("[agent_loop] 生成工具后思考摘要失败")
+            return ""

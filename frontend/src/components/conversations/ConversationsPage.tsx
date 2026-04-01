@@ -227,7 +227,9 @@ const ConversationsPage: React.FC = () => {
     setIsLoading(true);
     try {
       const statsResponse = await getConversationStats();
-      const statsMap = new Map(statsResponse.map((item) => [item.conversation_id, item]));
+      const statsMap = new Map(
+        statsResponse.map((item) => [item.conversation_id, item]),
+      );
       const stats = conversations.map((conv) => {
         const item = statsMap.get(conv.id);
         const lastMessage =
@@ -311,13 +313,13 @@ const ConversationsPage: React.FC = () => {
    */
   const handleDelete = async () => {
     if (deleteTarget === null) return;
-    
+
     if (conversations.length <= 1) {
       alert("无法删除最后一个会话，系统至少需要保留一个会话");
       setDeleteTarget(null);
       return;
     }
-    
+
     try {
       await removeConversation(deleteTarget);
       setDeleteTarget(null);
