@@ -324,7 +324,18 @@ npm run dev
 
 - **注册工具**: 通过 `ToolRegistry` 注册新工具
 - **执行工具**: 通过 `ToolExecutor` 执行工具调用
-- **内置工具**: `get_current_time` - 获取当前时间
+- **内置工具**:
+  - `get_current_time` - 获取当前时间
+  - `browser_start` - 启动浏览器
+  - `browser_navigate` - 导航到指定 URL
+  - `browser_snapshot` - 获取页面快照
+  - `browser_screenshot` - 截图页面或元素
+  - `browser_click` - 点击页面元素
+  - `browser_type` - 在元素中输入文本
+  - `browser_hover` - 悬停页面元素
+  - `browser_wait` - 等待条件满足
+  - `browser_stop` - 停止浏览器
+  - `web_search` - 网络搜索
 - **工具过滤**: 支持 allow/deny 列表控制可用工具
 
 ## 📝 开发

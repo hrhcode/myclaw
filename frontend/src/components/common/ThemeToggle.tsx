@@ -1,11 +1,8 @@
-import { motion, AnimatePresence } from "framer-motion";
-import { Sun, Moon } from "lucide-react";
-import { useTheme } from "../../contexts/ThemeContext";
-import { useState } from "react";
+import { AnimatePresence, motion } from 'framer-motion';
+import { Moon, Sun } from 'lucide-react';
+import { useState } from 'react';
+import { useTheme } from '../../contexts/ThemeContext';
 
-/**
- * 主题切换按钮组件 - 只显示图标，带tooltip
- */
 const ThemeToggle: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const [showTooltip, setShowTooltip] = useState(false);
@@ -14,24 +11,24 @@ const ThemeToggle: React.FC = () => {
     <div className="relative">
       <motion.button
         onClick={toggleTheme}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
+        whileHover={{ scale: 1.04 }}
+        whileTap={{ scale: 0.96 }}
         onMouseEnter={() => setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}
-        className="w-10 h-10 flex items-center justify-center rounded-xl glass transition-colors"
-        style={{ color: "var(--text-secondary)" }}
-        aria-label={`切换到${theme === "dark" ? "浅色" : "深色"}模式`}
+        className="theme-toggle-button"
+        style={{ color: 'var(--text-secondary)' }}
+        aria-label={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
       >
         <AnimatePresence mode="wait">
-          {theme === "dark" ? (
+          {theme === 'dark' ? (
             <motion.div
               key="moon"
               initial={{ rotate: -90, opacity: 0 }}
               animate={{ rotate: 0, opacity: 1 }}
               exit={{ rotate: 90, opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: 0.18 }}
             >
-              <Moon size={20} />
+              <Moon size={18} />
             </motion.div>
           ) : (
             <motion.div
@@ -39,9 +36,9 @@ const ThemeToggle: React.FC = () => {
               initial={{ rotate: 90, opacity: 0 }}
               animate={{ rotate: 0, opacity: 1 }}
               exit={{ rotate: -90, opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: 0.18 }}
             >
-              <Sun size={20} />
+              <Sun size={18} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -56,13 +53,13 @@ const ThemeToggle: React.FC = () => {
             transition={{ duration: 0.15 }}
             className="absolute right-0 top-full mt-2 px-3 py-1.5 rounded-lg text-xs whitespace-nowrap z-50"
             style={{
-              backgroundColor: "var(--glass-bg)",
-              border: "1px solid var(--glass-border)",
-              color: "var(--text-secondary)",
-              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+              backgroundColor: 'var(--surface-elevated)',
+              border: '1px solid var(--panel-border)',
+              color: 'var(--text-secondary)',
+              boxShadow: 'var(--shadow-md)',
             }}
           >
-            {theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
+            {theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
           </motion.div>
         )}
       </AnimatePresence>

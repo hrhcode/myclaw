@@ -28,6 +28,7 @@ class Message(Base):
 
     conversation = relationship("Conversation", back_populates="messages")
     tool_calls = relationship("ToolCall", back_populates="message", cascade="all, delete-orphan")
+    agent_events = relationship("AgentEvent", back_populates="message", cascade="all, delete-orphan")
 
     __table_args__ = (
         {"sqlite_autoincrement": True}
@@ -114,6 +115,26 @@ class ToolCall(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
     message = relationship("Message", back_populates="tool_calls")
+    conversation = relationship("Conversation")
+
+    __table_args__ = (
+        {"sqlite_autoincrement": True}
+    )
+
+
+class AgentEvent(Base):
+    __tablename__ = "agent_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    message_id = Column(Integer, ForeignKey("messages.id", ondelete="CASCADE"), nullable=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False, index=True)
+    run_id = Column(String, nullable=False, index=True)
+    event_type = Column(String, nullable=False, index=True)
+    payload = Column(String, nullable=False)
+    sequence = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    message = relationship("Message", back_populates="agent_events")
     conversation = relationship("Conversation")
 
     __table_args__ = (

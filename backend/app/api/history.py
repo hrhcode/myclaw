@@ -9,8 +9,9 @@ from typing import List
 from app.core.database import get_db
 from app.dao.conversation_dao import ConversationDAO
 from app.dao.message_dao import MessageDAO
+from app.dao.agent_event_dao import AgentEventDAO
 from app.dao.tool_call_dao import ToolCallDAO
-from app.schemas.schemas import ConversationResponse, MessageResponse, ConversationCreate, ConversationUpdate, ToolCallInMessage
+from app.schemas.schemas import ConversationResponse, MessageResponse, ConversationCreate, ConversationUpdate, ToolCallInMessage, AgentEventInMessage
 import logging
 
 router = APIRouter()
@@ -102,6 +103,7 @@ async def get_conversation_messages(
     response_messages = []
     for msg in messages:
         tool_calls = []
+        agent_events = []
         if msg.role == "assistant":
             tool_call_records = await ToolCallDAO.list_by_message(db, msg.id)
             tool_calls = [
@@ -119,6 +121,18 @@ async def get_conversation_messages(
                 )
                 for tc in tool_call_records
             ]
+            agent_event_records = await AgentEventDAO.list_by_message(db, msg.id)
+            agent_events = [
+                AgentEventInMessage(
+                    id=event.id,
+                    run_id=event.run_id,
+                    event_type=event.event_type,
+                    payload=event.payload,
+                    sequence=event.sequence,
+                    created_at=event.created_at,
+                )
+                for event in agent_event_records
+            ]
 
         response_messages.append(MessageResponse(
             id=msg.id,
@@ -126,7 +140,8 @@ async def get_conversation_messages(
             role=msg.role,
             content=msg.content,
             created_at=msg.created_at,
-            tool_calls=tool_calls
+            tool_calls=tool_calls,
+            agent_events=agent_events,
         ))
 
     return response_messages

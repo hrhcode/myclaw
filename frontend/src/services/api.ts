@@ -1,5 +1,15 @@
-import axios from 'axios';
-import type { ChatRequest, Conversation, ConversationDetail, Message, Provider, Model, ConfigItem } from '../types';
+﻿import axios from 'axios';
+import type {
+  AgentTraceEventPayload,
+  AgentTraceEventType,
+  ChatRequest,
+  ConfigItem,
+  Conversation,
+  ConversationDetail,
+  Message,
+  Model,
+  Provider,
+} from '../types';
 
 const API_BASE_URL = 'http://localhost:8000/api';
 
@@ -11,25 +21,63 @@ const api = axios.create({
 });
 
 export interface StreamMessage {
-  type: 'content' | 'reasoning' | 'tool_call' | 'tool_result' | 'error';
+  type:
+    | 'conversation'
+    | 'content'
+    | 'reasoning'
+    | 'tool_call'
+    | 'tool_result'
+    | 'progress_warning'
+    | 'loop_warning'
+    | 'done'
+    | 'error';
   content?: string;
   tool_name?: string;
   tool_call_id?: string;
   arguments?: string;
+  phase?: string;
   conversation_id?: number;
+  run_id?: string;
+  severity?: string;
+  message?: string;
+  pattern?: string;
+  count?: number;
+  stalled_iterations?: number;
+  iteration?: number;
   error?: string;
   status?: number;
 }
 
+interface SendMessageStreamCallbacks {
+  onChunk: (content: string) => void;
+  onComplete: (message: Message, conversationId: number) => void;
+  onError: (error: Error) => void;
+  onConversation?: (conversationId: number, runId?: string) => void;
+  onTraceEvent?: (type: AgentTraceEventType, payload: AgentTraceEventPayload) => void;
+}
+
+const parseEventPayload = (message: StreamMessage): AgentTraceEventPayload => ({
+  content: message.content,
+  tool_name: message.tool_name,
+  tool_call_id: message.tool_call_id,
+  arguments: message.arguments,
+  phase: message.phase,
+  severity: message.severity,
+  message: message.message,
+  pattern: message.pattern,
+  count: message.count,
+  stalled_iterations: message.stalled_iterations,
+  iteration: message.iteration,
+  conversation_id: message.conversation_id,
+  run_id: message.run_id,
+});
+
 export const sendMessageStream = async (
   data: ChatRequest,
-  onChunk: (content: string) => void,
-  onComplete: (message: Message, conversationId: number) => void,
-  onError: (error: Error) => void,
-  onToolCall?: (toolName: string, toolCallId: string, toolArgs: string) => void,
-  onToolResult?: (toolCallId: string, content: string) => void,
-  onReasoning?: (content: string) => void
+  callbacks: SendMessageStreamCallbacks,
 ) => {
+  const { onChunk, onComplete, onError, onConversation, onTraceEvent } = callbacks;
+
   try {
     const response = await fetch(`${API_BASE_URL}/chat/stream`, {
       method: 'POST',
@@ -51,65 +99,82 @@ export const sendMessageStream = async (
     const decoder = new TextDecoder();
     let fullContent = '';
     let conversationId = data.conversation_id || 0;
+    let buffer = '';
+    let runId: string | undefined;
 
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        break;
+      }
 
-      const chunk = decoder.decode(value);
-      const lines = chunk.split('\n');
+      buffer += decoder.decode(value, { stream: true });
+      const frames = buffer.split('\n\n');
+      buffer = frames.pop() || '';
 
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          if (data === '[DONE]') {
-            onComplete(
-              {
-                id: Date.now(),
-                conversation_id: conversationId,
-                role: 'assistant',
-                content: fullContent,
-                created_at: new Date().toISOString(),
-              },
-              conversationId
-            );
-            return;
+      for (const frame of frames) {
+        const dataLines = frame
+          .split('\n')
+          .filter((line) => line.startsWith('data: '))
+          .map((line) => line.slice(6));
+
+        if (dataLines.length === 0) {
+          continue;
+        }
+
+        const payload = dataLines.join('\n');
+        if (payload === '[DONE]') {
+          onComplete(
+            {
+              id: Date.now(),
+              conversation_id: conversationId,
+              role: 'assistant',
+              content: fullContent,
+              created_at: new Date().toISOString(),
+              runId,
+            },
+            conversationId,
+          );
+          return;
+        }
+
+        try {
+          const parsed: StreamMessage = JSON.parse(payload);
+
+          if (parsed.conversation_id) {
+            conversationId = parsed.conversation_id;
+          }
+          if (parsed.run_id) {
+            runId = parsed.run_id;
           }
 
-          try {
-            const parsed: StreamMessage = JSON.parse(data);
-            
-            if (parsed.type === 'content' && parsed.content) {
-              fullContent += parsed.content;
-              onChunk(parsed.content);
-            }
-            
-            if (parsed.type === 'reasoning' && parsed.content && onReasoning) {
-              onReasoning(parsed.content);
-            }
-            
-            if (parsed.type === 'tool_call' && onToolCall) {
-              onToolCall(
-                parsed.tool_name || '',
-                parsed.tool_call_id || '',
-                parsed.arguments || '{}'
-              );
-            }
-            
-            if (parsed.type === 'tool_result' && onToolResult) {
-              onToolResult(parsed.tool_call_id || '', parsed.content || '{}');
-            }
-            
-            if (parsed.type === 'error') {
-              onError(new Error(parsed.error || 'Unknown error'));
-            }
-            
-            if (parsed.conversation_id) {
-              conversationId = parsed.conversation_id;
-            }
-          } catch (e) {
-            console.error('Failed to parse chunk:', e);
+          if (parsed.type === 'conversation') {
+            onConversation?.(conversationId, runId);
+            continue;
           }
+
+          if (parsed.type === 'content' && parsed.content) {
+            fullContent += parsed.content;
+            onChunk(parsed.content);
+            continue;
+          }
+
+          if (
+            parsed.type === 'reasoning' ||
+            parsed.type === 'tool_call' ||
+            parsed.type === 'tool_result' ||
+            parsed.type === 'progress_warning' ||
+            parsed.type === 'loop_warning'
+          ) {
+            onTraceEvent?.(parsed.type, parseEventPayload(parsed));
+            continue;
+          }
+
+          if (parsed.type === 'error') {
+            onError(new Error(parsed.error || 'Unknown error'));
+          }
+        } catch (error) {
+          console.error('Failed to parse SSE frame:', error, payload);
         }
       }
     }
@@ -199,7 +264,7 @@ export const searchMemory = async (
   query: string,
   conversationId?: number,
   topK: number = 5,
-  minScore: number = 0.5
+  minScore: number = 0.5,
 ): Promise<MemorySearchResponse> => {
   const response = await api.post<MemorySearchResponse>('/memory/search', {
     query,
@@ -229,7 +294,7 @@ export const createLongTermMemory = async (
   content: string,
   key?: string,
   importance: number = 0.5,
-  source?: string
+  source?: string,
 ): Promise<LongTermMemory> => {
   const response = await api.post<LongTermMemory>('/memory/long-term', {
     content,
@@ -247,7 +312,7 @@ export const updateLongTermMemory = async (
     content?: string;
     importance?: number;
     source?: string;
-  }
+  },
 ): Promise<LongTermMemory> => {
   const response = await api.put<LongTermMemory>(`/memory/long-term/${id}`, data);
   return response.data;
@@ -303,24 +368,30 @@ export const updateToolConfig = async (config: Partial<ToolConfig>): Promise<{ s
 
 export const toggleTool = async (toolName: string, enabled: boolean): Promise<{ success: boolean; message: string }> => {
   const response = await api.put<{ success: boolean; message: string }>(`/tools/${toolName}/toggle`, null, {
-    params: { enabled }
+    params: { enabled },
   });
   return response.data;
 };
 
 export interface WebSearchConfig {
+  enabled?: boolean;
   provider: string;
   tavily_api_key?: string;
+  brave_api_key?: string;
+  perplexity_api_key?: string;
   max_results: number;
-  search_depth: "basic" | "advanced";
+  search_depth: 'basic' | 'advanced';
   include_answer: boolean;
   timeout_seconds: number;
   cache_ttl_minutes: number;
 }
 
 export interface WebSearchConfigResponse {
+  enabled?: boolean;
   provider: string;
   tavily_api_key?: string;
+  brave_api_key?: string;
+  perplexity_api_key?: string;
   max_results: number;
   search_depth: string;
   include_answer: boolean;

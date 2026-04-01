@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+﻿import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
 type Theme = 'light' | 'dark';
@@ -10,47 +10,41 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
-
 const THEME_STORAGE_KEY = 'app-theme';
 
 interface ThemeProviderProps {
   children: ReactNode;
 }
 
-/**
- * 主题Provider组件 - 提供主题状态管理
- * 支持明暗主题切换，并持久化存储到localStorage
- */
-export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(THEME_STORAGE_KEY);
-      if (stored === 'light' || stored === 'dark') {
-        return stored;
-      }
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
+const resolveInitialTheme = (): Theme => {
+  if (typeof window === 'undefined') {
     return 'dark';
-  });
+  }
+
+  const stored = localStorage.getItem(THEME_STORAGE_KEY);
+  if (stored === 'light' || stored === 'dark') {
+    return stored;
+  }
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+};
+
+export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
+  const [theme, setThemeState] = useState<Theme>(resolveInitialTheme);
 
   useEffect(() => {
     const root = document.documentElement;
-    root.setAttribute('data-theme', theme);
+    root.dataset.theme = theme;
+    root.classList.toggle('dark', theme === 'dark');
     localStorage.setItem(THEME_STORAGE_KEY, theme);
-    
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
   }, [theme]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = (e: MediaQueryListEvent) => {
+    const handleChange = (event: MediaQueryListEvent) => {
       const stored = localStorage.getItem(THEME_STORAGE_KEY);
       if (!stored) {
-        setThemeState(e.matches ? 'dark' : 'light');
+        setThemeState(event.matches ? 'dark' : 'light');
       }
     };
 
@@ -58,57 +52,26 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
-  /**
-   * 切换主题 - 添加平滑过渡效果
-   */
-  const toggleTheme = useCallback(() => {
-    const root = document.documentElement;
-    
-    requestAnimationFrame(() => {
-      root.classList.add('theme-transitioning');
-      
-      requestAnimationFrame(() => {
-        setThemeState((prev) => {
-          const newTheme = prev === 'dark' ? 'light' : 'dark';
-          return newTheme;
-        });
-        
-        setTimeout(() => {
-          root.classList.remove('theme-transitioning');
-        }, 200);
-      });
-    });
+  const setTheme = useCallback((nextTheme: Theme) => {
+    setThemeState(nextTheme);
   }, []);
 
-  /**
-   * 设置指定主题
-   */
-  const setTheme = (newTheme: Theme) => {
-    const root = document.documentElement;
-    
-    requestAnimationFrame(() => {
-      root.classList.add('theme-transitioning');
-      
-      requestAnimationFrame(() => {
-        setThemeState(newTheme);
-        
-        setTimeout(() => {
-          root.classList.remove('theme-transitioning');
-        }, 200);
-      });
-    });
-  };
+  const toggleTheme = useCallback(() => {
+    setThemeState((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  }, []);
 
-  return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
-      {children}
-    </ThemeContext.Provider>
+  const value = useMemo(
+    () => ({
+      theme,
+      toggleTheme,
+      setTheme,
+    }),
+    [theme, toggleTheme, setTheme],
   );
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 };
 
-/**
- * 使用主题上下文的Hook
- */
 export const useTheme = (): ThemeContextType => {
   const context = useContext(ThemeContext);
   if (!context) {

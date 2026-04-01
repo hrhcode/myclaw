@@ -5,7 +5,7 @@
  */
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Wrench, Settings, Loader2, Clock, Info } from "lucide-react";
+import { Settings, Loader2, Clock, Info } from "lucide-react";
 import MainLayout from "../layout/MainLayout";
 import {
   getTools,

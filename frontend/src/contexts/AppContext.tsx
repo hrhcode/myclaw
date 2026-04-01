@@ -1,24 +1,26 @@
-import {
+﻿import {
   createContext,
   useContext,
   useState,
   useEffect,
   useCallback,
-} from "react";
-import type { ReactNode } from "react";
+} from 'react';
+import type { ReactNode } from 'react';
 import type {
+  AgentEventFromDB,
+  AgentTraceEvent,
+  AgentTraceEventPayload,
+  AgentTraceEventType,
   Conversation,
   Message,
-  ToolCallInfo,
-  ToolResultInfo,
-} from "../types";
+} from '../types';
 import {
   getConversations,
   getMessages,
   createConversation,
   deleteConversation,
   renameConversation,
-} from "../services/api";
+} from '../services/api';
 
 interface AppContextType {
   conversations: Conversation[];
@@ -44,26 +46,37 @@ interface AppProviderProps {
   children: ReactNode;
 }
 
-/**
- * 全局应用状态Provider - 管理会话数据、消息和UI状态
- */
+const parseAgentPayload = (payload: string): AgentTraceEventPayload => {
+  try {
+    return JSON.parse(payload) as AgentTraceEventPayload;
+  } catch {
+    return { content: payload };
+  }
+};
+
+const mapAgentEvents = (events?: AgentEventFromDB[]): AgentTraceEvent[] => {
+  if (!events || events.length === 0) {
+    return [];
+  }
+
+  return events.map((event) => ({
+    id: `db-${event.id}`,
+    type: event.event_type as AgentTraceEventType,
+    createdAt: event.created_at,
+    payload: parseAgentPayload(event.payload),
+  }));
+};
+
 export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [currentConversationId, setCurrentConversationId] = useState<
-    number | null
-  >(null);
+  const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    // 从 localStorage 读取侧边栏折叠状态，默认为展开
-    const saved = localStorage.getItem("sidebar_collapsed");
-    return saved === "true";
+    const saved = localStorage.getItem('sidebar_collapsed');
+    return saved === 'true';
   });
 
-  /**
-   * 加载会话列表
-   * 如果当前没有选中会话且有会话存在，自动选择第一个
-   */
   const loadConversations = useCallback(async () => {
     try {
       const data = await getConversations();
@@ -72,140 +85,92 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       setCurrentConversationId((prevId) => {
         if (data.length > 0 && prevId === null) {
           const sortedConversations = [...data].sort(
-            (a, b) =>
-              new Date(b.updated_at).getTime() -
-              new Date(a.updated_at).getTime(),
+            (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
           );
           return sortedConversations[0].id;
         }
         return prevId;
       });
     } catch (error) {
-      console.error("Failed to load conversations:", error);
+      console.error('Failed to load conversations:', error);
     }
   }, []);
 
-  /**
-   * 选择会话
-   */
   const selectConversation = useCallback((id: number | null) => {
     setCurrentConversationId(id);
   }, []);
 
-  /**
-   * 加载消息列表
-   * 将后端返回的工具调用记录转换为前端显示格式
-   */
   const loadMessages = useCallback(async (conversationId: number) => {
     try {
       const data = await getMessages(conversationId);
-      const processedMessages: Message[] = data.map((msg) => {
-        if (msg.tool_calls && msg.tool_calls.length > 0) {
-          const toolCalls: ToolCallInfo[] = msg.tool_calls.map((tc) => ({
-            toolName: tc.tool_name,
-            toolCallId: tc.tool_call_id,
-            arguments: tc.arguments,
-          }));
-
-          const toolResults = new Map<string, ToolResultInfo>();
-          msg.tool_calls.forEach((tc) => {
-            if (tc.result) {
-              toolResults.set(tc.tool_call_id, {
-                toolCallId: tc.tool_call_id,
-                content: tc.result,
-              });
-            }
-          });
-
-          return {
-            ...msg,
-            toolCalls,
-            toolResults,
-          };
-        }
-        return msg;
-      });
+      const processedMessages: Message[] = data.map((message) => ({
+        ...message,
+        traceEvents: mapAgentEvents(message.agent_events),
+        runId: message.agent_events?.[0]?.run_id,
+      }));
       setMessages(processedMessages);
     } catch (error) {
-      console.error("Failed to load messages:", error);
+      console.error('Failed to load messages:', error);
     }
   }, []);
 
-  /**
-   * 创建新会话
-   */
   const createNewConversation = useCallback(
-    async (title: string = "新对话"): Promise<Conversation | null> => {
+    async (title: string = 'New Chat'): Promise<Conversation | null> => {
       try {
         const newConversation = await createConversation(title);
         setConversations((prev) => [newConversation, ...prev]);
         return newConversation;
       } catch (error) {
-        console.error("Failed to create conversation:", error);
+        console.error('Failed to create conversation:', error);
         return null;
       }
     },
     [],
   );
 
-  /**
-   * 删除会话
-   */
   const removeConversation = useCallback(
     async (id: number): Promise<void> => {
       try {
         await deleteConversation(id);
-        setConversations((prev) => prev.filter((c) => c.id !== id));
+        setConversations((prev) => prev.filter((conversation) => conversation.id !== id));
         if (currentConversationId === id) {
           setCurrentConversationId(null);
           setMessages([]);
         }
       } catch (error) {
-        console.error("Failed to delete conversation:", error);
+        console.error('Failed to delete conversation:', error);
         throw error;
       }
     },
     [currentConversationId],
   );
 
-  /**
-   * 重命名会话
-   */
-  const renameConversationById = useCallback(
-    async (id: number, title: string): Promise<void> => {
-      try {
-        const updated = await renameConversation(id, title);
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.id === id
-              ? { ...c, title: updated.title, updated_at: updated.updated_at }
-              : c,
-          ),
-        );
-      } catch (error) {
-        console.error("Failed to rename conversation:", error);
-        throw error;
-      }
-    },
-    [],
-  );
+  const renameConversationById = useCallback(async (id: number, title: string): Promise<void> => {
+    try {
+      const updated = await renameConversation(id, title);
+      setConversations((prev) =>
+        prev.map((conversation) =>
+          conversation.id === id
+            ? { ...conversation, title: updated.title, updated_at: updated.updated_at }
+            : conversation,
+        ),
+      );
+    } catch (error) {
+      console.error('Failed to rename conversation:', error);
+      throw error;
+    }
+  }, []);
 
-  /**
-   * 切换侧边栏折叠状态
-   */
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((prev) => {
-      const newValue = !prev;
-      localStorage.setItem("sidebar_collapsed", String(newValue));
-      return newValue;
+      const nextValue = !prev;
+      localStorage.setItem('sidebar_collapsed', String(nextValue));
+      return nextValue;
     });
   }, []);
 
-  /**
-   * 设置侧边栏折叠状态
-   */
   const setSidebarCollapsedWithStorage = useCallback((collapsed: boolean) => {
-    localStorage.setItem("sidebar_collapsed", String(collapsed));
+    localStorage.setItem('sidebar_collapsed', String(collapsed));
     setSidebarCollapsed(collapsed);
   }, []);
 
@@ -246,13 +211,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   );
 };
 
-/**
- * 使用应用上下文的Hook
- */
 export const useApp = (): AppContextType => {
   const context = useContext(AppContext);
   if (!context) {
-    throw new Error("useApp must be used within an AppProvider");
+    throw new Error('useApp must be used within an AppProvider');
   }
   return context;
 };

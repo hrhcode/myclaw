@@ -49,11 +49,24 @@ class ToolCallInMessage(BaseModel):
         from_attributes = True
 
 
+class AgentEventInMessage(BaseModel):
+    id: int
+    run_id: str
+    event_type: str
+    payload: str
+    sequence: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class MessageResponse(MessageBase):
     id: int
     conversation_id: int
     created_at: datetime
     tool_calls: List[ToolCallInMessage] = []
+    agent_events: List[AgentEventInMessage] = []
 
     class Config:
         from_attributes = True

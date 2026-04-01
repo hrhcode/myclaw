@@ -1,19 +1,35 @@
-export type MessageRole = 'user' | 'assistant';
+﻿export type MessageRole = 'user' | 'assistant';
 
-export interface ToolCallInfo {
-  toolName: string;
-  toolCallId: string;
-  arguments: string;
+export type AgentTraceEventType =
+  | 'reasoning'
+  | 'tool_call'
+  | 'tool_result'
+  | 'progress_warning'
+  | 'loop_warning';
+
+export interface AgentTraceEventPayload {
+  content?: string;
+  tool_name?: string;
+  tool_call_id?: string;
+  arguments?: string;
+  phase?: string;
+  severity?: string;
+  message?: string;
+  pattern?: string;
+  count?: number;
+  stalled_iterations?: number;
+  iteration?: number;
+  conversation_id?: number;
+  run_id?: string;
 }
 
-export interface ToolResultInfo {
-  toolCallId: string;
-  content: string;
+export interface AgentTraceEvent {
+  id: string;
+  type: AgentTraceEventType;
+  createdAt?: string;
+  payload: AgentTraceEventPayload;
 }
 
-/**
- * 后端返回的工具调用记录（从数据库加载）
- */
 export interface ToolCallFromDB {
   id: number;
   tool_name: string;
@@ -27,15 +43,26 @@ export interface ToolCallFromDB {
   completed_at: string | null;
 }
 
+export interface AgentEventFromDB {
+  id: number;
+  run_id: string;
+  event_type: AgentTraceEventType;
+  payload: string;
+  sequence: number;
+  created_at: string;
+}
+
 export interface Message {
   id: number;
   conversation_id: number;
   role: MessageRole;
   content: string;
   created_at: string;
-  toolCalls?: ToolCallInfo[];
-  toolResults?: Map<string, ToolResultInfo>;
   tool_calls?: ToolCallFromDB[];
+  agent_events?: AgentEventFromDB[];
+  traceEvents?: AgentTraceEvent[];
+  isStreaming?: boolean;
+  runId?: string;
 }
 
 export interface Conversation {
@@ -114,15 +141,4 @@ export interface ToolConfig {
   deny: string[];
   max_iterations: number;
   timeout_seconds: number;
-}
-
-export interface ToolCallInfo {
-  tool_name: string;
-  tool_call_id: string;
-  arguments: string;
-}
-
-export interface ToolResultInfo {
-  tool_call_id: string;
-  content: string;
 }

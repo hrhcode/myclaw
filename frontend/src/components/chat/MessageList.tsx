@@ -1,49 +1,32 @@
-import { motion } from "framer-motion";
-import ReactMarkdown from "react-markdown";
-import type { Components } from "react-markdown";
+﻿import { motion } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import type { Components } from 'react-markdown';
 import {
   Bot,
-  User,
-  Sparkles,
-  Wrench,
-  CheckCircle,
-  XCircle,
   Loader2,
-  ChevronDown,
-  ChevronUp,
-} from "lucide-react";
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import type { Message, ToolCallInfo, ToolResultInfo } from "../../types";
-import CodeBlock from "./CodeBlock";
+  Search,
+  Sparkles,
+  User,
+  Wrench,
+  AlertTriangle,
+  CheckCircle2,
+} from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import type { AgentTraceEvent, Message } from '../../types';
+import CodeBlock from './CodeBlock';
 
 interface MessageListProps {
   messages: Message[];
 }
 
-/**
- * 消息头像组件 - 使用 React.memo 防止流式输出时不必要的重新渲染
- */
-const MessageAvatar = React.memo(({ role }: { role: "user" | "assistant" }) => (
-  <div
-    className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-      role === "user"
-        ? "bg-gradient-to-br from-primary to-primary-dark"
-        : "glass border border-[var(--glass-border)]"
-    }`}
-  >
-    {role === "user" ? (
-      <User size={16} className="text-white" />
-    ) : (
-      <Bot size={16} className="text-primary" />
-    )}
+const MessageAvatar = React.memo(({ role }: { role: 'user' | 'assistant' }) => (
+  <div className={`message-avatar ${role === 'user' ? 'is-user' : 'is-assistant'}`}>
+    {role === 'user' ? <User size={16} style={{ color: 'var(--text-primary)' }} /> : <Bot size={16} className="text-primary" />}
   </div>
 ));
 
-MessageAvatar.displayName = "MessageAvatar";
+MessageAvatar.displayName = 'MessageAvatar';
 
-/**
- * 打字指示器组件
- */
 const TypingIndicator: React.FC = () => (
   <div className="typing-indicator">
     <span></span>
@@ -52,9 +35,6 @@ const TypingIndicator: React.FC = () => (
   </div>
 );
 
-/**
- * 空状态组件
- */
 const EmptyState: React.FC = () => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
@@ -62,254 +42,212 @@ const EmptyState: React.FC = () => (
     transition={{ duration: 0.5 }}
     className="h-full flex items-center justify-center"
   >
-    <div className="text-center">
+    <div className="chat-empty-state">
       <motion.div
-        animate={{
-          scale: [1, 1.1, 1],
-          rotate: [0, 5, -5, 0],
-        }}
-        transition={{
-          duration: 4,
-          repeat: Infinity,
-          ease: "easeInOut",
-        }}
-        className="w-24 h-24 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-primary/20 to-primary-dark/20 flex items-center justify-center border border-[var(--glass-border)]"
+        animate={{ scale: [1, 1.04, 1] }}
+        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+        className="chat-empty-icon"
       >
         <Sparkles size={40} className="text-primary" />
       </motion.div>
-      <h3
-        className="text-xl font-semibold mb-2"
-        style={{ color: "var(--text-primary)" }}
-      >
-        开始新的对话
+      <h3 className="text-xl font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+        开始一段新的对话
       </h3>
-      <p
-        className="text-sm max-w-xs mx-auto"
-        style={{ color: "var(--text-muted)" }}
-      >
-        输入消息开始与AI助手对话，探索无限可能
+      <p className="text-sm max-w-xs mx-auto" style={{ color: 'var(--text-muted)' }}>
+        这里适合研究、编码、分析和多步骤推理。AI 的回复与执行轨迹会保持清晰、克制地展开。
       </p>
     </div>
   </motion.div>
 );
 
-/**
- * 工具调用卡片组件
- */
-const ToolCallCard: React.FC<{
-  call: ToolCallInfo;
-  result?: ToolResultInfo;
-}> = ({ call, result }) => {
-  const [expanded, setExpanded] = useState(false);
+const tryFormatJson = (value?: string) => {
+  if (!value) {
+    return '';
+  }
 
-  const parseResult = (): {
-    success?: boolean;
-    content?: unknown;
-    error?: string;
-    execution_time_ms?: number;
-  } | null => {
-    if (!result?.content) return null;
-    try {
-      return JSON.parse(result.content);
-    } catch {
-      return { content: result.content };
-    }
-  };
+  try {
+    return JSON.stringify(JSON.parse(value), null, 2);
+  } catch {
+    return value;
+  }
+};
 
-  const resultData = parseResult();
-  const isSuccess = resultData?.success;
+const parseToolResult = (value?: string) => {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value) as {
+      success?: boolean;
+      error?: string;
+      execution_time_ms?: number;
+      content?: unknown;
+    };
+  } catch {
+    return { content: value };
+  }
+};
+
+const shouldExpandTraceEventByDefault = (event: AgentTraceEvent) => {
+  if (event.type === 'reasoning') {
+    return true;
+  }
+
+  if (event.type === 'tool_call') {
+    return false;
+  }
+
+  if (event.type === 'tool_result') {
+    const result = parseToolResult(event.payload.content);
+    return result?.success === false;
+  }
+
+  return true;
+};
+
+const TraceEventCard: React.FC<{ event: AgentTraceEvent }> = ({ event }) => {
+  const [expanded, setExpanded] = useState(() => shouldExpandTraceEventByDefault(event));
+  const resultData = event.type === 'tool_result' ? parseToolResult(event.payload.content) : null;
+
+  const meta = {
+    reasoning: {
+      icon: <Search size={14} className="text-primary" />,
+      label: '思考',
+      accent: 'rgba(59, 130, 246, 0.08)',
+    },
+    tool_call: {
+      icon: <Wrench size={14} className="text-primary" />,
+      label: event.payload.tool_name || '工具调用',
+      accent: 'rgba(14, 165, 233, 0.06)',
+    },
+    tool_result: {
+      icon: resultData?.success ? <CheckCircle2 size={14} className="text-emerald-500" /> : <Loader2 size={14} className="text-primary" />,
+      label: '工具结果',
+      accent: resultData?.success ? 'rgba(16, 185, 129, 0.06)' : 'rgba(249, 115, 22, 0.08)',
+    },
+    progress_warning: {
+      icon: <AlertTriangle size={14} className="text-amber-500" />,
+      label: '进度提醒',
+      accent: 'rgba(245, 158, 11, 0.08)',
+    },
+    loop_warning: {
+      icon: <AlertTriangle size={14} className="text-rose-500" />,
+      label: '循环提醒',
+      accent: 'rgba(244, 63, 94, 0.08)',
+    },
+  }[event.type];
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 5 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="glass-card rounded-lg overflow-hidden text-sm"
-      style={{ border: "1px solid var(--glass-border)" }}
+    <div
+      className="trace-event-card"
+      style={{
+        background: `linear-gradient(180deg, ${meta.accent}, transparent)`,
+      }}
     >
-      <div
-        className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-white/5"
-        onClick={() => setExpanded(!expanded)}
-        style={{ background: "var(--glass-bg)" }}
+      <button
+        type="button"
+        onClick={() => setExpanded((value) => !value)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left"
       >
-        <div className="flex items-center gap-2">
-          <Wrench size={14} className="text-primary" />
-          <span
-            className="font-medium"
-            style={{ color: "var(--text-primary)" }}
-          >
-            {call.toolName}
-          </span>
-          {result ? (
-            isSuccess ? (
-              <CheckCircle size={14} className="text-green-500" />
-            ) : (
-              <XCircle size={14} className="text-red-500" />
-            )
-          ) : (
-            <Loader2 size={14} className="animate-spin text-primary" />
-          )}
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="trace-event-icon">
+            {meta.icon}
+          </div>
+          <div className="min-w-0">
+            <div className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+              {meta.label}
+            </div>
+            <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
+              {event.type === 'tool_call' && event.payload.arguments
+                ? tryFormatJson(event.payload.arguments)
+                : event.type === 'tool_result'
+                  ? resultData?.success
+                    ? '工具执行成功'
+                    : resultData?.error || '等待工具输出'
+                  : event.payload.message || event.payload.content || '执行活动'}
+            </div>
+          </div>
         </div>
-        {expanded ? (
-          <ChevronUp size={14} style={{ color: "var(--text-muted)" }} />
-        ) : (
-          <ChevronDown size={14} style={{ color: "var(--text-muted)" }} />
-        )}
-      </div>
+        <span className="trace-event-toggle">{expanded ? '收起' : '展开'}</span>
+      </button>
 
       {expanded && (
-        <div
-          className="px-3 py-2 space-y-2"
-          style={{ background: "var(--bg-secondary)" }}
-        >
-          <div>
-            <div
-              className="text-xs mb-1"
-              style={{ color: "var(--text-muted)" }}
-            >
-              参数
-            </div>
-            <pre
-              className="text-xs p-2 rounded overflow-x-auto"
-              style={{
-                background: "var(--glass-bg)",
-                color: "var(--text-primary)",
-                border: "1px solid var(--glass-border)",
-              }}
-            >
-              {(() => {
-                try {
-                  return JSON.stringify(
-                    JSON.parse(call.arguments || "{}"),
-                    null,
-                    2,
-                  );
-                } catch {
-                  return call.arguments || "{}";
-                }
-              })()}
-            </pre>
-          </div>
-
-          {result && resultData && (
-            <div>
-              <div
-                className="text-xs mb-1"
-                style={{ color: "var(--text-muted)" }}
-              >
-                结果
-              </div>
-              <pre
-                className="text-xs p-2 rounded overflow-x-auto max-h-40"
-                style={{
-                  background: isSuccess
-                    ? "rgba(34, 197, 94, 0.1)"
-                    : "rgba(239, 68, 68, 0.1)",
-                  color: isSuccess ? "rgb(34, 197, 94)" : "rgb(239, 68, 68)",
-                  border: `1px solid ${isSuccess ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)"}`,
-                }}
-              >
-                {resultData.content
-                  ? JSON.stringify(resultData.content, null, 2)
-                  : resultData.error || "未知结果"}
-              </pre>
+        <div className="px-4 pb-4 space-y-3">
+          {event.type === 'reasoning' && (
+            <div className="trace-event-content trace-event-reasoning">
+              {event.payload.content || 'No reasoning text captured.'}
             </div>
           )}
 
-          {resultData?.execution_time_ms && (
-            <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-              执行时间: {resultData.execution_time_ms}ms
+          {event.type === 'tool_call' && (
+            <pre className="trace-event-content text-xs overflow-x-auto">
+              {tryFormatJson(event.payload.arguments || '{}')}
+            </pre>
+          )}
+
+          {event.type === 'tool_result' && (
+            <>
+              {resultData?.execution_time_ms ? (
+                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  执行耗时：{resultData.execution_time_ms} ms
+                </div>
+              ) : null}
+              <pre className="trace-event-content text-xs overflow-x-auto max-h-80">
+                {tryFormatJson(event.payload.content || '')}
+              </pre>
+            </>
+          )}
+
+          {(event.type === 'progress_warning' || event.type === 'loop_warning') && (
+            <div className="trace-event-content text-sm whitespace-pre-wrap">
+              {event.payload.message || '检测到进展停滞后，AI 已调整执行策略。'}
             </div>
           )}
         </div>
       )}
-    </motion.div>
-  );
-};
-
-/**
- * 工具调用列表组件
- */
-const ToolCallsDisplay: React.FC<{
-  toolCalls?: ToolCallInfo[];
-  toolResults?: Map<string, ToolResultInfo>;
-}> = ({ toolCalls, toolResults }) => {
-  if (!toolCalls || toolCalls.length === 0) return null;
-
-  return (
-    <div className="mb-2 space-y-2">
-      {toolCalls.map((call) => (
-        <ToolCallCard
-          key={call.toolCallId}
-          call={call}
-          result={toolResults?.get(call.toolCallId)}
-        />
-      ))}
     </div>
   );
 };
 
-/**
- * 消息列表组件 - 显示对话中的所有消息
- * 采用玻璃拟态设计，支持动画效果和主题切换
- * 支持智能滚动：自动滚动到底部，但用户向上滚动时停止自动滚动
- */
 const MessageList: React.FC<MessageListProps> = ({ messages }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const isInitialLoad = useRef(true);
 
-  /**
-   * 滚动到底部
-   */
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({ behavior });
   }, []);
 
-  /**
-   * 检测用户是否滚动到底部附近
-   */
   const handleScroll = useCallback(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container) {
+      return;
+    }
 
     const { scrollTop, scrollHeight, clientHeight } = container;
     const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
-
-    if (isNearBottom) {
-      setShouldAutoScroll(true);
-    } else {
-      setShouldAutoScroll(false);
-    }
+    setShouldAutoScroll(isNearBottom);
   }, []);
 
-  /**
-   * 初始加载时滚动到底部（立即滚动，不使用动画）
-   */
   useEffect(() => {
     if (messages.length > 0 && isInitialLoad.current) {
       setTimeout(() => {
-        scrollToBottom("instant");
+        scrollToBottom('instant');
         isInitialLoad.current = false;
       }, 100);
     }
   }, [messages.length, scrollToBottom]);
 
-  /**
-   * 消息更新时，如果允许自动滚动则滚动到底部
-   */
   useEffect(() => {
     if (shouldAutoScroll && messages.length > 0) {
-      scrollToBottom("smooth");
+      scrollToBottom('smooth');
     }
   }, [messages, shouldAutoScroll, scrollToBottom]);
 
   return (
-    <div
-      ref={containerRef}
-      className="flex-1 overflow-y-auto p-6 space-y-6"
-      onScroll={handleScroll}
-    >
+    <div ref={containerRef} className="message-thread" onScroll={handleScroll}>
       {messages.length === 0 ? (
         <EmptyState />
       ) : (
@@ -318,81 +256,66 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
             key={message.id}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: 0.2,
-              ease: [0.4, 0, 0.2, 1],
-            }}
-            className={`flex gap-3 ${
-              message.role === "user" ? "flex-row-reverse" : "flex-row"
-            }`}
+            transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+            className={`message-row ${message.role === 'user' ? 'is-user' : 'is-assistant'}`}
           >
-            <MessageAvatar role={message.role} />
+            <div className={`message-shell ${message.role === 'user' ? 'is-user' : 'is-assistant'}`}>
+              <div className="message-meta">
+                <div className="message-meta-main">
+                  <MessageAvatar role={message.role} />
+                  <span className="message-role-label">{message.role === 'user' ? '你' : 'AI'}</span>
+                </div>
+                <span className="message-time">
+                  {new Date(message.created_at).toLocaleTimeString('zh-CN', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </div>
 
-            <div
-              className={`max-w-[75%] flex flex-col ${
-                message.role === "user" ? "items-end" : "items-start"
-              }`}
-            >
-              <div
-                className={`message-bubble ${
-                  message.role === "user" ? "message-user" : "message-ai"
-                }`}
-              >
-                {message.role === "assistant" && (
-                  <ToolCallsDisplay
-                    toolCalls={message.toolCalls}
-                    toolResults={message.toolResults}
-                  />
+              <div className={`message-bubble ${message.role === 'user' ? 'message-user' : 'message-ai'}`}>
+                {message.role === 'assistant' && (
+                  <div className="trace-inline-list">
+                    {(message.traceEvents || []).map((event) => <TraceEventCard key={event.id} event={event} />)}
+                    {message.isStreaming && (message.traceEvents?.length || 0) === 0 ? (
+                      <div className="trace-inline-pending">
+                        <Loader2 size={14} className="animate-spin" />
+                        <span>AI 正在准备执行步骤…</span>
+                      </div>
+                    ) : null}
+                  </div>
                 )}
 
-                {message.content === "" ? (
+                {message.content === '' ? (
                   <TypingIndicator />
                 ) : (
-                  <div className="prose prose-sm max-w-none">
+                  <div className={`prose prose-sm max-w-none ${message.role === 'assistant' ? 'assistant-prose' : ''}`}>
                     <ReactMarkdown
-                      components={
-                        {
-                          pre({ children }) {
-                            return <>{children}</>;
-                          },
-                          code({ className, children, ...props }) {
-                            const match = /language-(\w+)/.exec(
-                              className || "",
-                            );
-                            const language = match ? match[1] : "";
-                            const value = String(children).replace(/\n$/, "");
+                      components={{
+                        pre({ children }) {
+                          return <>{children}</>;
+                        },
+                        code({ className, children, ...props }) {
+                          const match = /language-(\w+)/.exec(className || '');
+                          const language = match ? match[1] : '';
+                          const value = String(children).replace(/\n$/, '');
 
-                            if (language) {
-                              return (
-                                <CodeBlock language={language} value={value} />
-                              );
-                            }
+                          if (language) {
+                            return <CodeBlock language={language} value={value} />;
+                          }
 
-                            return (
-                              <code className={className} {...props}>
-                                {children}
-                              </code>
-                            );
-                          },
-                        } satisfies Components
-                      }
+                          return (
+                            <code className={className} {...props}>
+                              {children}
+                            </code>
+                          );
+                        },
+                      } satisfies Components}
                     >
                       {message.content}
                     </ReactMarkdown>
                   </div>
                 )}
-              </div>
-
-              <div
-                className={`text-xs mt-1.5 ${
-                  message.role === "user" ? "text-right" : "text-left"
-                }`}
-                style={{ color: "var(--text-muted)" }}
-              >
-                {new Date(message.created_at).toLocaleTimeString("zh-CN", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
               </div>
             </div>
           </motion.div>
