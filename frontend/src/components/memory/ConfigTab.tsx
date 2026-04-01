@@ -1,71 +1,73 @@
-import { useState, useEffect, useCallback } from "react";
-import { Save, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AlertCircle, CheckCircle, Loader2 } from "lucide-react";
 import SearchConfigPanel from "./components/SearchConfigPanel";
 import { getConfig, setConfig } from "../../services/api";
+import { SectionCard } from "../admin";
 
-/**
- * 记忆配置组件
- * 包含搜索参数配置
- */
+type MemoryConfig = {
+  memory_top_k: string;
+  memory_min_score: string;
+  memory_use_hybrid: string;
+  memory_vector_weight: string;
+  memory_text_weight: string;
+  memory_enable_mmr: string;
+  memory_mmr_lambda: string;
+  memory_enable_temporal_decay: string;
+  memory_half_life_days: string;
+};
+
+const DEFAULT_CONFIG: MemoryConfig = {
+  memory_top_k: "5",
+  memory_min_score: "0.5",
+  memory_use_hybrid: "true",
+  memory_vector_weight: "0.7",
+  memory_text_weight: "0.3",
+  memory_enable_mmr: "true",
+  memory_mmr_lambda: "0.7",
+  memory_enable_temporal_decay: "true",
+  memory_half_life_days: "30",
+};
+
+const CONFIG_KEYS = Object.keys(DEFAULT_CONFIG) as (keyof MemoryConfig)[];
+
 const ConfigTab: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [message, setMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saved" | "error">("idle");
+  const [saveErrorText, setSaveErrorText] = useState("");
+  const [config, setConfigState] = useState<MemoryConfig>(DEFAULT_CONFIG);
 
-  const [config, setConfigState] = useState({
-    memory_top_k: "5",
-    memory_min_score: "0.5",
-    memory_use_hybrid: "true",
-    memory_vector_weight: "0.7",
-    memory_text_weight: "0.3",
-    memory_enable_mmr: "true",
-    memory_mmr_lambda: "0.7",
-    memory_enable_temporal_decay: "true",
-    memory_half_life_days: "30",
-  });
+  const loadedRef = useRef(false);
+  const lastSavedConfigRef = useRef<MemoryConfig>(DEFAULT_CONFIG);
+  const autoSaveTimerRef = useRef<number | null>(null);
 
   const loadConfig = useCallback(async () => {
     try {
       setIsLoading(true);
-      const configKeys = [
-        "memory_top_k",
-        "memory_min_score",
-        "memory_use_hybrid",
-        "memory_vector_weight",
-        "memory_text_weight",
-        "memory_enable_mmr",
-        "memory_mmr_lambda",
-        "memory_enable_temporal_decay",
-        "memory_half_life_days",
-      ];
+      const entries = await Promise.all(
+        CONFIG_KEYS.map(async (key) => {
+          try {
+            const value = await getConfig(key);
+            return [key, value] as const;
+          } catch {
+            return [key, DEFAULT_CONFIG[key]] as const;
+          }
+        }),
+      );
 
-      const [configResults] = await Promise.all([
-        Promise.all(
-          configKeys.map(async (key) => {
-            try {
-              const value = await getConfig(key);
-              return { key, value };
-            } catch {
-              return { key, value: null };
-            }
-          }),
-        ),
-      ]);
+      const loaded = entries.reduce(
+        (acc, [key, value]) => ({ ...acc, [key]: value }),
+        DEFAULT_CONFIG,
+      );
 
-      const newConfig = { ...config };
-      configResults.forEach(({ key, value }) => {
-        if (value !== null) {
-          newConfig[key as keyof typeof newConfig] = value;
-        }
-      });
-
-      setConfigState(newConfig);
+      setConfigState(loaded);
+      lastSavedConfigRef.current = loaded;
+      loadedRef.current = true;
+      setSaveState("idle");
     } catch (error) {
       console.error("Failed to load config:", error);
-      setMessage({ type: "error", text: "加载配置失败" });
+      setSaveState("error");
+      setSaveErrorText("加载记忆配置失败");
     } finally {
       setIsLoading(false);
     }
@@ -75,82 +77,80 @@ const ConfigTab: React.FC = () => {
     loadConfig();
   }, [loadConfig]);
 
-  const handleSave = async () => {
-    try {
-      setIsSaving(true);
-      setMessage(null);
+  useEffect(() => {
+    if (!loadedRef.current) return;
 
-      const savePromises = Object.entries(config).map(([key, value]) =>
-        setConfig(key, value),
-      );
-
-      await Promise.all(savePromises);
-
-      setMessage({ type: "success", text: "配置保存成功！" });
-    } catch (error) {
-      console.error("Failed to save config:", error);
-      setMessage({ type: "error", text: "保存配置失败" });
-    } finally {
-      setIsSaving(false);
+    if (autoSaveTimerRef.current !== null) {
+      window.clearTimeout(autoSaveTimerRef.current);
     }
-  };
 
-  const handleConfigChange = (key: string, value: string) => {
+    autoSaveTimerRef.current = window.setTimeout(async () => {
+      const changedKeys = CONFIG_KEYS.filter(
+        (key) => config[key] !== lastSavedConfigRef.current[key],
+      );
+      if (changedKeys.length === 0) return;
+
+      try {
+        setIsAutoSaving(true);
+        setSaveState("idle");
+        await Promise.all(changedKeys.map((key) => setConfig(key, config[key])));
+        lastSavedConfigRef.current = config;
+        setSaveState("saved");
+        setSaveErrorText("");
+      } catch (error) {
+        console.error("Failed to auto save memory config:", error);
+        setSaveState("error");
+        setSaveErrorText("自动保存失败，请稍后重试");
+      } finally {
+        setIsAutoSaving(false);
+      }
+    }, 500);
+
+    return () => {
+      if (autoSaveTimerRef.current !== null) {
+        window.clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [config]);
+
+  const handleConfigChange = (key: keyof MemoryConfig, value: string) => {
     setConfigState((prev) => ({ ...prev, [key]: value }));
   };
 
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="animate-spin">
-          <Loader2 size={40} className="text-primary" />
-        </div>
+        <Loader2 size={36} className="text-primary animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto pb-8">
-      {message && (
-        <div
-          className={`mb-6 p-4 rounded-xl flex items-center gap-3 ${
-            message.type === "success"
-              ? "bg-green-500/10 border border-green-500/20 text-green-400"
-              : "bg-red-500/10 border border-red-500/20 text-red-400"
-          }`}
-        >
-          {message.type === "success" ? (
-            <CheckCircle size={20} />
+    <div className="admin-frame">
+      <SectionCard className="px-3 py-2">
+        <div className="flex items-center gap-2 text-sm">
+          {isAutoSaving ? (
+            <>
+              <Loader2 size={15} className="animate-spin" style={{ color: "var(--accent)" }} />
+              <span style={{ color: "var(--text-secondary)" }}>配置变更已检测，正在自动保存...</span>
+            </>
+          ) : saveState === "saved" ? (
+            <>
+              <CheckCircle size={15} style={{ color: "#16a34a" }} />
+              <span style={{ color: "#16a34a" }}>已自动保存</span>
+            </>
+          ) : saveState === "error" ? (
+            <>
+              <AlertCircle size={15} style={{ color: "#dc2626" }} />
+              <span style={{ color: "#dc2626" }}>{saveErrorText || "保存失败"}</span>
+            </>
           ) : (
-            <AlertCircle size={20} />
+            <span style={{ color: "var(--text-muted)" }}>修改配置后会自动保存</span>
           )}
-          <span>{message.text}</span>
         </div>
-      )}
+      </SectionCard>
 
       <SearchConfigPanel config={config} onChange={handleConfigChange} />
-
-      <div className="flex justify-end mt-6">
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="btn-primary flex items-center gap-2"
-        >
-          {isSaving ? (
-            <>
-              <div className="animate-spin">
-                <Loader2 size={18} />
-              </div>
-              <span>保存中...</span>
-            </>
-          ) : (
-            <>
-              <Save size={18} />
-              <span>保存配置</span>
-            </>
-          )}
-        </button>
-      </div>
     </div>
   );
 };

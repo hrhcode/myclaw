@@ -1,31 +1,20 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Plus, Search, Loader2 } from "lucide-react";
 import MemoryList from "./components/MemoryList";
 import MemoryForm from "./components/MemoryForm";
-import { getLongTermMemories, deleteLongTermMemory } from "../../services/api";
+import { deleteLongTermMemory, getLongTermMemories } from "../../services/api";
 import type { LongTermMemory } from "../../types";
+import { SectionCard } from "../admin";
 
-/**
- * 长期记忆标签页组件
- * 包含记忆列表、搜索、创建/编辑/删除功能
- */
 const LongTermMemoryTab: React.FC = () => {
   const [memories, setMemories] = useState<LongTermMemory[]>([]);
-  const [filteredMemories, setFilteredMemories] = useState<LongTermMemory[]>(
-    [],
-  );
+  const [filteredMemories, setFilteredMemories] = useState<LongTermMemory[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<
-    "created_at" | "importance" | "updated_at"
-  >("created_at");
+  const [sortBy, setSortBy] = useState<"created_at" | "importance" | "updated_at">("created_at");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [filterImportance, setFilterImportance] = useState<
-    "all" | "high" | "medium" | "low"
-  >("all");
+  const [filterImportance, setFilterImportance] = useState<"all" | "high" | "medium" | "low">("all");
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingMemory, setEditingMemory] = useState<LongTermMemory | null>(
-    null,
-  );
+  const [editingMemory, setEditingMemory] = useState<LongTermMemory | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
 
@@ -46,168 +35,139 @@ const LongTermMemoryTab: React.FC = () => {
   }, [loadMemories]);
 
   useEffect(() => {
-    let filtered = [...memories];
+    let next = [...memories];
+    const query = searchQuery.trim().toLowerCase();
 
-    if (searchQuery) {
-      filtered = filtered.filter(
+    if (query) {
+      next = next.filter(
         (memory) =>
-          memory.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (memory.key &&
-            memory.key.toLowerCase().includes(searchQuery.toLowerCase())),
+          memory.content.toLowerCase().includes(query) ||
+          (memory.key && memory.key.toLowerCase().includes(query)),
       );
     }
 
     if (filterImportance !== "all") {
-      filtered = filtered.filter((memory) => {
-        const importance = memory.importance * 10;
-        if (filterImportance === "high") return importance >= 8;
-        if (filterImportance === "medium")
-          return importance >= 5 && importance < 8;
-        if (filterImportance === "low") return importance < 5;
-        return true;
+      next = next.filter((memory) => {
+        const score = memory.importance * 10;
+        if (filterImportance === "high") return score >= 8;
+        if (filterImportance === "medium") return score >= 5 && score < 8;
+        return score < 5;
       });
     }
 
-    filtered.sort((a, b) => {
-      let comparison = 0;
+    next.sort((a, b) => {
+      let value = 0;
       if (sortBy === "created_at") {
-        comparison =
-          new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      } else if (sortBy === "importance") {
-        comparison = a.importance - b.importance;
+        value = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
       } else if (sortBy === "updated_at") {
-        comparison =
-          new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+        value = new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+      } else {
+        value = a.importance - b.importance;
       }
-      return sortOrder === "asc" ? comparison : -comparison;
+      return sortOrder === "asc" ? value : -value;
     });
 
-    setFilteredMemories(filtered);
+    setFilteredMemories(next);
   }, [memories, searchQuery, sortBy, sortOrder, filterImportance]);
 
-  const handleCreate = () => {
+  const handleSave = (memory: LongTermMemory) => {
+    setMemories((prev) =>
+      editingMemory ? prev.map((item) => (item.id === memory.id ? memory : item)) : [memory, ...prev],
+    );
+    setIsFormOpen(false);
     setEditingMemory(null);
-    setIsFormOpen(true);
-  };
-
-  const handleEdit = (memory: LongTermMemory) => {
-    setEditingMemory(memory);
-    setIsFormOpen(true);
   };
 
   const handleDelete = async (id: number) => {
     try {
       await deleteLongTermMemory(id);
-      setMemories((prev) => prev.filter((m) => m.id !== id));
+      setMemories((prev) => prev.filter((item) => item.id !== id));
       setDeleteConfirm(null);
     } catch (error) {
       console.error("Failed to delete memory:", error);
     }
   };
 
-  const handleSave = (memory: LongTermMemory) => {
-    if (editingMemory) {
-      setMemories((prev) => prev.map((m) => (m.id === memory.id ? memory : m)));
-    } else {
-      setMemories((prev) => [memory, ...prev]);
-    }
-    setIsFormOpen(false);
-    setEditingMemory(null);
-  };
-
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="animate-spin">
-          <Loader2 size={40} className="text-primary" />
-        </div>
+        <Loader2 size={36} className="text-primary animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="flex flex-wrap items-center gap-3 mb-6">
+    <div className="admin-frame">
+      <div className="admin-toolbar">
         <button
-          onClick={handleCreate}
-          className="btn-primary flex items-center gap-2"
+          type="button"
+          className="btn-primary inline-flex items-center gap-2"
+          onClick={() => {
+            setEditingMemory(null);
+            setIsFormOpen(true);
+          }}
         >
           <Plus size={16} />
-          <span>创建记忆</span>
+          <span>新建记忆</span>
         </button>
 
-        <div className="flex-1 min-w-[200px]">
-          <div className="relative">
-            <Search
-              size={18}
-              className="absolute left-3 top-1/2 -translate-y-1/2"
-              style={{ color: "var(--text-muted)" }}
-            />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索记忆..."
-              className="w-full pl-10 pr-4 py-2.5 glass-input rounded-xl"
-              style={{ color: "var(--text-primary)" }}
-            />
-          </div>
+        <div className="relative flex-1 min-w-[220px]">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
+          <input
+            type="text"
+            className="admin-input w-full pl-9 pr-3 py-2.5"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="搜索内容、标签"
+          />
         </div>
 
         <select
+          className="admin-select px-3 py-2.5"
           value={filterImportance}
-          onChange={(e) =>
-            setFilterImportance(
-              e.target.value as "all" | "high" | "medium" | "low",
-            )
-          }
-          className="px-4 py-2.5 glass-input rounded-xl cursor-pointer"
-          style={{ color: "var(--text-primary)" }}
+          onChange={(event) => setFilterImportance(event.target.value as "all" | "high" | "medium" | "low")}
         >
           <option value="all">全部重要性</option>
-          <option value="high">高重要性</option>
-          <option value="medium">中重要性</option>
-          <option value="low">低重要性</option>
+          <option value="high">高重要性（8-10）</option>
+          <option value="medium">中重要性（5-7）</option>
+          <option value="low">低重要性（0-4）</option>
         </select>
 
         <select
+          className="admin-select px-3 py-2.5"
           value={`${sortBy}-${sortOrder}`}
-          onChange={(e) => {
-            const [sort, order] = e.target.value.split("-");
-            setSortBy(sort as "created_at" | "importance" | "updated_at");
-            setSortOrder(order as "asc" | "desc");
+          onChange={(event) => {
+            const [nextSortBy, nextSortOrder] = event.target.value.split("-");
+            setSortBy(nextSortBy as "created_at" | "importance" | "updated_at");
+            setSortOrder(nextSortOrder as "asc" | "desc");
           }}
-          className="px-4 py-2.5 glass-input rounded-xl cursor-pointer"
-          style={{ color: "var(--text-primary)" }}
         >
-          <option value="created_at-desc">最新创建</option>
-          <option value="created_at-asc">最早创建</option>
-          <option value="importance-desc">重要性高到低</option>
-          <option value="importance-asc">重要性低到高</option>
-          <option value="updated_at-desc">最新更新</option>
-          <option value="updated_at-asc">最早更新</option>
+          <option value="created_at-desc">创建时间（新到旧）</option>
+          <option value="created_at-asc">创建时间（旧到新）</option>
+          <option value="updated_at-desc">更新时间（新到旧）</option>
+          <option value="updated_at-asc">更新时间（旧到新）</option>
+          <option value="importance-desc">重要性（高到低）</option>
+          <option value="importance-asc">重要性（低到高）</option>
         </select>
       </div>
 
-      <div className="mb-4">
-        <div
-          className="flex items-center gap-2 text-sm"
-          style={{ color: "var(--text-muted)" }}
-        >
-          <span>共 {filteredMemories.length} 条记忆</span>
-          {memories.length !== filteredMemories.length && (
-            <span>（从 {memories.length} 条中筛选）</span>
-          )}
-        </div>
-      </div>
+      <SectionCard className="px-3 py-2 text-sm">
+        <span style={{ color: "var(--text-muted)" }}>
+          共 {filteredMemories.length} 条记忆
+          {memories.length !== filteredMemories.length ? `（总计 ${memories.length} 条）` : ""}
+        </span>
+      </SectionCard>
 
       <MemoryList
         memories={filteredMemories}
-        onEdit={handleEdit}
+        onEdit={(memory) => {
+          setEditingMemory(memory);
+          setIsFormOpen(true);
+        }}
         onDelete={(id) => setDeleteConfirm(id)}
       />
 
-      {isFormOpen && (
+      {isFormOpen ? (
         <MemoryForm
           memory={editingMemory}
           onSave={handleSave}
@@ -216,45 +176,33 @@ const LongTermMemoryTab: React.FC = () => {
             setEditingMemory(null);
           }}
         />
-      )}
+      ) : null}
 
-      {deleteConfirm !== null && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-          onClick={() => setDeleteConfirm(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="glass-card rounded-2xl p-6 max-w-md w-full mx-4"
-            style={{ border: "1px solid var(--glass-border)" }}
-          >
-            <h3
-              className="text-lg font-semibold mb-4"
-              style={{ color: "var(--text-primary)" }}
-            >
-              确认删除
+      {deleteConfirm !== null ? (
+        <div className="fixed inset-0 bg-black/45 flex items-center justify-center z-50" onClick={() => setDeleteConfirm(null)}>
+          <SectionCard className="w-full max-w-md p-5 mx-4" >
+            <h3 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>
+              删除记忆
             </h3>
-            <p className="mb-6" style={{ color: "var(--text-secondary)" }}>
-              确定要删除这条记忆吗？此操作无法撤销。
+            <p className="mt-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+              删除后不可恢复，确认继续吗？
             </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="px-6 py-2.5 rounded-xl font-medium transition-colors"
-                style={{ color: "var(--text-secondary)" }}
-              >
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" className="btn-secondary" onClick={() => setDeleteConfirm(null)}>
                 取消
               </button>
               <button
+                type="button"
+                className="px-4 py-2 rounded-xl text-sm font-semibold"
+                style={{ backgroundColor: "#dc2626", color: "#fff" }}
                 onClick={() => handleDelete(deleteConfirm)}
-                className="px-6 py-2.5 rounded-xl font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
               >
                 删除
               </button>
             </div>
-          </div>
+          </SectionCard>
         </div>
-      )}
+      ) : null}
     </div>
   );
 };

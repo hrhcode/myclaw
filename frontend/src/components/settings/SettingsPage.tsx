@@ -1,81 +1,62 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  Cpu,
-  CheckCircle,
-  AlertCircle,
-  Loader2,
-  Eye,
-  EyeOff,
-} from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { AlertCircle, CheckCircle, Cpu, Eye, EyeOff, Loader2 } from "lucide-react";
 import MainLayout from "../layout/MainLayout";
 import {
-  getProviders,
-  getProviderModels,
-  getEmbeddingProviders,
-  getEmbeddingProviderModels,
-  getConfig,
-  setConfig,
-  getWebSearchConfig,
-  setWebSearchConfig as setWebSearchConfigApi,
   getBrowserConfig,
+  getConfig,
+  getEmbeddingProviderModels,
+  getEmbeddingProviders,
+  getProviderModels,
+  getProviders,
+  getWebSearchConfig,
   setBrowserConfig as setBrowserConfigApi,
+  setConfig,
+  setWebSearchConfig as setWebSearchConfigApi,
 } from "../../services/api";
-import type { Provider, Model } from "../../types";
-import type { WebSearchConfig, BrowserConfig } from "../../services/api";
-import WebSearchConfigPanel from "./WebSearchConfigPanel";
+import type { BrowserConfig, WebSearchConfig } from "../../services/api";
+import type { Model, Provider } from "../../types";
+import { SectionCard } from "../admin";
 import BrowserConfigPanel from "./BrowserConfigPanel";
+import WebSearchConfigPanel from "./WebSearchConfigPanel";
 
-/**
- * Toast 通知组件 - 固定在屏幕中上角
- */
 const Toast: React.FC<{
   message: { type: "success" | "error"; text: string } | null;
-}> = ({ message }) => {
-  return (
-    <AnimatePresence>
-      {message && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-          className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-xl flex items-center gap-3 shadow-lg ${
-            message.type === "success"
-              ? "bg-green-500/20 border border-green-500/30 text-green-400"
-              : "bg-red-500/20 border border-red-500/30 text-red-400"
-          }`}
-        >
-          {message.type === "success" ? (
-            <CheckCircle size={18} />
-          ) : (
-            <AlertCircle size={18} />
-          )}
-          <span className="text-sm">{message.text}</span>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-};
+}> = ({ message }) => (
+  <AnimatePresence>
+    {message ? (
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
+        className="fixed top-4 left-1/2 -translate-x-1/2 z-50"
+      >
+        <SectionCard className="px-4 py-2">
+          <div
+            className="inline-flex items-center gap-2 text-sm"
+            style={{ color: message.type === "success" ? "#16a34a" : "#dc2626" }}
+          >
+            {message.type === "success" ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+            <span>{message.text}</span>
+          </div>
+        </SectionCard>
+      </motion.div>
+    ) : null}
+  </AnimatePresence>
+);
 
-/**
- * 配置页面组件 - 配置API和模型参数
- * 采用玻璃拟态设计，支持动画效果和主题切换
- * 实时保存配置，无需手动点击保存按钮
- */
 const SettingsPage: React.FC = () => {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [models, setModels] = useState<Model[]>([]);
   const [embeddingProviders, setEmbeddingProviders] = useState<Provider[]>([]);
   const [embeddingModels, setEmbeddingModels] = useState<Model[]>([]);
-  const [selectedProvider, setSelectedProvider] = useState<string>("");
-  const [selectedModel, setSelectedModel] = useState<string>("");
-  const [selectedEmbeddingProvider, setSelectedEmbeddingProvider] =
-    useState<string>("");
-  const [selectedEmbeddingModel, setSelectedEmbeddingModel] =
-    useState<string>("");
-  const [apiKey, setApiKey] = useState<string>("");
+  const [selectedProvider, setSelectedProvider] = useState("");
+  const [selectedModel, setSelectedModel] = useState("");
+  const [selectedEmbeddingProvider, setSelectedEmbeddingProvider] = useState("");
+  const [selectedEmbeddingModel, setSelectedEmbeddingModel] = useState("");
+  const [apiKey, setApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
-  const [openrouterApiKey, setOpenrouterApiKey] = useState<string>("");
+  const [openrouterApiKey, setOpenrouterApiKey] = useState("");
   const [showOpenrouterKey, setShowOpenrouterKey] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<{
@@ -115,42 +96,32 @@ const SettingsPage: React.FC = () => {
     system_browser_channel: "chrome",
   });
 
-  const prevProviderRef = useRef<string>("");
-  const prevEmbeddingProviderRef = useRef<string>("");
+  const prevProviderRef = useRef("");
+  const prevEmbeddingProviderRef = useRef("");
 
-  /**
-   * 显示保存状态提示
-   */
   const showMessage = (type: "success" | "error", text: string) => {
     setMessage({ type, text });
-    setTimeout(() => setMessage(null), 3000);
+    window.setTimeout(() => setMessage(null), 2600);
   };
 
-  /**
-   * 保存单个配置项
-   */
-  const saveConfigItem = async (key: string, value: string) => {
+  const saveConfigItem = async (key: string, value: string, label: string) => {
     try {
       await setConfig(key, value);
-      showMessage("success", `${key} 已保存`);
+      showMessage("success", `${label} 已保存`);
     } catch (error) {
       console.error(`Failed to save ${key}:`, error);
-      showMessage("error", `保存 ${key} 失败`);
+      showMessage("error", `${label} 保存失败`);
     }
   };
 
-  /**
-   * 加载模型列表
-   */
   const loadModels = useCallback(
     async (provider: string) => {
       try {
         const modelList = await getProviderModels(provider);
         setModels(modelList);
-
-        if (selectedModel && !modelList.find((m) => m.id === selectedModel)) {
-          setSelectedModel(modelList.length > 0 ? modelList[0].id : "");
-        } else if (modelList.length > 0 && !selectedModel) {
+        if (selectedModel && !modelList.find((item) => item.id === selectedModel)) {
+          setSelectedModel(modelList[0]?.id || "");
+        } else if (!selectedModel && modelList.length > 0) {
           setSelectedModel(modelList[0].id);
         }
       } catch (error) {
@@ -160,23 +131,14 @@ const SettingsPage: React.FC = () => {
     [selectedModel],
   );
 
-  /**
-   * 加载Embedding模型列表
-   */
   const loadEmbeddingModels = useCallback(
     async (provider: string) => {
       try {
         const modelList = await getEmbeddingProviderModels(provider);
         setEmbeddingModels(modelList);
-
-        if (
-          selectedEmbeddingModel &&
-          !modelList.find((m) => m.id === selectedEmbeddingModel)
-        ) {
-          setSelectedEmbeddingModel(
-            modelList.length > 0 ? modelList[0].id : "",
-          );
-        } else if (modelList.length > 0 && !selectedEmbeddingModel) {
+        if (selectedEmbeddingModel && !modelList.find((item) => item.id === selectedEmbeddingModel)) {
+          setSelectedEmbeddingModel(modelList[0]?.id || "");
+        } else if (!selectedEmbeddingModel && modelList.length > 0) {
           setSelectedEmbeddingModel(modelList[0].id);
         }
       } catch (error) {
@@ -186,13 +148,9 @@ const SettingsPage: React.FC = () => {
     [selectedEmbeddingModel],
   );
 
-  /**
-   * 加载设置数据
-   */
   const loadSettings = async () => {
     try {
       setIsLoading(true);
-
       const providerList = await getProviders();
       const embeddingProviderList = await getEmbeddingProviders();
       setProviders(providerList);
@@ -201,97 +159,67 @@ const SettingsPage: React.FC = () => {
       const savedProvider = await getConfig("llm_provider").catch(() => "");
       const savedModel = await getConfig("llm_model").catch(() => "");
       const savedApiKey = await getConfig("zhipu_api_key").catch(() => "");
-      const savedOpenrouterKey = await getConfig("openrouter_api_key").catch(
-        () => "",
-      );
-      const savedEmbeddingProvider = await getConfig(
-        "embedding_provider",
-      ).catch(() => "");
-      const savedEmbeddingModel = await getConfig("embedding_model").catch(
-        () => "",
-      );
+      const savedOpenrouterKey = await getConfig("openrouter_api_key").catch(() => "");
+      const savedEmbeddingProvider = await getConfig("embedding_provider").catch(() => "");
+      const savedEmbeddingModel = await getConfig("embedding_model").catch(() => "");
 
-      if (savedProvider) {
-        setSelectedProvider(savedProvider);
-        prevProviderRef.current = savedProvider;
-      } else if (providerList.length > 0) {
-        setSelectedProvider(providerList[0].id);
-        prevProviderRef.current = providerList[0].id;
-      }
+      const nextProvider = savedProvider || providerList[0]?.id || "";
+      setSelectedProvider(nextProvider);
+      prevProviderRef.current = nextProvider;
 
-      if (savedEmbeddingProvider) {
-        setSelectedEmbeddingProvider(savedEmbeddingProvider);
-        prevEmbeddingProviderRef.current = savedEmbeddingProvider;
-      } else if (embeddingProviderList.length > 0) {
-        setSelectedEmbeddingProvider(embeddingProviderList[0].id);
-        prevEmbeddingProviderRef.current = embeddingProviderList[0].id;
-      }
+      const nextEmbeddingProvider = savedEmbeddingProvider || embeddingProviderList[0]?.id || "";
+      setSelectedEmbeddingProvider(nextEmbeddingProvider);
+      prevEmbeddingProviderRef.current = nextEmbeddingProvider;
 
-      if (savedApiKey) {
-        setApiKey(savedApiKey);
-      }
-
-      if (savedOpenrouterKey) {
-        setOpenrouterApiKey(savedOpenrouterKey);
-      }
-
-      if (savedModel) {
-        setSelectedModel(savedModel);
-      }
-
-      if (savedEmbeddingModel) {
-        setSelectedEmbeddingModel(savedEmbeddingModel);
-      }
+      setSelectedModel(savedModel || "");
+      setSelectedEmbeddingModel(savedEmbeddingModel || "");
+      setApiKey(savedApiKey || "");
+      setOpenrouterApiKey(savedOpenrouterKey || "");
 
       try {
-        const webSearchCfg = await getWebSearchConfig();
-        // 使用函数式更新避免依赖旧的 state
-        const newWebSearchConfig = {
-          enabled: webSearchCfg.enabled,
-          provider: webSearchCfg.provider as WebSearchConfig["provider"],
-          tavily_api_key: webSearchCfg.tavily_api_key || "",
-          brave_api_key: webSearchCfg.brave_api_key || "",
-          perplexity_api_key: webSearchCfg.perplexity_api_key || "",
-          max_results: webSearchCfg.max_results,
-          search_depth:
-            webSearchCfg.search_depth as WebSearchConfig["search_depth"],
-          include_answer: webSearchCfg.include_answer,
-          timeout_seconds: webSearchCfg.timeout_seconds,
-          cache_ttl_minutes: webSearchCfg.cache_ttl_minutes,
-        };
-        // 注意：这里不能直接调用 setWebSearchConfig，因为它被 useState 覆盖了
-        // 我们需要使用一个不同的变量名来存储状态设置函数
-        setWebSearchConfigState(newWebSearchConfig);
+        const webSearch = await getWebSearchConfig();
+        setWebSearchConfigState({
+          enabled: webSearch.enabled,
+          provider: webSearch.provider as WebSearchConfig["provider"],
+          tavily_api_key: webSearch.tavily_api_key || "",
+          brave_api_key: webSearch.brave_api_key || "",
+          perplexity_api_key: webSearch.perplexity_api_key || "",
+          max_results: webSearch.max_results,
+          search_depth: webSearch.search_depth as WebSearchConfig["search_depth"],
+          include_answer: webSearch.include_answer,
+          timeout_seconds: webSearch.timeout_seconds,
+          cache_ttl_minutes: webSearch.cache_ttl_minutes,
+        });
         setExistingWebSearchKeys({
-          tavily: !!webSearchCfg.tavily_api_key,
-          brave: !!webSearchCfg.brave_api_key,
-          perplexity: !!webSearchCfg.perplexity_api_key,
+          tavily: !!webSearch.tavily_api_key,
+          brave: !!webSearch.brave_api_key,
+          perplexity: !!webSearch.perplexity_api_key,
         });
       } catch (error) {
         console.error("Failed to load web search config:", error);
       }
 
       try {
-        const browserCfg = await getBrowserConfig();
+        const browser = await getBrowserConfig();
         setBrowserConfigState({
-          default_type: browserCfg.default_type,
-          headless: browserCfg.headless,
-          viewport_width: browserCfg.viewport_width,
-          viewport_height: browserCfg.viewport_height,
-          timeout_ms: browserCfg.timeout_ms,
-          ssrf_allow_private: browserCfg.ssrf_allow_private,
-          ssrf_whitelist: browserCfg.ssrf_whitelist,
-          max_instances: browserCfg.max_instances,
-          idle_timeout_ms: browserCfg.idle_timeout_ms,
-          use_system_browser: browserCfg.use_system_browser,
-          system_browser_channel: browserCfg.system_browser_channel,
+          default_type: browser.default_type,
+          headless: browser.headless,
+          viewport_width: browser.viewport_width,
+          viewport_height: browser.viewport_height,
+          timeout_ms: browser.timeout_ms,
+          ssrf_allow_private: browser.ssrf_allow_private,
+          ssrf_whitelist: browser.ssrf_whitelist,
+          max_instances: browser.max_instances,
+          idle_timeout_ms: browser.idle_timeout_ms,
+          use_system_browser: browser.use_system_browser,
+          system_browser_channel: browser.system_browser_channel,
         });
       } catch (error) {
         console.error("Failed to load browser config:", error);
       }
     } catch (error) {
       console.error("Failed to load settings:", error);
-      showMessage("error", "加载设置失败");
+      showMessage("error", "设置加载失败");
     } finally {
       setIsLoading(false);
     }
@@ -313,202 +241,129 @@ const SettingsPage: React.FC = () => {
     }
   }, [selectedEmbeddingProvider, loadEmbeddingModels]);
 
-  /**
-   * 处理 LLM 提供商变更（实时保存）
-   */
   const handleProviderChange = async (value: string) => {
     setSelectedProvider(value);
     if (value && value !== prevProviderRef.current) {
-      await saveConfigItem("llm_provider", value);
+      await saveConfigItem("llm_provider", value, "LLM 提供商");
       prevProviderRef.current = value;
     }
   };
 
-  /**
-   * 处理 LLM 模型变更（实时保存）
-   */
   const handleModelChange = async (value: string) => {
     setSelectedModel(value);
     if (value) {
-      await saveConfigItem("llm_model", value);
+      await saveConfigItem("llm_model", value, "LLM 模型");
     }
   };
 
-  /**
-   * 处理 Embedding 提供商变更（实时保存）
-   */
   const handleEmbeddingProviderChange = async (value: string) => {
     setSelectedEmbeddingProvider(value);
     if (value && value !== prevEmbeddingProviderRef.current) {
-      await saveConfigItem("embedding_provider", value);
+      await saveConfigItem("embedding_provider", value, "Embedding 提供商");
       prevEmbeddingProviderRef.current = value;
     }
   };
 
-  /**
-   * 处理 Embedding 模型变更（实时保存）
-   */
   const handleEmbeddingModelChange = async (value: string) => {
     setSelectedEmbeddingModel(value);
     if (value) {
-      await saveConfigItem("embedding_model", value);
+      await saveConfigItem("embedding_model", value, "Embedding 模型");
     }
   };
 
-  /**
-   * 处理 API Key 失焦保存
-   */
   const handleApiKeyBlur = async () => {
     if (apiKey.trim()) {
-      await saveConfigItem("zhipu_api_key", apiKey);
+      await saveConfigItem("zhipu_api_key", apiKey, "智谱 API Key");
     }
   };
 
-  /**
-   * 处理 OpenRouter API Key 失焦保存
-   */
   const handleOpenrouterKeyBlur = async () => {
     if (openrouterApiKey.trim()) {
-      await saveConfigItem("openrouter_api_key", openrouterApiKey);
+      await saveConfigItem("openrouter_api_key", openrouterApiKey, "OpenRouter API Key");
     }
   };
 
-  /**
-   * 处理网络搜索配置变更（实时保存）
-   */
   const handleWebSearchConfigChange = async (
     key: keyof WebSearchConfig,
     value: string | boolean | number,
   ) => {
-    const newConfig = {
-      ...webSearchConfig,
-      [key]: value,
-    };
-    setWebSearchConfigState(newConfig);
-
+    const next = { ...webSearchConfig, [key]: value };
+    setWebSearchConfigState(next);
     try {
-      await setWebSearchConfigApi(newConfig);
-      showMessage("success", "网络搜索配置已保存");
+      await setWebSearchConfigApi(next);
+      showMessage("success", "联网搜索配置已保存");
     } catch (error) {
       console.error("Failed to save web search config:", error);
-      showMessage("error", "保存网络搜索配置失败");
+      showMessage("error", "联网搜索配置保存失败");
     }
   };
 
-  /**
-   * 处理网络搜索 API Key 保存
-   */
-  const handleSaveWebSearchKey = async (
-    _key: keyof WebSearchConfig,
-    value: string,
-  ) => {
-    const newConfig = {
-      ...webSearchConfig,
-      tavily_api_key: value,
-    };
-    setWebSearchConfigState(newConfig);
-
+  const handleSaveWebSearchKey = async (_key: keyof WebSearchConfig, value: string) => {
+    const next = { ...webSearchConfig, tavily_api_key: value };
+    setWebSearchConfigState(next);
     try {
-      await setWebSearchConfigApi(newConfig);
+      await setWebSearchConfigApi(next);
+      setExistingWebSearchKeys((prev) => ({ ...prev, tavily: true }));
       showMessage("success", "Tavily API Key 已保存");
-      setExistingWebSearchKeys((prev) => ({
-        ...prev,
-        tavily: true,
-      }));
     } catch (error) {
-      console.error(`Failed to save tavily_api_key:`, error);
-      showMessage("error", "保存 API Key 失败");
+      console.error("Failed to save tavily_api_key:", error);
+      showMessage("error", "Tavily API Key 保存失败");
       throw error;
     }
   };
 
-  /**
-   * 处理浏览器配置变更（实时保存）
-   */
   const handleBrowserConfigChange = async (
     key: keyof BrowserConfig,
     value: string | boolean | number,
   ) => {
-    const newConfig = {
-      ...browserConfig,
-      [key]: value,
-    };
-    setBrowserConfigState(newConfig);
-
+    const next = { ...browserConfig, [key]: value };
+    setBrowserConfigState(next);
     try {
-      await setBrowserConfigApi(newConfig);
+      await setBrowserConfigApi(next);
       showMessage("success", "浏览器配置已保存");
     } catch (error) {
       console.error("Failed to save browser config:", error);
-      showMessage("error", "保存浏览器配置失败");
+      showMessage("error", "浏览器配置保存失败");
     }
   };
 
   if (isLoading) {
     return (
-      <MainLayout headerTitle="配置">
+      <MainLayout headerTitle="设置">
         <div className="h-full flex items-center justify-center">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          >
-            <Loader2 size={40} className="text-primary" />
-          </motion.div>
+          <Loader2 size={40} className="text-primary animate-spin" />
         </div>
       </MainLayout>
     );
   }
 
   return (
-    <MainLayout headerTitle="配置">
+    <MainLayout headerTitle="设置">
       <Toast message={message} />
-      <div className="h-full overflow-y-auto p-6">
-        <div className="max-w-6xl mx-auto pb-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="glass-card rounded-2xl p-6"
-              style={{ border: "1px solid var(--glass-border)" }}
-            >
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary-dark/20 flex items-center justify-center">
-                  <Cpu size={20} className="text-primary" />
-                </div>
+      <div className="admin-page">
+        <div className="admin-frame">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+            <SectionCard className="p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "var(--surface-subtle)" }}>
+                  <Cpu size={16} />
+                </span>
                 <div>
-                  <h2
-                    className="text-lg font-semibold"
-                    style={{ color: "var(--text-primary)" }}
-                  >
-                    LLM配置
+                  <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                    LLM 配置
                   </h2>
                   <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    选择AI模型提供商和模型（自动保存）
+                    修改后自动保存
                   </p>
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div>
-                  <label
-                    className="block text-sm font-medium mb-2"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
+                  <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>
                     模型厂商
                   </label>
-                  <select
-                    value={selectedProvider}
-                    onChange={(e) => handleProviderChange(e.target.value)}
-                    className="w-full px-4 py-3 glass-input rounded-xl appearance-none cursor-pointer"
-                    style={{
-                      color: "var(--text-primary)",
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='${encodeURIComponent("var(--text-muted)")}'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
-                      backgroundRepeat: "no-repeat",
-                      backgroundPosition: "right 1rem center",
-                      backgroundSize: "1.5rem",
-                    }}
-                  >
+                  <select className="admin-select w-full px-3 py-2.5" value={selectedProvider} onChange={(e) => handleProviderChange(e.target.value)}>
                     <option value="">请选择厂商</option>
                     {providers.map((provider) => (
                       <option key={provider.id} value={provider.id}>
@@ -519,24 +374,14 @@ const SettingsPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label
-                    className="block text-sm font-medium mb-2"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
+                  <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>
                     模型
                   </label>
                   <select
+                    className="admin-select w-full px-3 py-2.5"
                     value={selectedModel}
                     onChange={(e) => handleModelChange(e.target.value)}
                     disabled={!selectedProvider}
-                    className="w-full px-4 py-3 glass-input rounded-xl appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{
-                      color: "var(--text-primary)",
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='${encodeURIComponent("var(--text-muted)")}'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
-                      backgroundRepeat: "no-repeat",
-                      backgroundPosition: "right 1rem center",
-                      backgroundSize: "1.5rem",
-                    }}
                   >
                     <option value="">请先选择厂商</option>
                     {models.map((model) => (
@@ -548,92 +393,55 @@ const SettingsPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label
-                    className="block text-sm font-medium mb-2"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
-                    智谱AI API Key
+                  <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>
+                    智谱 API Key
                   </label>
                   <div className="relative">
                     <input
                       type={showApiKey ? "text" : "password"}
+                      className="admin-input w-full px-3 py-2.5 pr-10"
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
                       onBlur={handleApiKeyBlur}
-                      placeholder="请输入您的智谱AI API Key"
-                      className="w-full px-4 py-3 pr-12 glass-input rounded-xl"
-                      style={{ color: "var(--text-primary)" }}
+                      placeholder="输入后失焦自动保存"
                     />
                     <button
                       type="button"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 transition-colors"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1"
+                      onClick={() => setShowApiKey((prev) => !prev)}
                       style={{ color: "var(--text-muted)" }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.color = "var(--text-primary)")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.color = "var(--text-muted)")
-                      }
                     >
-                      {showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                      {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
-                  <p
-                    className="mt-2 text-xs"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    用于智谱AI聊天功能，输入后点击其他位置自动保存
-                  </p>
                 </div>
               </div>
-            </motion.div>
+            </SectionCard>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="glass-card rounded-2xl p-6"
-              style={{ border: "1px solid var(--glass-border)" }}
-            >
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/20 to-purple-700/20 flex items-center justify-center">
-                  <Cpu size={20} className="text-purple-400" />
-                </div>
+            <SectionCard className="p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "var(--surface-subtle)" }}>
+                  <Cpu size={16} />
+                </span>
                 <div>
-                  <h2
-                    className="text-lg font-semibold"
-                    style={{ color: "var(--text-primary)" }}
-                  >
-                    Embedding配置
+                  <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                    Embedding 配置
                   </h2>
                   <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    向量嵌入模型（用于记忆搜索，自动保存）
+                    记忆检索使用
                   </p>
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div>
-                  <label
-                    className="block text-sm font-medium mb-2"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
+                  <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>
                     模型厂商
                   </label>
                   <select
+                    className="admin-select w-full px-3 py-2.5"
                     value={selectedEmbeddingProvider}
-                    onChange={(e) =>
-                      handleEmbeddingProviderChange(e.target.value)
-                    }
-                    className="w-full px-4 py-3 glass-input rounded-xl appearance-none cursor-pointer"
-                    style={{
-                      color: "var(--text-primary)",
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='${encodeURIComponent("var(--text-muted)")}'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
-                      backgroundRepeat: "no-repeat",
-                      backgroundPosition: "right 1rem center",
-                      backgroundSize: "1.5rem",
-                    }}
+                    onChange={(e) => handleEmbeddingProviderChange(e.target.value)}
                   >
                     <option value="">请选择厂商</option>
                     {embeddingProviders.map((provider) => (
@@ -645,24 +453,14 @@ const SettingsPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label
-                    className="block text-sm font-medium mb-2"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
+                  <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>
                     模型
                   </label>
                   <select
+                    className="admin-select w-full px-3 py-2.5"
                     value={selectedEmbeddingModel}
                     onChange={(e) => handleEmbeddingModelChange(e.target.value)}
                     disabled={!selectedEmbeddingProvider}
-                    className="w-full px-4 py-3 glass-input rounded-xl appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{
-                      color: "var(--text-primary)",
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='${encodeURIComponent("var(--text-muted)")}'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
-                      backgroundRepeat: "no-repeat",
-                      backgroundPosition: "right 1rem center",
-                      backgroundSize: "1.5rem",
-                    }}
                   >
                     <option value="">请先选择厂商</option>
                     {embeddingModels.map((model) => (
@@ -674,77 +472,40 @@ const SettingsPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label
-                    className="block text-sm font-medium mb-2"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
+                  <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>
                     OpenRouter API Key
                   </label>
                   <div className="relative">
                     <input
                       type={showOpenrouterKey ? "text" : "password"}
+                      className="admin-input w-full px-3 py-2.5 pr-10"
                       value={openrouterApiKey}
                       onChange={(e) => setOpenrouterApiKey(e.target.value)}
                       onBlur={handleOpenrouterKeyBlur}
-                      placeholder="请输入您的OpenRouter API Key"
-                      className="w-full px-4 py-3 pr-12 glass-input rounded-xl"
-                      style={{ color: "var(--text-primary)" }}
+                      placeholder="输入后失焦自动保存"
                     />
                     <button
                       type="button"
-                      onClick={() => setShowOpenrouterKey(!showOpenrouterKey)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 transition-colors"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1"
+                      onClick={() => setShowOpenrouterKey((prev) => !prev)}
                       style={{ color: "var(--text-muted)" }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.color = "var(--text-primary)")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.color = "var(--text-muted)")
-                      }
                     >
-                      {showOpenrouterKey ? (
-                        <EyeOff size={18} />
-                      ) : (
-                        <Eye size={18} />
-                      )}
+                      {showOpenrouterKey ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
-                  <p
-                    className="mt-2 text-xs"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    用于记忆搜索功能的向量嵌入生成，输入后点击其他位置自动保存
-                  </p>
                 </div>
               </div>
-            </motion.div>
+            </SectionCard>
           </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25 }}
-            className="w-full mt-6"
-          >
-            <WebSearchConfigPanel
-              config={webSearchConfig}
-              onChange={handleWebSearchConfigChange}
-              onSaveKey={handleSaveWebSearchKey}
-              tavilyApiKeySet={existingWebSearchKeys.tavily}
-            />
-          </motion.div>
+          <WebSearchConfigPanel
+            config={webSearchConfig}
+            onChange={handleWebSearchConfigChange}
+            onSaveKey={handleSaveWebSearchKey}
+            tavilyApiKeySet={existingWebSearchKeys.tavily}
+          />
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="w-full mt-6"
-          >
-            <BrowserConfigPanel
-              config={browserConfig}
-              onChange={handleBrowserConfigChange}
-            />
-          </motion.div>
+          <BrowserConfigPanel config={browserConfig} onChange={handleBrowserConfigChange} />
         </div>
       </div>
     </MainLayout>

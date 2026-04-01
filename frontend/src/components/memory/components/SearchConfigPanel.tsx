@@ -1,4 +1,5 @@
-import { Settings, Sliders, Clock, Layers } from "lucide-react";
+import { Settings2, Layers, SlidersHorizontal, Clock3 } from "lucide-react";
+import { SectionCard, Switch } from "../../admin";
 
 type MemoryConfig = {
   memory_top_k: string;
@@ -17,54 +18,51 @@ interface SearchConfigPanelProps {
   onChange: (key: keyof MemoryConfig, value: string) => void;
 }
 
-/**
- * 搜索配置面板组件
- * 包含基础搜索参数、混合搜索配置、结果重排序配置和时间衰减配置
- */
-const SearchConfigPanel: React.FC<SearchConfigPanelProps> = ({
-  config,
-  onChange,
-}) => {
-  const isHybridEnabled = config.memory_use_hybrid === "true";
-  const isMmrEnabled = config.memory_enable_mmr === "true";
-  const isTemporalDecayEnabled = config.memory_enable_temporal_decay === "true";
+const sliderBackground = (percent: number) =>
+  `linear-gradient(to right, var(--accent) 0%, var(--accent) ${percent}%, var(--panel-border) ${percent}%, var(--panel-border) 100%)`;
+
+const BlockTitle: React.FC<{ icon: React.ReactNode; title: string; desc: string }> = ({ icon, title, desc }) => (
+  <div className="flex items-center gap-2 mb-4">
+    <span
+      className="w-8 h-8 rounded-lg flex items-center justify-center"
+      style={{ backgroundColor: "var(--surface-subtle)", color: "var(--text-secondary)" }}
+    >
+      {icon}
+    </span>
+    <div>
+      <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+        {title}
+      </h3>
+      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+        {desc}
+      </p>
+    </div>
+  </div>
+);
+
+const SearchConfigPanel: React.FC<SearchConfigPanelProps> = ({ config, onChange }) => {
+  const hybridEnabled = config.memory_use_hybrid === "true";
+  const mmrEnabled = config.memory_enable_mmr === "true";
+  const decayEnabled = config.memory_enable_temporal_decay === "true";
+
+  const topKPercent = ((Number.parseInt(config.memory_top_k, 10) - 1) / 19) * 100;
+  const minScorePercent = Number.parseFloat(config.memory_min_score) * 100;
+  const vectorPercent = Number.parseFloat(config.memory_vector_weight) * 100;
+  const textPercent = Number.parseFloat(config.memory_text_weight) * 100;
+  const mmrPercent = Number.parseFloat(config.memory_mmr_lambda) * 100;
+  const halfLifePercent = ((Number.parseInt(config.memory_half_life_days, 10) - 1) / 364) * 100;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div
-        className="glass-card rounded-2xl p-5"
-        style={{ border: "1px solid var(--glass-border)" }}
-      >
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/20 to-primary-dark/20 flex items-center justify-center">
-            <Settings size={18} className="text-primary" />
-          </div>
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+      <SectionCard className="p-4">
+        <BlockTitle icon={<Settings2 size={16} />} title="基础检索参数" desc="控制检索结果数量与最低相关度" />
+        <div className="space-y-4">
           <div>
-            <h3
-              className="text-base font-semibold"
-              style={{ color: "var(--text-primary)" }}
-            >
-              基础搜索参数
-            </h3>
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              控制搜索结果的基本参数
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-5">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label
-                className="text-sm font-medium"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                搜索结果数量
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                检索条数
               </label>
-              <span
-                className="text-sm font-mono"
-                style={{ color: "var(--primary)" }}
-              >
+              <span className="text-xs font-mono" style={{ color: "var(--text-primary)" }}>
                 {config.memory_top_k}
               </span>
             </div>
@@ -75,31 +73,16 @@ const SearchConfigPanel: React.FC<SearchConfigPanelProps> = ({
               value={config.memory_top_k}
               onChange={(e) => onChange("memory_top_k", e.target.value)}
               className="w-full h-2 rounded-lg appearance-none cursor-pointer"
-              style={{
-                background: `linear-gradient(to right, var(--primary) 0%, var(--primary) ${
-                  ((parseInt(config.memory_top_k) - 1) / 19) * 100
-                }%, var(--glass-border) ${
-                  ((parseInt(config.memory_top_k) - 1) / 19) * 100
-                }%, var(--glass-border) 100%)`,
-              }}
+              style={{ background: sliderBackground(topKPercent) }}
             />
-            <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-              每次搜索返回的最大结果数量（1-20）
-            </p>
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label
-                className="text-sm font-medium"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                最小相似度
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                最低相关度
               </label>
-              <span
-                className="text-sm font-mono"
-                style={{ color: "var(--primary)" }}
-              >
+              <span className="text-xs font-mono" style={{ color: "var(--text-primary)" }}>
                 {config.memory_min_score}
               </span>
             </div>
@@ -111,80 +94,29 @@ const SearchConfigPanel: React.FC<SearchConfigPanelProps> = ({
               value={config.memory_min_score}
               onChange={(e) => onChange("memory_min_score", e.target.value)}
               className="w-full h-2 rounded-lg appearance-none cursor-pointer"
-              style={{
-                background: `linear-gradient(to right, var(--primary) 0%, var(--primary) ${
-                  parseFloat(config.memory_min_score) * 100
-                }%, var(--glass-border) ${
-                  parseFloat(config.memory_min_score) * 100
-                }%, var(--glass-border) 100%)`,
-              }}
+              style={{ background: sliderBackground(minScorePercent) }}
             />
-            <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-              只返回相似度高于此阈值的结果（0-1）
-            </p>
           </div>
         </div>
-      </div>
+      </SectionCard>
 
-      <div
-        className="glass-card rounded-2xl p-5"
-        style={{ border: "1px solid var(--glass-border)" }}
-      >
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-700/20 flex items-center justify-center">
-              <Layers size={18} className="text-blue-400" />
-            </div>
-            <div>
-              <h3
-                className="text-base font-semibold"
-                style={{ color: "var(--text-primary)" }}
-              >
-                混合搜索配置
-              </h3>
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                向量 + 文本相似度
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() =>
-              onChange(
-                "memory_use_hybrid",
-                config.memory_use_hybrid === "true" ? "false" : "true",
-              )
-            }
-            className={`relative w-12 h-6 rounded-full transition-colors ${
-              config.memory_use_hybrid === "true"
-                ? "bg-gradient-to-r from-primary to-primary-dark"
-                : "bg-gray-600"
-            }`}
-          >
-            <span
-              className={`block w-4 h-4 rounded-full bg-white shadow-md transition-transform absolute top-1 ${
-                config.memory_use_hybrid === "true"
-                  ? "left-[calc(100%-1.25rem)]"
-                  : "left-1"
-              }`}
-            />
-          </button>
+      <SectionCard className="p-4">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <BlockTitle icon={<Layers size={16} />} title="混合检索" desc="向量与文本检索融合（权重可调）" />
+          <Switch
+            checked={hybridEnabled}
+            onChange={(checked) => onChange("memory_use_hybrid", checked ? "true" : "false")}
+            ariaLabel="切换混合检索"
+          />
         </div>
 
-        <div
-          className={`space-y-5 ${!isHybridEnabled ? "opacity-50 pointer-events-none" : ""}`}
-        >
+        <div className={`space-y-4 ${hybridEnabled ? "" : "opacity-55 pointer-events-none"}`}>
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label
-                className="text-sm font-medium"
-                style={{ color: "var(--text-secondary)" }}
-              >
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-sm" style={{ color: "var(--text-secondary)" }}>
                 向量权重
               </label>
-              <span
-                className="text-sm font-mono"
-                style={{ color: "var(--primary)" }}
-              >
+              <span className="text-xs font-mono" style={{ color: "var(--text-primary)" }}>
                 {config.memory_vector_weight}
               </span>
             </div>
@@ -195,38 +127,21 @@ const SearchConfigPanel: React.FC<SearchConfigPanelProps> = ({
               step="0.01"
               value={config.memory_vector_weight}
               onChange={(e) => {
-                onChange("memory_vector_weight", e.target.value);
-                onChange(
-                  "memory_text_weight",
-                  (1 - parseFloat(e.target.value)).toFixed(2),
-                );
+                const value = Number.parseFloat(e.target.value);
+                onChange("memory_vector_weight", value.toFixed(2));
+                onChange("memory_text_weight", (1 - value).toFixed(2));
               }}
               className="w-full h-2 rounded-lg appearance-none cursor-pointer"
-              style={{
-                background: `linear-gradient(to right, var(--primary) 0%, var(--primary) ${
-                  parseFloat(config.memory_vector_weight) * 100
-                }%, var(--glass-border) ${
-                  parseFloat(config.memory_vector_weight) * 100
-                }%, var(--glass-border) 100%)`,
-              }}
+              style={{ background: sliderBackground(vectorPercent) }}
             />
-            <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-              向量相似度权重
-            </p>
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label
-                className="text-sm font-medium"
-                style={{ color: "var(--text-secondary)" }}
-              >
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-sm" style={{ color: "var(--text-secondary)" }}>
                 文本权重
               </label>
-              <span
-                className="text-sm font-mono"
-                style={{ color: "var(--primary)" }}
-              >
+              <span className="text-xs font-mono" style={{ color: "var(--text-primary)" }}>
                 {config.memory_text_weight}
               </span>
             </div>
@@ -237,200 +152,77 @@ const SearchConfigPanel: React.FC<SearchConfigPanelProps> = ({
               step="0.01"
               value={config.memory_text_weight}
               onChange={(e) => {
-                onChange("memory_text_weight", e.target.value);
-                onChange(
-                  "memory_vector_weight",
-                  (1 - parseFloat(e.target.value)).toFixed(2),
-                );
+                const value = Number.parseFloat(e.target.value);
+                onChange("memory_text_weight", value.toFixed(2));
+                onChange("memory_vector_weight", (1 - value).toFixed(2));
               }}
               className="w-full h-2 rounded-lg appearance-none cursor-pointer"
-              style={{
-                background: `linear-gradient(to right, var(--primary) 0%, var(--primary) ${
-                  parseFloat(config.memory_text_weight) * 100
-                }%, var(--glass-border) ${
-                  parseFloat(config.memory_text_weight) * 100
-                }%, var(--glass-border) 100%)`,
-              }}
+              style={{ background: sliderBackground(textPercent) }}
             />
-            <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-              BM25 文本相似度权重
-            </p>
           </div>
         </div>
-      </div>
+      </SectionCard>
 
-      <div
-        className="glass-card rounded-2xl p-5"
-        style={{ border: "1px solid var(--glass-border)" }}
-      >
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500/20 to-purple-700/20 flex items-center justify-center">
-              <Sliders size={18} className="text-purple-400" />
-            </div>
-            <div>
-              <h3
-                className="text-base font-semibold"
-                style={{ color: "var(--text-primary)" }}
-              >
-                结果重排序
-              </h3>
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                MMR 算法提高多样性
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() =>
-              onChange(
-                "memory_enable_mmr",
-                config.memory_enable_mmr === "true" ? "false" : "true",
-              )
-            }
-            className={`relative w-12 h-6 rounded-full transition-colors ${
-              config.memory_enable_mmr === "true"
-                ? "bg-gradient-to-r from-primary to-primary-dark"
-                : "bg-gray-600"
-            }`}
-          >
-            <span
-              className={`block w-4 h-4 rounded-full bg-white shadow-md transition-transform absolute top-1 ${
-                config.memory_enable_mmr === "true"
-                  ? "left-[calc(100%-1.25rem)]"
-                  : "left-1"
-              }`}
-            />
-          </button>
+      <SectionCard className="p-4">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <BlockTitle icon={<SlidersHorizontal size={16} />} title="MMR 重排" desc="提高返回结果多样性" />
+          <Switch
+            checked={mmrEnabled}
+            onChange={(checked) => onChange("memory_enable_mmr", checked ? "true" : "false")}
+            ariaLabel="切换 MMR 重排"
+          />
         </div>
+        <div className={mmrEnabled ? "" : "opacity-55 pointer-events-none"}>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-sm" style={{ color: "var(--text-secondary)" }}>
+              重排系数
+            </label>
+            <span className="text-xs font-mono" style={{ color: "var(--text-primary)" }}>
+              {config.memory_mmr_lambda}
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={config.memory_mmr_lambda}
+            onChange={(e) => onChange("memory_mmr_lambda", e.target.value)}
+            className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+            style={{ background: sliderBackground(mmrPercent) }}
+          />
+        </div>
+      </SectionCard>
 
-        <div
-          className={`space-y-5 ${!isMmrEnabled ? "opacity-50 pointer-events-none" : ""}`}
-        >
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label
-                className="text-sm font-medium"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                MMR 参数
-              </label>
-              <span
-                className="text-sm font-mono"
-                style={{ color: "var(--primary)" }}
-              >
-                {config.memory_mmr_lambda}
-              </span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={config.memory_mmr_lambda}
-              onChange={(e) => onChange("memory_mmr_lambda", e.target.value)}
-              className="w-full h-2 rounded-lg appearance-none cursor-pointer"
-              style={{
-                background: `linear-gradient(to right, var(--primary) 0%, var(--primary) ${
-                  parseFloat(config.memory_mmr_lambda) * 100
-                }%, var(--glass-border) ${
-                  parseFloat(config.memory_mmr_lambda) * 100
-                }%, var(--glass-border) 100%)`,
-              }}
-            />
-            <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-              1 重相关性，0 重多样性
-            </p>
-          </div>
+      <SectionCard className="p-4">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <BlockTitle icon={<Clock3 size={16} />} title="时间衰减" desc="越旧的记忆权重越低" />
+          <Switch
+            checked={decayEnabled}
+            onChange={(checked) => onChange("memory_enable_temporal_decay", checked ? "true" : "false")}
+            ariaLabel="切换时间衰减"
+          />
         </div>
-      </div>
-
-      <div
-        className="glass-card rounded-2xl p-5"
-        style={{ border: "1px solid var(--glass-border)" }}
-      >
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500/20 to-orange-700/20 flex items-center justify-center">
-              <Clock size={18} className="text-orange-400" />
-            </div>
-            <div>
-              <h3
-                className="text-base font-semibold"
-                style={{ color: "var(--text-primary)" }}
-              >
-                时间衰减
-              </h3>
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                根据时间降低权重
-              </p>
-            </div>
+        <div className={decayEnabled ? "" : "opacity-55 pointer-events-none"}>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-sm" style={{ color: "var(--text-secondary)" }}>
+              半衰期（天）
+            </label>
+            <span className="text-xs font-mono" style={{ color: "var(--text-primary)" }}>
+              {config.memory_half_life_days}
+            </span>
           </div>
-          <button
-            onClick={() =>
-              onChange(
-                "memory_enable_temporal_decay",
-                config.memory_enable_temporal_decay === "true"
-                  ? "false"
-                  : "true",
-              )
-            }
-            className={`relative w-12 h-6 rounded-full transition-colors ${
-              config.memory_enable_temporal_decay === "true"
-                ? "bg-gradient-to-r from-primary to-primary-dark"
-                : "bg-gray-600"
-            }`}
-          >
-            <span
-              className={`block w-4 h-4 rounded-full bg-white shadow-md transition-transform absolute top-1 ${
-                config.memory_enable_temporal_decay === "true"
-                  ? "left-[calc(100%-1.25rem)]"
-                  : "left-1"
-              }`}
-            />
-          </button>
+          <input
+            type="range"
+            min="1"
+            max="365"
+            value={config.memory_half_life_days}
+            onChange={(e) => onChange("memory_half_life_days", e.target.value)}
+            className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+            style={{ background: sliderBackground(halfLifePercent) }}
+          />
         </div>
-
-        <div
-          className={`space-y-5 ${!isTemporalDecayEnabled ? "opacity-50 pointer-events-none" : ""}`}
-        >
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label
-                className="text-sm font-medium"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                半衰期
-              </label>
-              <span
-                className="text-sm font-mono"
-                style={{ color: "var(--primary)" }}
-              >
-                {config.memory_half_life_days} 天
-              </span>
-            </div>
-            <input
-              type="range"
-              min="1"
-              max="365"
-              value={config.memory_half_life_days}
-              onChange={(e) =>
-                onChange("memory_half_life_days", e.target.value)
-              }
-              className="w-full h-2 rounded-lg appearance-none cursor-pointer"
-              style={{
-                background: `linear-gradient(to right, var(--primary) 0%, var(--primary) ${
-                  ((parseInt(config.memory_half_life_days) - 1) / 364) * 100
-                }%, var(--glass-border) ${
-                  ((parseInt(config.memory_half_life_days) - 1) / 364) * 100
-                }%, var(--glass-border) 100%)`,
-              }}
-            />
-            <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-              权重减半所需天数（1-365）
-            </p>
-          </div>
-        </div>
-      </div>
+      </SectionCard>
     </div>
   );
 };

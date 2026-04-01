@@ -1,10 +1,8 @@
-import { useState, useEffect } from "react";
-import { Star, X, Loader2 } from "lucide-react";
-import {
-  createLongTermMemory,
-  updateLongTermMemory,
-} from "../../../services/api";
+import { useEffect, useState } from "react";
+import { Loader2, Star, X } from "lucide-react";
+import { createLongTermMemory, updateLongTermMemory } from "../../../services/api";
 import type { LongTermMemory } from "../../../types";
+import { SectionCard } from "../../admin";
 
 interface MemoryFormProps {
   memory: LongTermMemory | null;
@@ -12,262 +10,174 @@ interface MemoryFormProps {
   onClose: () => void;
 }
 
-/**
- * 记忆表单组件
- * 用于创建和编辑长期记忆
- */
+const SOURCE_OPTIONS = ["用户手动添加", "对话总结", "系统自动提取", "自定义"] as const;
+
 const MemoryForm: React.FC<MemoryFormProps> = ({ memory, onSave, onClose }) => {
   const [content, setContent] = useState("");
   const [key, setKey] = useState("");
   const [importance, setImportance] = useState(0.5);
-  const [source, setSource] = useState("用户手动添加");
+  const [source, setSource] = useState<(typeof SOURCE_OPTIONS)[number]>("用户手动添加");
   const [customSource, setCustomSource] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (memory) {
-      setContent(memory.content);
-      setKey(memory.key || "");
-      setImportance(memory.importance);
-      setSource(memory.source || "用户手动添加");
+    if (!memory) return;
+    setContent(memory.content);
+    setKey(memory.key || "");
+    setImportance(memory.importance);
+    const value = memory.source || "用户手动添加";
+    if (SOURCE_OPTIONS.includes(value as (typeof SOURCE_OPTIONS)[number])) {
+      setSource(value as (typeof SOURCE_OPTIONS)[number]);
+      setCustomSource("");
+    } else {
+      setSource("自定义");
+      setCustomSource(value);
     }
   }, [memory]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
 
     if (!content.trim()) {
       setError("记忆内容不能为空");
       return;
     }
-
     if (content.length > 5000) {
-      setError("记忆内容不能超过5000字");
+      setError("记忆内容不能超过 5000 字");
       return;
     }
 
     try {
       setIsSaving(true);
       setError("");
-
-      const finalSource = source === "自定义" ? customSource : source;
-
-      let savedMemory: LongTermMemory;
-
-      if (memory) {
-        savedMemory = await updateLongTermMemory(memory.id, {
-          content,
-          key: key || undefined,
-          importance,
-          source: finalSource || undefined,
-        });
-      } else {
-        savedMemory = await createLongTermMemory(
-          content,
-          key || undefined,
-          importance,
-          finalSource || undefined,
-        );
-      }
-
-      onSave(savedMemory);
-    } catch (error) {
-      console.error("Failed to save memory:", error);
-      setError("保存失败，请重试");
+      const finalSource = source === "自定义" ? customSource.trim() : source;
+      const payload = {
+        content: content.trim(),
+        key: key.trim() || undefined,
+        importance,
+        source: finalSource || undefined,
+      };
+      const saved = memory
+        ? await updateLongTermMemory(memory.id, payload)
+        : await createLongTermMemory(payload.content, payload.key, payload.importance, payload.source);
+      onSave(saved);
+    } catch (err) {
+      console.error("Failed to save memory:", err);
+      setError("保存失败，请稍后重试");
     } finally {
       setIsSaving(false);
     }
   };
 
-  const getImportanceStars = (value: number) => {
-    const score = Math.round(value * 10);
-    return Array.from({ length: 10 }, (_, i) => (
-      <Star
-        key={i}
-        size={16}
-        fill={i < score ? "currentColor" : "none"}
-        className={i < score ? "text-yellow-400" : "text-gray-600"}
-      />
-    ));
-  };
+  const score = Math.round(importance * 10);
 
   return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="glass-card rounded-2xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
-        style={{ border: "1px solid var(--glass-border)" }}
-      >
-        <div className="flex items-center justify-between mb-6">
-          <h2
-            className="text-xl font-semibold"
-            style={{ color: "var(--text-primary)" }}
-          >
-            {memory ? "编辑记忆" : "创建记忆"}
+    <div className="fixed inset-0 bg-black/45 flex items-center justify-center z-50" onClick={onClose}>
+      <SectionCard className="w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 mx-4" >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
+            {memory ? "编辑记忆" : "新建记忆"}
           </h2>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg transition-colors"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            <X size={20} />
+          <button type="button" className="p-2 rounded-lg" style={{ color: "var(--text-secondary)" }} onClick={onClose}>
+            <X size={18} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label
-              className="block text-sm font-medium mb-2"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              记忆内容 <span className="text-red-400">*</span>
+            <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>
+              内容
             </label>
             <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="输入要保存的记忆内容..."
               rows={6}
               maxLength={5000}
-              className="w-full px-4 py-3 glass-input rounded-xl resize-none"
-              style={{ color: "var(--text-primary)" }}
+              className="admin-input w-full px-3 py-2.5 resize-none"
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+              placeholder="输入要保存的长期记忆"
             />
-            <div className="flex justify-between mt-2">
-              {error && <span className="text-sm text-red-400">{error}</span>}
-              <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-                {content.length}/5000
-              </span>
+            <div className="mt-1 flex items-center justify-between text-xs">
+              <span style={{ color: "#dc2626" }}>{error}</span>
+              <span style={{ color: "var(--text-muted)" }}>{content.length}/5000</span>
             </div>
           </div>
 
           <div>
-            <label
-              className="block text-sm font-medium mb-2"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              记忆标签/关键词
+            <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>
+              标签
             </label>
             <input
               type="text"
+              className="admin-input w-full px-3 py-2.5"
               value={key}
-              onChange={(e) => setKey(e.target.value)}
-              placeholder="输入标签或关键词，用逗号分隔"
-              className="w-full px-4 py-3 glass-input rounded-xl"
-              style={{ color: "var(--text-primary)" }}
+              onChange={(event) => setKey(event.target.value)}
+              placeholder="例如：偏好, 目标, 项目"
             />
-            <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-              便于记忆的分类和检索
-            </p>
           </div>
 
           <div>
-            <label
-              className="block text-sm font-medium mb-2"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              重要性评分 <span className="text-red-400">*</span>
-            </label>
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                {getImportanceStars(importance)}
-                <span
-                  className="text-sm font-mono"
-                  style={{ color: "var(--primary)" }}
-                >
-                  {(importance * 10).toFixed(0)}/10
-                </span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={importance}
-                onChange={(e) => setImportance(parseFloat(e.target.value))}
-                className="w-full h-2 rounded-lg appearance-none cursor-pointer"
-                style={{
-                  background: `linear-gradient(to right, var(--primary) 0%, var(--primary) ${
-                    importance * 100
-                  }%, var(--glass-border) ${importance * 100}%, var(--glass-border) 100%)`,
-                }}
-              />
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                重要性
+              </label>
+              <span className="text-xs font-mono inline-flex items-center gap-1" style={{ color: "var(--text-primary)" }}>
+                <Star size={12} /> {score}/10
+              </span>
             </div>
-            <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-              记忆的重要程度，影响搜索结果的排序
-            </p>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.1"
+              value={importance}
+              onChange={(event) => setImportance(Number.parseFloat(event.target.value))}
+              className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+              style={{
+                background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${
+                  importance * 100
+                }%, var(--panel-border) ${importance * 100}%, var(--panel-border) 100%)`,
+              }}
+            />
           </div>
 
           <div>
-            <label
-              className="block text-sm font-medium mb-2"
-              style={{ color: "var(--text-secondary)" }}
-            >
+            <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>
               来源
             </label>
             <select
+              className="admin-select w-full px-3 py-2.5"
               value={source}
-              onChange={(e) => {
-                setSource(e.target.value);
-                if (e.target.value !== "自定义") {
-                  setCustomSource("");
-                }
-              }}
-              className="w-full px-4 py-3 glass-input rounded-xl appearance-none cursor-pointer"
-              style={{ color: "var(--text-primary)" }}
+              onChange={(event) => setSource(event.target.value as (typeof SOURCE_OPTIONS)[number])}
             >
-              <option value="用户手动添加">用户手动添加</option>
-              <option value="对话总结">对话总结</option>
-              <option value="系统自动提取">系统自动提取</option>
-              <option value="自定义">自定义</option>
+              {SOURCE_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
             </select>
-
-            {source === "自定义" && (
+            {source === "自定义" ? (
               <input
                 type="text"
+                className="admin-input w-full px-3 py-2.5 mt-2"
                 value={customSource}
-                onChange={(e) => setCustomSource(e.target.value)}
+                onChange={(event) => setCustomSource(event.target.value)}
                 placeholder="输入自定义来源"
-                className="w-full px-4 py-3 glass-input rounded-xl mt-3"
-                style={{ color: "var(--text-primary)" }}
               />
-            )}
+            ) : null}
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSaving}
-              className="px-6 py-2.5 rounded-xl font-medium transition-colors"
-              style={{ color: "var(--text-secondary)" }}
-            >
+          <div className="pt-2 flex justify-end gap-2">
+            <button type="button" className="btn-secondary" onClick={onClose} disabled={isSaving}>
               取消
             </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="btn-primary flex items-center gap-2"
-            >
-              {isSaving ? (
-                <>
-                  <div className="animate-spin">
-                    <Loader2 size={16} />
-                  </div>
-                  <span>保存中...</span>
-                </>
-              ) : (
-                <>
-                  <Star size={16} />
-                  <span>{memory ? "更新记忆" : "创建记忆"}</span>
-                </>
-              )}
+            <button type="submit" className="btn-primary inline-flex items-center gap-2" disabled={isSaving}>
+              {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Star size={14} />}
+              <span>{isSaving ? "保存中..." : memory ? "更新记忆" : "创建记忆"}</span>
             </button>
           </div>
         </form>
-      </div>
+      </SectionCard>
     </div>
   );
 };
