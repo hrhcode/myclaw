@@ -11,13 +11,34 @@ import type {
   Provider,
 } from '../types';
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+
+const getApiToken = (): string | null => {
+  try {
+    const token = localStorage.getItem('myclaw_api_token');
+    if (!token) {
+      return null;
+    }
+    const trimmed = token.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  } catch {
+    return null;
+  }
+};
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+});
+
+api.interceptors.request.use((config) => {
+  const token = getApiToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 export interface StreamMessage {
@@ -56,6 +77,14 @@ interface SendMessageStreamCallbacks {
   onTraceEvent?: (type: AgentTraceEventType, payload: AgentTraceEventPayload) => void;
 }
 
+export interface ConversationStats {
+  conversation_id: number;
+  message_count: number;
+  last_message_id: number | null;
+  last_message_content: string | null;
+  last_message_created_at: string | null;
+}
+
 const parseEventPayload = (message: StreamMessage): AgentTraceEventPayload => ({
   content: message.content,
   tool_name: message.tool_name,
@@ -79,11 +108,16 @@ export const sendMessageStream = async (
   const { onChunk, onComplete, onError, onConversation, onTraceEvent } = callbacks;
 
   try {
+    const token = getApiToken();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
     const response = await fetch(`${API_BASE_URL}/chat/stream`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(data),
     });
 
@@ -185,6 +219,11 @@ export const sendMessageStream = async (
 
 export const getConversations = async (): Promise<Conversation[]> => {
   const response = await api.get<Conversation[]>('/conversations');
+  return response.data;
+};
+
+export const getConversationStats = async (): Promise<ConversationStats[]> => {
+  const response = await api.get<ConversationStats[]>('/conversations/stats');
   return response.data;
 };
 

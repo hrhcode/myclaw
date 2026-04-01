@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle } from 'lucide-react';
@@ -63,6 +63,9 @@ const ChatPage: React.FC = () => {
   } = useApp();
 
   const [isSending, setIsSending] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const chunkBufferRef = useRef('');
+  const flushTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     checkConfiguration();
@@ -89,6 +92,14 @@ const ChatPage: React.FC = () => {
     }
   }, [conversations, currentConversationId, selectConversation, navigate]);
 
+  useEffect(() => {
+    return () => {
+      if (flushTimerRef.current !== null) {
+        window.clearTimeout(flushTimerRef.current);
+      }
+    };
+  }, []);
+
   const checkConfiguration = async () => {
     try {
       await getConfig('zhipu_api_key');
@@ -110,6 +121,35 @@ const ChatPage: React.FC = () => {
     setMessages((prev) => prev.map((message) => (message.id === tempMessageId ? updater(message) : message)));
   };
 
+  const showNotice = (message: string) => {
+    setNotice(message);
+    window.setTimeout(() => {
+      setNotice((prev) => (prev === message ? null : prev));
+    }, 3000);
+  };
+
+  const flushBufferedChunk = (tempMessageId: number) => {
+    if (!chunkBufferRef.current) {
+      return;
+    }
+    const content = chunkBufferRef.current;
+    chunkBufferRef.current = '';
+    updateStreamingMessage(tempMessageId, (message) => ({
+      ...message,
+      content: message.content + content,
+    }));
+  };
+
+  const scheduleChunkFlush = (tempMessageId: number) => {
+    if (flushTimerRef.current !== null) {
+      return;
+    }
+    flushTimerRef.current = window.setTimeout(() => {
+      flushTimerRef.current = null;
+      flushBufferedChunk(tempMessageId);
+    }, 50);
+  };
+
   const handleSendMessage = async (content: string) => {
     const trimmedContent = content.trim();
 
@@ -119,13 +159,13 @@ const ChatPage: React.FC = () => {
     }
 
     if (isConfigured === false) {
-      alert('Please configure an API key first.');
+      showNotice('请先在设置中配置 API Key。');
       navigate('/settings');
       return;
     }
 
     if (!currentConversationId) {
-      alert('Conversation is still loading. Please try again in a moment.');
+      showNotice('会话仍在加载中，请稍后重试。');
       return;
     }
 
@@ -162,10 +202,8 @@ const ChatPage: React.FC = () => {
         },
         {
           onChunk: (chunk) => {
-            updateStreamingMessage(tempAiMessage.id, (message) => ({
-              ...message,
-              content: message.content + chunk,
-            }));
+            chunkBufferRef.current += chunk;
+            scheduleChunkFlush(tempAiMessage.id);
           },
           onConversation: (nextConversationId, runId) => {
             updateStreamingMessage(tempAiMessage.id, (message) => ({
@@ -187,6 +225,11 @@ const ChatPage: React.FC = () => {
             }));
           },
           onComplete: (_message, conversationIdFromStream) => {
+            if (flushTimerRef.current !== null) {
+              window.clearTimeout(flushTimerRef.current);
+              flushTimerRef.current = null;
+            }
+            flushBufferedChunk(tempAiMessage.id);
             updateStreamingMessage(tempAiMessage.id, (message) => ({
               ...message,
               conversation_id: conversationIdFromStream,
@@ -195,6 +238,11 @@ const ChatPage: React.FC = () => {
             loadConversations();
           },
           onError: (error) => {
+            if (flushTimerRef.current !== null) {
+              window.clearTimeout(flushTimerRef.current);
+              flushTimerRef.current = null;
+            }
+            flushBufferedChunk(tempAiMessage.id);
             console.error('Chat error:', error);
             updateStreamingMessage(tempAiMessage.id, (message) => ({
               ...message,
@@ -205,16 +253,23 @@ const ChatPage: React.FC = () => {
               }),
               isStreaming: false,
             }));
+            showNotice('消息发送失败，请检查配置后重试。');
           },
         },
       );
     } catch (error) {
+      if (flushTimerRef.current !== null) {
+        window.clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+      flushBufferedChunk(tempAiMessage.id);
       console.error('Failed to send message:', error);
       updateStreamingMessage(tempAiMessage.id, (message) => ({
         ...message,
         content: 'Failed to send message. Please check your API key and tool configuration.',
         isStreaming: false,
       }));
+      showNotice('消息发送失败，请检查配置后重试。');
     } finally {
       setIsSending(false);
     }
@@ -234,6 +289,16 @@ const ChatPage: React.FC = () => {
         </header>
 
         <AnimatePresence>
+          {notice && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="px-6 pt-3"
+            >
+              <div className="warning-banner p-3 text-sm">{notice}</div>
+            </motion.div>
+          )}
           {isConfigured === false && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}

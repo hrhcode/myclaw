@@ -189,6 +189,20 @@ class ToolCallDAO:
         return list(result.scalars().all())
 
     @staticmethod
+    async def list_by_message_ids(
+        db: AsyncSession,
+        message_ids: List[int],
+    ) -> List[ToolCall]:
+        if not message_ids:
+            return []
+        result = await db.execute(
+            select(ToolCall)
+            .where(ToolCall.message_id.in_(message_ids))
+            .order_by(ToolCall.message_id, ToolCall.created_at)
+        )
+        return list(result.scalars().all())
+
+    @staticmethod
     async def list_by_status(
         db: AsyncSession,
         status: str,

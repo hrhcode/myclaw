@@ -1,16 +1,18 @@
 import sys
 import asyncio
+import os
 
 # Windows 系统需要设置事件循环策略以支持子进程
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import chat, history, config, memory, logs, tools
 from app.core.database import engine, Base, AsyncSessionLocal
-from app.services.log_service import setup_log_handlers
+from app.services.log_service import cleanup_log_handlers, setup_log_handlers
 from app.common.logging_config import setup_logging, get_logger
+from app.common.security import require_api_auth
 from app.tools import tool_registry
 from app.tools.builtin import register_all_builtin_tools
 from app.dao.conversation_dao import ConversationDAO
@@ -23,20 +25,27 @@ DEFAULT_CONVERSATION_TITLE = "main"
 
 app = FastAPI(title="AI对话助手API", version="1.0.0")
 
+
+def _parse_cors_origins() -> list[str]:
+    raw = os.getenv("MYCLAW_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+    origins = [item.strip() for item in raw.split(",") if item.strip()]
+    return origins or ["http://localhost:5173", "http://127.0.0.1:5173"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_parse_cors_origins(),
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(chat.router, prefix="/api", tags=["聊天"])
-app.include_router(history.router, prefix="/api", tags=["历史记录"])
-app.include_router(config.router, prefix="/api", tags=["配置管理"])
-app.include_router(memory.router, prefix="/api", tags=["记忆搜索"])
-app.include_router(logs.router, prefix="/api", tags=["日志"])
-app.include_router(tools.router, prefix="/api", tags=["工具管理"])
+protected = [Depends(require_api_auth)]
+app.include_router(chat.router, prefix="/api", tags=["聊天"], dependencies=protected)
+app.include_router(history.router, prefix="/api", tags=["历史记录"], dependencies=protected)
+app.include_router(config.router, prefix="/api", tags=["配置管理"], dependencies=protected)
+app.include_router(memory.router, prefix="/api", tags=["记忆搜索"], dependencies=protected)
+app.include_router(logs.router, prefix="/api", tags=["日志"], dependencies=protected)
+app.include_router(tools.router, prefix="/api", tags=["工具管理"], dependencies=protected)
 
 
 async def ensure_default_conversation():
@@ -83,9 +92,14 @@ async def startup_event():
     logger.info(f"  - /api/logs/stream (日志WebSocket)")
     logger.info(f"  - /api/logs/history (历史日志)")
     logger.info(f"  - /api/logs/stats (日志统计)")
-    logger.info(f"CORS: 已启用 (允许所有来源)")
+    logger.info(f"CORS: {', '.join(_parse_cors_origins())}")
     logger.info(f"API文档: http://127.0.0.1:8000/docs")
     logger.info("=" * 50)
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    await cleanup_log_handlers()
 
 @app.get("/")
 async def root():

@@ -3,7 +3,7 @@
 提供配置(Config)实体的数据库操作
 """
 import logging
-from typing import List, Optional
+from typing import Iterable, List, Optional
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.models import Config
@@ -111,6 +111,36 @@ class ConfigDAO:
         await db.refresh(config)
         logger.info(f"[DAO-Config] 配置已保存，key: {key}")
         return config
+
+    @staticmethod
+    async def upsert_many(
+        db: AsyncSession,
+        items: Iterable[tuple[str, str, Optional[str]]],
+    ) -> List[Config]:
+        entries = [(key, value, description) for key, value, description in items]
+        if not entries:
+            return []
+
+        keys = [key for key, _, _ in entries]
+        result = await db.execute(select(Config).where(Config.key.in_(keys)))
+        existing_map = {item.key: item for item in result.scalars().all()}
+
+        saved: List[Config] = []
+        for key, value, description in entries:
+            config = existing_map.get(key)
+            if config:
+                config.value = value
+                if description is not None:
+                    config.description = description
+            else:
+                config = Config(key=key, value=value, description=description)
+                db.add(config)
+            saved.append(config)
+
+        await db.commit()
+        for config in saved:
+            await db.refresh(config)
+        return saved
 
     @staticmethod
     async def update(

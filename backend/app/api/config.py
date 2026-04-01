@@ -42,6 +42,40 @@ import logging
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+SENSITIVE_CONFIG_KEYS = {
+    API_KEY_KEY,
+    OPENROUTER_API_KEY_KEY,
+    TAVILY_API_KEY_KEY,
+}
+
+
+def _is_sensitive_key(key: str) -> bool:
+    lower = key.lower()
+    if key in SENSITIVE_CONFIG_KEYS:
+        return True
+    return lower.endswith("_api_key") or lower.endswith("_token") or "secret" in lower
+
+
+def _mask_value(value: str | None) -> str | None:
+    if value is None:
+        return None
+    if len(value) <= 8:
+        return "*" * len(value)
+    return f"{value[:4]}{'*' * (len(value) - 8)}{value[-4:]}"
+
+
+def _to_safe_config_response(config_item) -> ConfigResponse:
+    value = config_item.value
+    if _is_sensitive_key(config_item.key):
+        value = _mask_value(value) or ""
+    return ConfigResponse(
+        id=config_item.id,
+        key=config_item.key,
+        value=value,
+        description=config_item.description,
+        updated_at=config_item.updated_at,
+    )
+
 
 @router.get("/config/providers")
 async def get_providers():
@@ -110,7 +144,7 @@ async def get_web_search_config(db: AsyncSession = Depends(get_db)):
 
     return WebSearchConfigResponse(
         provider=provider or "tavily",
-        tavily_api_key=tavily_key,
+        tavily_api_key=_mask_value(tavily_key),
         max_results=int(max_results_str) if max_results_str else 5,
         search_depth=search_depth or "basic",
         include_answer=include_answer_str.lower() == "true" if include_answer_str else True,
@@ -128,15 +162,17 @@ async def update_web_search_config(
     更新网络搜索配置
     """
     logger.info("更新网络搜索配置")
-
-    await ConfigDAO.upsert(db, WEB_SEARCH_PROVIDER_KEY, config.provider, "搜索引擎提供商")
+    entries = [
+        (WEB_SEARCH_PROVIDER_KEY, config.provider, "搜索引擎提供商"),
+        (WEB_SEARCH_MAX_RESULTS_KEY, str(config.max_results), "最大搜索结果数"),
+        (WEB_SEARCH_DEPTH_KEY, config.search_depth, "搜索深度"),
+        (WEB_SEARCH_INCLUDE_ANSWER_KEY, str(config.include_answer).lower(), "是否包含AI答案"),
+        (WEB_SEARCH_TIMEOUT_KEY, str(config.timeout_seconds), "搜索超时时间"),
+        (WEB_SEARCH_CACHE_TTL_KEY, str(config.cache_ttl_minutes), "缓存过期时间"),
+    ]
     if config.tavily_api_key:
-        await ConfigDAO.upsert(db, TAVILY_API_KEY_KEY, config.tavily_api_key, "Tavily API Key")
-    await ConfigDAO.upsert(db, WEB_SEARCH_MAX_RESULTS_KEY, str(config.max_results), "最大搜索结果数")
-    await ConfigDAO.upsert(db, WEB_SEARCH_DEPTH_KEY, config.search_depth, "搜索深度")
-    await ConfigDAO.upsert(db, WEB_SEARCH_INCLUDE_ANSWER_KEY, str(config.include_answer).lower(), "是否包含AI答案")
-    await ConfigDAO.upsert(db, WEB_SEARCH_TIMEOUT_KEY, str(config.timeout_seconds), "搜索超时时间")
-    await ConfigDAO.upsert(db, WEB_SEARCH_CACHE_TTL_KEY, str(config.cache_ttl_minutes), "缓存过期时间")
+        entries.append((TAVILY_API_KEY_KEY, config.tavily_api_key, "Tavily API Key"))
+    await ConfigDAO.upsert_many(db, entries)
     return {"message": "网络搜索配置已更新"}
 
 
@@ -156,8 +192,8 @@ async def get_browser_config(db: AsyncSession = Depends(get_db)):
     ssrf_whitelist = await ConfigDAO.get_value(db, BROWSER_SSRF_WHITELIST_KEY)
     max_instances_str = await ConfigDAO.get_value(db, BROWSER_MAX_INSTANCES_KEY)
     idle_timeout_ms_str = await ConfigDAO.get_value(db, BROWSER_IDLE_TIMEOUT_MS_KEY)
-    use_system_browser_str = await ConfigDAO.get_value(db, "browser_use_system_browser")
-    system_browser_channel = await ConfigDAO.get_value(db, "browser_system_browser_channel")
+    use_system_browser_str = await ConfigDAO.get_value(db, BROWSER_USE_SYSTEM_BROWSER_KEY)
+    system_browser_channel = await ConfigDAO.get_value(db, BROWSER_SYSTEM_BROWSER_CHANNEL_KEY)
     
     return BrowserConfigResponse(
         default_type=default_type or "chromium",
@@ -183,18 +219,22 @@ async def update_browser_config(
     更新浏览器配置
     """
     logger.info("更新浏览器配置")
-    
-    await ConfigDAO.upsert(db, BROWSER_DEFAULT_TYPE_KEY, config.default_type, "默认浏览器类型")
-    await ConfigDAO.upsert(db, BROWSER_HEADLESS_KEY, str(config.headless).lower(), "是否无头模式")
-    await ConfigDAO.upsert(db, BROWSER_VIEWPORT_WIDTH_KEY, str(config.viewport_width), "视口宽度")
-    await ConfigDAO.upsert(db, BROWSER_VIEWPORT_HEIGHT_KEY, str(config.viewport_height), "视口高度")
-    await ConfigDAO.upsert(db, BROWSER_TIMEOUT_MS_KEY, str(config.timeout_ms), "超时时间（毫秒）")
-    await ConfigDAO.upsert(db, BROWSER_SSRF_ALLOW_PRIVATE_KEY, str(config.ssrf_allow_private).lower(), "是否允许访问内网")
-    await ConfigDAO.upsert(db, BROWSER_SSRF_WHITELIST_KEY, config.ssrf_whitelist, "URL 白名单")
-    await ConfigDAO.upsert(db, BROWSER_MAX_INSTANCES_KEY, str(config.max_instances), "最大浏览器实例数")
-    await ConfigDAO.upsert(db, BROWSER_IDLE_TIMEOUT_MS_KEY, str(config.idle_timeout_ms), "空闲超时时间（毫秒）")
-    await ConfigDAO.upsert(db, "browser_use_system_browser", str(config.use_system_browser).lower(), "是否使用系统浏览器")
-    await ConfigDAO.upsert(db, "browser_system_browser_channel", config.system_browser_channel, "系统浏览器 channel")
+    await ConfigDAO.upsert_many(
+        db,
+        [
+            (BROWSER_DEFAULT_TYPE_KEY, config.default_type, "默认浏览器类型"),
+            (BROWSER_HEADLESS_KEY, str(config.headless).lower(), "是否无头模式"),
+            (BROWSER_VIEWPORT_WIDTH_KEY, str(config.viewport_width), "视口宽度"),
+            (BROWSER_VIEWPORT_HEIGHT_KEY, str(config.viewport_height), "视口高度"),
+            (BROWSER_TIMEOUT_MS_KEY, str(config.timeout_ms), "超时时间（毫秒）"),
+            (BROWSER_SSRF_ALLOW_PRIVATE_KEY, str(config.ssrf_allow_private).lower(), "是否允许访问内网"),
+            (BROWSER_SSRF_WHITELIST_KEY, config.ssrf_whitelist, "URL 白名单"),
+            (BROWSER_MAX_INSTANCES_KEY, str(config.max_instances), "最大浏览器实例数"),
+            (BROWSER_IDLE_TIMEOUT_MS_KEY, str(config.idle_timeout_ms), "空闲超时时间（毫秒）"),
+            (BROWSER_USE_SYSTEM_BROWSER_KEY, str(config.use_system_browser).lower(), "是否使用系统浏览器"),
+            (BROWSER_SYSTEM_BROWSER_CHANNEL_KEY, config.system_browser_channel, "系统浏览器 channel"),
+        ],
+    )
 
     return {"message": "浏览器配置已更新"}
 
@@ -206,7 +246,7 @@ async def list_configs(db: AsyncSession = Depends(get_db)):
     """
     logger.info("获取所有配置")
     configs = await ConfigDAO.list_all(db)
-    return configs
+    return [_to_safe_config_response(item) for item in configs]
 
 
 @router.post("/config", response_model=ConfigResponse)
@@ -223,7 +263,7 @@ async def create_config(
         raise HTTPException(status_code=400, detail=f"配置项 '{config_create.key}' 已存在")
 
     config = await ConfigDAO.create(db, config_create.key, config_create.value, config_create.description)
-    return config
+    return _to_safe_config_response(config)
 
 
 @router.get("/config/{key}", response_model=str)
@@ -235,6 +275,8 @@ async def get_config(key: str, db: AsyncSession = Depends(get_db)):
     value = await ConfigDAO.get_value(db, key)
     if value is None:
         raise HTTPException(status_code=404, detail=f"配置项 '{key}' 不存在")
+    if _is_sensitive_key(key):
+        return _mask_value(value) or ""
     return value
 
 
@@ -249,7 +291,7 @@ async def update_config(
     """
     logger.info(f"更新配置: {key}")
     config = await ConfigDAO.upsert(db, key, config_update.value, config_update.description)
-    return config
+    return _to_safe_config_response(config)
 
 
 @router.delete("/config/{key}")

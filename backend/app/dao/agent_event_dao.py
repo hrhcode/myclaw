@@ -43,6 +43,20 @@ class AgentEventDAO:
         return list(result.scalars().all())
 
     @staticmethod
+    async def list_by_message_ids(
+        db: AsyncSession,
+        message_ids: List[int],
+    ) -> List[AgentEvent]:
+        if not message_ids:
+            return []
+        result = await db.execute(
+            select(AgentEvent)
+            .where(AgentEvent.message_id.in_(message_ids))
+            .order_by(AgentEvent.message_id, AgentEvent.sequence, AgentEvent.created_at)
+        )
+        return list(result.scalars().all())
+
+    @staticmethod
     async def list_by_run_id(db: AsyncSession, run_id: str) -> List[AgentEvent]:
         result = await db.execute(
             select(AgentEvent)

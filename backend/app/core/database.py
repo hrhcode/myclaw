@@ -2,8 +2,12 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import event
+import os
 
 DATABASE_URL = "sqlite+aiosqlite:///./chat.db"
+SQLITE_JOURNAL_MODE = os.getenv("MYCLAW_SQLITE_JOURNAL_MODE", "WAL")
+SQLITE_SYNCHRONOUS = os.getenv("MYCLAW_SQLITE_SYNCHRONOUS", "NORMAL")
+SQLITE_BUSY_TIMEOUT_MS = int(os.getenv("MYCLAW_SQLITE_BUSY_TIMEOUT_MS", "5000"))
 
 engine = create_async_engine(
     DATABASE_URL,
@@ -18,6 +22,9 @@ def set_sqlite_pragma(dbapi_conn, connection_record):
     """
     cursor = dbapi_conn.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.execute(f"PRAGMA journal_mode={SQLITE_JOURNAL_MODE}")
+    cursor.execute(f"PRAGMA synchronous={SQLITE_SYNCHRONOUS}")
+    cursor.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
     cursor.close()
 
 AsyncSessionLocal = sessionmaker(

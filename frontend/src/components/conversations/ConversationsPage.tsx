@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import MainLayout from "../layout/MainLayout";
 import { useApp } from "../../contexts/AppContext";
-import { getMessages } from "../../services/api";
+import { getConversationStats } from "../../services/api";
 import type { Conversation, Message } from "../../types";
 
 interface ConversationWithStats extends Conversation {
@@ -226,21 +226,26 @@ const ConversationsPage: React.FC = () => {
   const loadConversationStats = async () => {
     setIsLoading(true);
     try {
-      const statsPromises = conversations.map(async (conv) => {
-        try {
-          const messages = await getMessages(conv.id);
-          return {
-            ...conv,
-            messageCount: messages.length,
-            lastMessage:
-              messages.length > 0 ? messages[messages.length - 1] : undefined,
-          };
-        } catch {
-          return { ...conv, messageCount: 0, lastMessage: undefined };
-        }
+      const statsResponse = await getConversationStats();
+      const statsMap = new Map(statsResponse.map((item) => [item.conversation_id, item]));
+      const stats = conversations.map((conv) => {
+        const item = statsMap.get(conv.id);
+        const lastMessage =
+          item?.last_message_content && item.last_message_created_at
+            ? {
+                id: item.last_message_id || Date.now(),
+                conversation_id: conv.id,
+                role: "assistant" as const,
+                content: item.last_message_content,
+                created_at: item.last_message_created_at,
+              }
+            : undefined;
+        return {
+          ...conv,
+          messageCount: item?.message_count || 0,
+          lastMessage,
+        };
       });
-
-      const stats = await Promise.all(statsPromises);
       setConversationsWithStats(
         stats.sort(
           (a, b) =>

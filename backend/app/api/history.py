@@ -5,13 +5,16 @@
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from collections import defaultdict
 from typing import List
+from sqlalchemy import select
 from app.core.database import get_db
 from app.dao.conversation_dao import ConversationDAO
 from app.dao.message_dao import MessageDAO
 from app.dao.agent_event_dao import AgentEventDAO
 from app.dao.tool_call_dao import ToolCallDAO
 from app.schemas.schemas import ConversationResponse, MessageResponse, ConversationCreate, ConversationUpdate, ToolCallInMessage, AgentEventInMessage
+from app.models.models import Message
 import logging
 
 router = APIRouter()
@@ -27,6 +30,40 @@ async def get_conversations(db: AsyncSession = Depends(get_db)):
     conversations = await ConversationDAO.list_all(db)
     logger.info(f"返回 {len(conversations)} 个会话")
     return conversations
+
+
+@router.get("/conversations/stats")
+async def get_conversation_stats(db: AsyncSession = Depends(get_db)):
+    conversations = await ConversationDAO.list_all(db)
+    conversation_ids = [item.id for item in conversations]
+    if not conversation_ids:
+        return []
+
+    result = await db.execute(
+        select(Message)
+        .where(Message.conversation_id.in_(conversation_ids))
+        .order_by(Message.conversation_id, Message.created_at)
+    )
+    all_messages = list(result.scalars().all())
+
+    grouped = defaultdict(list)
+    for message in all_messages:
+        grouped[message.conversation_id].append(message)
+
+    response = []
+    for conversation in conversations:
+        messages = grouped.get(conversation.id, [])
+        last_message = messages[-1] if messages else None
+        response.append(
+            {
+                "conversation_id": conversation.id,
+                "message_count": len(messages),
+                "last_message_id": last_message.id if last_message else None,
+                "last_message_content": last_message.content if last_message else None,
+                "last_message_created_at": last_message.created_at.isoformat() if last_message else None,
+            }
+        )
+    return response
 
 
 @router.post("/conversations", response_model=ConversationResponse)
@@ -99,13 +136,23 @@ async def get_conversation_messages(
         raise HTTPException(status_code=404, detail="会话不存在")
 
     messages = await MessageDAO.get_conversation_history(db, conversation_id)
+    assistant_message_ids = [msg.id for msg in messages if msg.role == "assistant"]
+    tool_call_records = await ToolCallDAO.list_by_message_ids(db, assistant_message_ids)
+    agent_event_records = await AgentEventDAO.list_by_message_ids(db, assistant_message_ids)
+
+    tool_call_map = defaultdict(list)
+    for item in tool_call_records:
+        tool_call_map[item.message_id].append(item)
+
+    agent_event_map = defaultdict(list)
+    for item in agent_event_records:
+        agent_event_map[item.message_id].append(item)
 
     response_messages = []
     for msg in messages:
         tool_calls = []
         agent_events = []
         if msg.role == "assistant":
-            tool_call_records = await ToolCallDAO.list_by_message(db, msg.id)
             tool_calls = [
                 ToolCallInMessage(
                     id=tc.id,
@@ -119,9 +166,8 @@ async def get_conversation_messages(
                     created_at=tc.created_at,
                     completed_at=tc.completed_at
                 )
-                for tc in tool_call_records
+                for tc in tool_call_map[msg.id]
             ]
-            agent_event_records = await AgentEventDAO.list_by_message(db, msg.id)
             agent_events = [
                 AgentEventInMessage(
                     id=event.id,
@@ -131,7 +177,7 @@ async def get_conversation_messages(
                     sequence=event.sequence,
                     created_at=event.created_at,
                 )
-                for event in agent_event_records
+                for event in agent_event_map[msg.id]
             ]
 
         response_messages.append(MessageResponse(
