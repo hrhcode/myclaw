@@ -24,6 +24,8 @@ Pillow>=10.0.0
 
 # 时区支持
 pytz>=2024.1
+tzdata>=2024.1
 
 # 浏览器自动化
 playwright>=1.40.0
+croniter>=3.0.3

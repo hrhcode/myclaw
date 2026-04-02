@@ -5,6 +5,7 @@ import type {
   Automation,
   AutomationPayload,
   AutomationRun,
+  AutomationStats,
   ChatRequest,
   ConfigItem,
   Conversation,
@@ -13,6 +14,7 @@ import type {
   Model,
   Provider,
   SessionSkill,
+  Session,
   Skill,
 } from '../types';
 
@@ -534,6 +536,11 @@ export const getAutomations = async (): Promise<Automation[]> => {
   return response.data;
 };
 
+export const getAutomationStats = async (): Promise<AutomationStats> => {
+  const response = await api.get<AutomationStats>('/automations/stats');
+  return response.data;
+};
+
 export const createAutomation = async (
   payload: AutomationPayload,
 ): Promise<Automation> => {
@@ -552,5 +559,19 @@ export const deleteAutomation = async (automationId: number): Promise<void> => {
 
 export const getAutomationRuns = async (automationId: number): Promise<AutomationRun[]> => {
   const response = await api.get<AutomationRun[]>(`/automations/${automationId}/runs`);
+  return response.data;
+};
+
+export const runAutomationNow = async (
+  automationId: number,
+): Promise<{ success: boolean; automation_id: number; trigger_mode: string; run_id?: string | null }> => {
+  const response = await api.post<{ success: boolean; automation_id: number; trigger_mode: string; run_id?: string | null }>(
+    `/automations/${automationId}/run`,
+  );
+  return response.data;
+};
+
+export const getSessions = async (): Promise<Session[]> => {
+  const response = await api.get<Session[]>('/sessions');
   return response.data;
 };

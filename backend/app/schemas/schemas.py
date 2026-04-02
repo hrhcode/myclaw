@@ -416,6 +416,7 @@ class AutomationBase(BaseModel):
     prompt: str
     schedule_type: str
     schedule_value: str
+    timezone: str = "UTC"
     enabled: bool = True
 
 
@@ -429,6 +430,7 @@ class AutomationUpdate(BaseModel):
     prompt: Optional[str] = None
     schedule_type: Optional[str] = None
     schedule_value: Optional[str] = None
+    timezone: Optional[str] = None
     enabled: Optional[bool] = None
 
 
@@ -448,6 +450,7 @@ class AutomationRunResponse(BaseModel):
     automation_id: int
     session_id: int
     status: str
+    trigger_mode: str
     triggered_at: datetime
     completed_at: Optional[datetime] = None
     error: Optional[str] = None
@@ -455,3 +458,21 @@ class AutomationRunResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class AutomationDispatchResponse(BaseModel):
+    success: bool
+    automation_id: int
+    trigger_mode: str
+    run_id: Optional[str] = None
+
+
+class AutomationStatsResponse(BaseModel):
+    total: int
+    enabled: int
+    disabled: int
+    due_now: int
+    running: int
+    failed_recently: int
+    next_run_at: Optional[datetime] = None
+    last_run_at: Optional[datetime] = None

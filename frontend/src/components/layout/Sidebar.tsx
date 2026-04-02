@@ -28,7 +28,7 @@ interface NavGroup {
   items: NavItem[];
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isCollapsed: _isCollapsed }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
   const location = useLocation();
 
   const navGroups = useMemo<NavGroup[]>(
@@ -105,7 +105,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed: _isCollapsed }) => {
   }, [location.pathname, navGroups]);
 
   return (
-    <aside className="nav">
+    <aside className={`nav ${isCollapsed ? "nav--collapsed" : ""}`}>
       {navGroups.map((group) => (
         <div className="nav-group" key={group.title}>
           <div className="nav-label nav-label--static">
@@ -117,6 +117,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed: _isCollapsed }) => {
                 key={item.path}
                 to={item.path}
                 className={`nav-item ${activePath === item.path ? "active" : ""}`}
+                title={item.label}
               >
                 <span className="nav-item__icon">{item.icon}</span>
                 <span className="nav-item__text">{item.label}</span>
@@ -131,7 +132,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed: _isCollapsed }) => {
           <span className="nav-label__text">智能体</span>
         </div>
         <div className="nav-group__items">
-          <div className="nav-item">
+          <div className="nav-item" title="MyClaw 核心">
             <span className="nav-item__icon">
               <Bot size={16} />
             </span>

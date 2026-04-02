@@ -66,6 +66,7 @@ async def ensure_runtime_schema(engine: AsyncEngine) -> None:
                     prompt TEXT NOT NULL,
                     schedule_type VARCHAR NOT NULL,
                     schedule_value VARCHAR NOT NULL,
+                    timezone VARCHAR NOT NULL DEFAULT 'UTC',
                     enabled BOOLEAN NOT NULL DEFAULT 1,
                     last_run_at DATETIME,
                     next_run_at DATETIME,
@@ -84,6 +85,7 @@ async def ensure_runtime_schema(engine: AsyncEngine) -> None:
                     automation_id INTEGER NOT NULL,
                     session_id INTEGER NOT NULL,
                     status VARCHAR NOT NULL DEFAULT 'pending',
+                    trigger_mode VARCHAR NOT NULL DEFAULT 'scheduled',
                     triggered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     completed_at DATETIME,
                     error TEXT,
@@ -94,6 +96,8 @@ async def ensure_runtime_schema(engine: AsyncEngine) -> None:
                 """
             )
         )
+        await _ensure_column(conn, "automations", "timezone", "VARCHAR NOT NULL DEFAULT 'UTC'")
+        await _ensure_column(conn, "automation_runs", "trigger_mode", "VARCHAR NOT NULL DEFAULT 'scheduled'")
         await conn.execute(
             text(
                 """

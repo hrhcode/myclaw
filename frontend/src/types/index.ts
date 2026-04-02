@@ -104,6 +104,7 @@ export interface Automation {
   prompt: string;
   schedule_type: string;
   schedule_value: string;
+  timezone: string;
   enabled: boolean;
   last_run_at?: string | null;
   next_run_at?: string | null;
@@ -117,6 +118,7 @@ export type AutomationPayload = {
   prompt: string;
   schedule_type: string;
   schedule_value: string;
+  timezone: string;
   enabled: boolean;
 };
 
@@ -125,10 +127,41 @@ export interface AutomationRun {
   automation_id: number;
   session_id: number;
   status: string;
+  trigger_mode: string;
   triggered_at: string;
   completed_at?: string | null;
   error?: string | null;
   run_id?: string | null;
+}
+
+export interface AutomationStats {
+  total: number;
+  enabled: number;
+  disabled: number;
+  due_now: number;
+  running: number;
+  failed_recently: number;
+  next_run_at?: string | null;
+  last_run_at?: string | null;
+}
+
+export interface Session {
+  id: number;
+  name: string;
+  mode: string;
+  workspace_path?: string | null;
+  model?: string | null;
+  provider?: string | null;
+  tool_profile: string;
+  tool_allow: string[];
+  tool_deny: string[];
+  max_iterations: number;
+  context_summary: string;
+  memory_auto_extract: boolean;
+  memory_threshold: number;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ChatRequest {

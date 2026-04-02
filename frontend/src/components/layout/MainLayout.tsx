@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 import { memo } from "react";
 import { Bot } from "lucide-react";
 
-import ThemeToggle from "../common/ThemeToggle";
 import { useApp } from "../../contexts/AppContext";
+import ThemeToggle from "../common/ThemeToggle";
 import Sidebar from "./Sidebar";
 
 interface MainLayoutProps {
@@ -41,7 +41,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
               <Bot size={18} />
             </div>
             <div className="brand-text">
-              <div className="brand-title">MYCLAW</div>
+              <div className="brand-title">MyClaw</div>
               <div className="brand-sub">个人智能体控制台</div>
             </div>
           </div>
@@ -50,8 +50,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         <div className="topbar-status">
           <div className="pill">
             <span className="statusDot ok"></span>
-            <span>系统</span>
-            <span className="mono">就绪</span>
+            <span>系统状态</span>
+            <span className="mono">已就绪</span>
           </div>
           <ThemeToggle />
         </div>
@@ -60,7 +60,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
       <Sidebar isCollapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
 
       <main className={`content ${contentClassName}`.trim()}>
-        {(headerTitle || headerActions) && (
+        {headerTitle || headerActions ? (
           <section className="content-header">
             <div>
               {headerTitle ? <div className="page-title">{headerTitle}</div> : null}
@@ -68,7 +68,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
             </div>
             {headerActions ? <div className="page-meta">{headerActions}</div> : null}
           </section>
-        )}
+        ) : null}
 
         {children}
       </main>

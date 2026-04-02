@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import select
+from datetime import datetime, timedelta
+
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.models import Automation, AutomationRun
@@ -22,6 +24,11 @@ class AutomationDAO:
             .where(Automation.enabled.is_(True), Automation.next_run_at.is_not(None), Automation.next_run_at <= now)
             .order_by(Automation.next_run_at.asc())
         )
+        return list(result.scalars().all())
+
+    @staticmethod
+    async def list_recent(db: AsyncSession, limit: int = 5) -> List[Automation]:
+        result = await db.execute(select(Automation).order_by(Automation.updated_at.desc()).limit(limit))
         return list(result.scalars().all())
 
     @staticmethod
@@ -76,3 +83,18 @@ class AutomationRunDAO:
         await db.commit()
         await db.refresh(run)
         return run
+
+    @staticmethod
+    async def count_running(db: AsyncSession) -> int:
+        result = await db.execute(select(func.count()).select_from(AutomationRun).where(AutomationRun.status == "running"))
+        return int(result.scalar_one() or 0)
+
+    @staticmethod
+    async def count_recent_failures(db: AsyncSession, within_hours: int = 24) -> int:
+        cutoff = datetime.utcnow() - timedelta(hours=within_hours)
+        result = await db.execute(
+            select(func.count())
+            .select_from(AutomationRun)
+            .where(AutomationRun.status == "failed", AutomationRun.triggered_at >= cutoff)
+        )
+        return int(result.scalar_one() or 0)
