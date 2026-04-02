@@ -227,7 +227,7 @@ class ToolCallResponse(ToolCallBase):
 
 class ToolConfigRequest(BaseModel):
     """工具配置请求"""
-    profile: Optional[str] = "standard"
+    profile: Optional[str] = "full"
     allow: Optional[List[str]] = None
     deny: Optional[List[str]] = None
     max_iterations: Optional[int] = 5

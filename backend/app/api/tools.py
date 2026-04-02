@@ -63,7 +63,7 @@ async def get_tool_config(db: AsyncSession = Depends(get_db)):
     deny_list = [x.strip() for x in (deny or "").split(",") if x.strip()]
     
     return ToolConfigResponse(
-        profile=profile or "standard",
+        profile=profile or "full",
         allow=allow_list,
         deny=deny_list,
         max_iterations=int(max_iterations) if max_iterations else 5,
@@ -85,7 +85,7 @@ async def update_tool_config(
     Returns:
         更新后的配置
     """
-    await set_config_value(db, "tool_profile", request.profile or "standard")
+    await set_config_value(db, "tool_profile", request.profile or "full")
     await set_config_value(db, "tool_allow", ",".join(request.allow or []))
     await set_config_value(db, "tool_deny", ",".join(request.deny or []))
     await set_config_value(db, "tool_max_iterations", str(request.max_iterations or 5))

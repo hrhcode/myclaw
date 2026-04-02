@@ -4,11 +4,9 @@ import { Loader2, Wrench } from "lucide-react";
 import MainLayout from "../layout/MainLayout";
 import {
   getTools,
-  getToolConfig,
-  updateToolConfig,
   toggleTool,
 } from "../../services/api";
-import type { ToolInfo, ToolConfig } from "../../services/api";
+import type { ToolInfo } from "../../services/api";
 import { PageSection, SectionCard, StatusBadge, Switch } from "../admin";
 
 interface ToolCardProps {
@@ -65,19 +63,14 @@ const ToolCard: React.FC<ToolCardProps> = ({ tool, onToggle }) => {
 
 const ToolsPage: React.FC = () => {
   const [tools, setTools] = useState<ToolInfo[]>([]);
-  const [config, setConfig] = useState<ToolConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [toolsResponse, configResponse] = await Promise.all([
-        getTools(),
-        getToolConfig(),
-      ]);
+      const toolsResponse = await getTools();
       setTools(toolsResponse.tools);
-      setConfig(configResponse);
       setError(null);
     } catch (err) {
       setError("加载工具列表失败");
@@ -99,15 +92,6 @@ const ToolsPage: React.FC = () => {
       );
     } catch (err) {
       console.error("切换工具状态失败:", err);
-    }
-  };
-
-  const handleUpdateConfig = async (updates: Partial<ToolConfig>) => {
-    try {
-      await updateToolConfig(updates);
-      setConfig((prev) => (prev ? { ...prev, ...updates } : null));
-    } catch (err) {
-      console.error("更新工具配置失败:", err);
     }
   };
 
@@ -152,67 +136,6 @@ const ToolsPage: React.FC = () => {
               </div>
             </div>
           </div>
-
-          {config && (
-            <PageSection
-              title="全局配置"
-              description="配置工具集合和执行限制参数"
-              tight
-            >
-              <SectionCard className="p-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>
-                      配置档
-                    </label>
-                    <select
-                      value={config.profile}
-                      onChange={(e) => handleUpdateConfig({ profile: e.target.value })}
-                      className="admin-select w-full px-3 py-2"
-                    >
-                      <option value="minimal">minimal - 最小工具集</option>
-                      <option value="standard">standard - 标准工具集</option>
-                      <option value="full">full - 完整工具集</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>
-                      最大迭代次数
-                    </label>
-                    <input
-                      type="number"
-                      value={config.max_iterations}
-                      min={1}
-                      max={10}
-                      onChange={(e) =>
-                        handleUpdateConfig({
-                          max_iterations: Number.parseInt(e.target.value, 10) || 5,
-                        })
-                      }
-                      className="admin-input w-full px-3 py-2"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>
-                      超时秒数
-                    </label>
-                    <input
-                      type="number"
-                      value={config.timeout_seconds}
-                      min={5}
-                      max={120}
-                      onChange={(e) =>
-                        handleUpdateConfig({
-                          timeout_seconds: Number.parseInt(e.target.value, 10) || 30,
-                        })
-                      }
-                      className="admin-input w-full px-3 py-2"
-                    />
-                  </div>
-                </div>
-              </SectionCard>
-            </PageSection>
-          )}
 
           <PageSection
             title="可用工具"

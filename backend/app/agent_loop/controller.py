@@ -19,6 +19,8 @@ from app.services.llm_service import get_llm_service
 from app.services.message_service import MessageService
 from app.services.vector_search_service import hybrid_memory_search
 from app.tools import tool_executor, tool_registry, tools_to_zhipu_schemas
+from app.tools import groups as tool_groups
+from app.tools.profiles import create_profile_resolver
 from app.tools.loop_detection import LoopSeverity, create_loop_detector
 
 logger = logging.getLogger(__name__)
@@ -389,10 +391,20 @@ class AgentLoopController:
         tool_enabled = await get_config_value(db, "tool_enabled")
         tool_max_iterations = await get_config_value(db, "tool_max_iterations")
         tool_timeout = await get_config_value(db, "tool_timeout_seconds")
+        tool_profile = await get_config_value(db, "tool_profile")
+        tool_allow = await get_config_value(db, "tool_allow")
+        tool_deny = await get_config_value(db, "tool_deny")
+
+        allow_list = [item.strip() for item in (tool_allow or "").split(",") if item.strip()]
+        deny_list = [item.strip() for item in (tool_deny or "").split(",") if item.strip()]
+
         return LoopRuntimeConfig(
             use_tools=tool_enabled == "true" if tool_enabled else True,
             max_iterations=int(tool_max_iterations) if tool_max_iterations else 5,
             timeout_seconds=int(tool_timeout) if tool_timeout else 30,
+            profile=tool_profile or "full",
+            allow=allow_list,
+            deny=deny_list,
         )
 
     async def _load_memory_context(
@@ -441,7 +453,35 @@ class AgentLoopController:
     ) -> Optional[List[Dict[str, Any]]]:
         if not runtime_config.use_tools or state.force_answer_next:
             return None
-        return tools_to_zhipu_schemas(tool_registry.list_enabled_tools())
+
+        enabled_tools = tool_registry.list_enabled_tools()
+        resolver = create_profile_resolver(tool_groups)
+        policy = resolver.resolve(
+            profile_id=runtime_config.profile,
+            custom_allow=runtime_config.allow,
+            custom_deny=runtime_config.deny,
+        )
+        allowed = policy.get("allow", set())
+        denied = policy.get("deny", set())
+
+        filtered_tools = []
+        for tool in enabled_tools:
+            if tool.name in denied:
+                continue
+            if allowed and tool.name not in allowed:
+                continue
+            filtered_tools.append(tool)
+
+        if not filtered_tools:
+            logger.warning(
+                "[agent_loop] 当前策略下无可用工具: profile=%s allow=%s deny=%s",
+                runtime_config.profile,
+                runtime_config.allow,
+                runtime_config.deny,
+            )
+            return None
+
+        return tools_to_zhipu_schemas(filtered_tools)
 
     def _build_assistant_tool_message(
         self,
@@ -590,6 +630,8 @@ class AgentLoopController:
                 "title",
                 "text",
                 "content",
+                "snapshot",
+                "format",
                 "summary",
                 "answer",
                 "url",
@@ -603,7 +645,14 @@ class AgentLoopController:
             sanitized: Dict[str, Any] = {}
             for key in preferred_keys:
                 if key in value:
-                    sanitized[key] = self._sanitize_tool_content(value[key])
+                    if key == "snapshot" and isinstance(value[key], str):
+                        # Snapshot 是浏览器页面核心上下文，尽量保留更多文本给模型。
+                        sanitized[key] = self._truncate_text(
+                            value[key],
+                            MAX_MODEL_TOOL_RESULT_CHARS,
+                        )
+                    else:
+                        sanitized[key] = self._sanitize_tool_content(value[key])
 
             if not sanitized:
                 for index, (key, item) in enumerate(value.items()):

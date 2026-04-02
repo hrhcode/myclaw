@@ -9,6 +9,9 @@ class LoopRuntimeConfig:
     use_tools: bool = True
     max_iterations: int = 5
     timeout_seconds: int = 30
+    profile: str = "full"
+    allow: List[str] = field(default_factory=list)
+    deny: List[str] = field(default_factory=list)
 
 
 @dataclass

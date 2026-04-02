@@ -13,7 +13,11 @@ from app.tools.builtin.browser.actions import (
     click_element,
     type_text,
     hover_element,
-    wait_for
+    wait_for,
+    scroll_page,
+    press_key,
+    select_option,
+    history_go,
 )
 from app.tools.builtin.browser.ssrf_guard import SSRFGuard
 from app.tools.builtin.browser.config import BrowserConfig
@@ -418,6 +422,131 @@ async def browser_wait(
     return result
 
 
+async def browser_scroll(
+    x: int = 0,
+    y: int = 600,
+    _config: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    滚动页面
+
+    Args:
+        x: 横向滚动像素
+        y: 纵向滚动像素
+        _config: 配置字典（内部使用）
+
+    Returns:
+        滚动结果
+    """
+    if not _config:
+        _config = {}
+
+    manager = _get_or_create_manager(_config)
+    if manager.page is None:
+        return {
+            "success": False,
+            "message": "浏览器未启动"
+        }
+
+    result = await scroll_page(manager.page, x, y)
+    if result.get("success"):
+        manager.session.update_last_used()
+    return result
+
+
+async def browser_press(
+    key: str,
+    _config: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    模拟键盘按键
+
+    Args:
+        key: 键名（如 Enter、Tab、ArrowDown）
+        _config: 配置字典（内部使用）
+
+    Returns:
+        按键结果
+    """
+    if not _config:
+        _config = {}
+
+    manager = _get_or_create_manager(_config)
+    if manager.page is None:
+        return {
+            "success": False,
+            "message": "浏览器未启动"
+        }
+
+    result = await press_key(manager.page, key)
+    if result.get("success"):
+        manager.session.update_last_used()
+    return result
+
+
+async def browser_select(
+    selector: str,
+    value: str,
+    _config: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    选择下拉框选项
+
+    Args:
+        selector: 下拉框选择器
+        value: 选项值
+        _config: 配置字典（内部使用）
+
+    Returns:
+        选择结果
+    """
+    if not _config:
+        _config = {}
+
+    manager = _get_or_create_manager(_config)
+    if manager.page is None:
+        return {
+            "success": False,
+            "message": "浏览器未启动"
+        }
+
+    result = await select_option(manager.page, selector, value)
+    if result.get("success"):
+        manager.session.update_last_used()
+    return result
+
+
+async def browser_history(
+    direction: str = "back",
+    _config: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    浏览器历史前进或后退
+
+    Args:
+        direction: 方向，back 或 forward
+        _config: 配置字典（内部使用）
+
+    Returns:
+        跳转结果
+    """
+    if not _config:
+        _config = {}
+
+    manager = _get_or_create_manager(_config)
+    if manager.page is None:
+        return {
+            "success": False,
+            "message": "浏览器未启动"
+        }
+
+    direction = direction if direction in {"back", "forward"} else "back"
+    result = await history_go(manager.page, direction)
+    if result.get("success"):
+        manager.session.update_last_used()
+    return result
+
+
 def get_browser_tools() -> list[ToolDefinition]:
     """
     获取所有浏览器工具
@@ -608,6 +737,82 @@ def get_browser_tools() -> list[ToolDefinition]:
                 "required": []
             },
             execute=browser_wait,
+            enabled=True
+        ),
+        create_tool(
+            name="browser_scroll",
+            description="滚动页面",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "x": {
+                        "type": "number",
+                        "description": "横向滚动像素",
+                        "default": 0
+                    },
+                    "y": {
+                        "type": "number",
+                        "description": "纵向滚动像素",
+                        "default": 600
+                    }
+                },
+                "required": []
+            },
+            execute=browser_scroll,
+            enabled=True
+        ),
+        create_tool(
+            name="browser_press",
+            description="模拟键盘按键",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "key": {
+                        "type": "string",
+                        "description": "键名（如 Enter、Tab、ArrowDown）"
+                    }
+                },
+                "required": ["key"]
+            },
+            execute=browser_press,
+            enabled=True
+        ),
+        create_tool(
+            name="browser_select",
+            description="选择下拉框选项",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "selector": {
+                        "type": "string",
+                        "description": "下拉框选择器"
+                    },
+                    "value": {
+                        "type": "string",
+                        "description": "选项值"
+                    }
+                },
+                "required": ["selector", "value"]
+            },
+            execute=browser_select,
+            enabled=True
+        ),
+        create_tool(
+            name="browser_history",
+            description="浏览器历史前进或后退",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "direction": {
+                        "type": "string",
+                        "enum": ["back", "forward"],
+                        "description": "历史跳转方向",
+                        "default": "back"
+                    }
+                },
+                "required": []
+            },
+            execute=browser_history,
             enabled=True
         )
     ]

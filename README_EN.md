@@ -212,6 +212,10 @@ The tool system uses a registry pattern for dynamic tool registration and manage
   - `browser_type` - Type text in element
   - `browser_hover` - Hover over page element
   - `browser_wait` - Wait for condition
+  - `browser_scroll` - Scroll the page
+  - `browser_press` - Simulate keyboard key press
+  - `browser_select` - Select option in dropdown
+  - `browser_history` - Navigate browser history (back/forward)
   - `browser_stop` - Stop browser
   - `web_search` - Web search
 - **Tool Filtering**: Support allow/deny lists to control available tools

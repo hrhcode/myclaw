@@ -64,6 +64,26 @@ CORE_TOOL_GROUPS: Dict[str, ToolGroup] = {
             "web_fetch"
         ]
     ),
+    "group:browser": ToolGroup(
+        id="group:browser",
+        label="浏览器自动化",
+        description="浏览器启动、导航与页面交互工具",
+        tools=[
+            "browser_start",
+            "browser_stop",
+            "browser_navigate",
+            "browser_snapshot",
+            "browser_screenshot",
+            "browser_click",
+            "browser_type",
+            "browser_hover",
+            "browser_wait",
+            "browser_scroll",
+            "browser_press",
+            "browser_select",
+            "browser_history",
+        ]
+    ),
     "group:sessions": ToolGroup(
         id="group:sessions",
         label="会话",
@@ -81,8 +101,19 @@ CORE_TOOL_GROUPS: Dict[str, ToolGroup] = {
         label="界面",
         description="浏览器和画布控制工具",
         tools=[
-            "browser",
-            "canvas"
+            "browser_start",
+            "browser_stop",
+            "browser_navigate",
+            "browser_snapshot",
+            "browser_screenshot",
+            "browser_click",
+            "browser_type",
+            "browser_hover",
+            "browser_wait",
+            "browser_scroll",
+            "browser_press",
+            "browser_select",
+            "browser_history",
         ]
     ),
     "group:messaging": ToolGroup(
@@ -129,7 +160,20 @@ CORE_TOOL_GROUPS: Dict[str, ToolGroup] = {
             "web_search",
             "web_fetch",
             "exec",
-            "process"
+            "process",
+            "browser_start",
+            "browser_stop",
+            "browser_navigate",
+            "browser_snapshot",
+            "browser_screenshot",
+            "browser_click",
+            "browser_type",
+            "browser_hover",
+            "browser_wait",
+            "browser_scroll",
+            "browser_press",
+            "browser_select",
+            "browser_history",
         ]
     ),
 }

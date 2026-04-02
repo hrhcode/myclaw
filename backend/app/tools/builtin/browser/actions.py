@@ -168,3 +168,131 @@ async def wait_for(
             "success": False,
             "message": f"等待失败: {str(e)}"
         }
+
+
+async def scroll_page(
+    page: Page,
+    x: int = 0,
+    y: int = 600
+) -> Dict[str, Any]:
+    """
+    滚动页面
+
+    Args:
+        page: 页面实例
+        x: 横向滚动像素
+        y: 纵向滚动像素
+
+    Returns:
+        滚动结果
+    """
+    try:
+        await page.evaluate(
+            "(coords) => window.scrollBy(coords.x, coords.y)",
+            {"x": x, "y": y},
+        )
+        return {
+            "success": True,
+            "x": x,
+            "y": y
+        }
+    except Exception as e:
+        logger.error(f"滚动页面失败: {e}")
+        return {
+            "success": False,
+            "message": f"滚动页面失败: {str(e)}"
+        }
+
+
+async def press_key(
+    page: Page,
+    key: str
+) -> Dict[str, Any]:
+    """
+    模拟键盘按键
+
+    Args:
+        page: 页面实例
+        key: 键名（如 Enter, Tab, ArrowDown）
+
+    Returns:
+        按键结果
+    """
+    try:
+        await page.keyboard.press(key)
+        return {
+            "success": True,
+            "key": key
+        }
+    except Exception as e:
+        logger.error(f"键盘按键失败: {e}")
+        return {
+            "success": False,
+            "message": f"键盘按键失败: {str(e)}"
+        }
+
+
+async def select_option(
+    page: Page,
+    selector: str,
+    value: str
+) -> Dict[str, Any]:
+    """
+    选择下拉框选项
+
+    Args:
+        page: 页面实例
+        selector: 下拉框选择器
+        value: 选项值
+
+    Returns:
+        选择结果
+    """
+    try:
+        selected = await page.select_option(selector, value=value)
+        return {
+            "success": True,
+            "selector": selector,
+            "value": value,
+            "selected": selected
+        }
+    except Exception as e:
+        logger.error(f"选择下拉选项失败: {e}")
+        return {
+            "success": False,
+            "message": f"选择下拉选项失败: {str(e)}"
+        }
+
+
+async def history_go(
+    page: Page,
+    direction: str = "back"
+) -> Dict[str, Any]:
+    """
+    浏览器历史前进/后退
+
+    Args:
+        page: 页面实例
+        direction: back 或 forward
+
+    Returns:
+        跳转结果
+    """
+    try:
+        if direction == "forward":
+            response = await page.go_forward()
+        else:
+            response = await page.go_back()
+
+        return {
+            "success": True,
+            "direction": direction,
+            "url": page.url,
+            "status": response.status if response else None
+        }
+    except Exception as e:
+        logger.error(f"历史跳转失败: {e}")
+        return {
+            "success": False,
+            "message": f"历史跳转失败: {str(e)}"
+        }

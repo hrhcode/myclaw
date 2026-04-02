@@ -334,6 +334,10 @@ npm run dev
   - `browser_type` - 在元素中输入文本
   - `browser_hover` - 悬停页面元素
   - `browser_wait` - 等待条件满足
+  - `browser_scroll` - 滚动页面
+  - `browser_press` - 模拟键盘按键
+  - `browser_select` - 选择下拉框选项
+  - `browser_history` - 浏览器历史前进/后退
   - `browser_stop` - 停止浏览器
   - `web_search` - 网络搜索
 - **工具过滤**: 支持 allow/deny 列表控制可用工具

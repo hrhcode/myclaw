@@ -5,7 +5,7 @@
 """
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 
 class ToolProfileId(str, Enum):
@@ -14,11 +14,13 @@ class ToolProfileId(str, Enum):
     
     Attributes:
         MINIMAL: 最小配置，仅包含基本工具
+        STANDARD: 标准配置，包含常用工具
         CODING: 编程配置，包含文件和运行时工具
         MESSAGING: 消息配置，包含消息和会话工具
         FULL: 完整配置，无限制
     """
     MINIMAL = "minimal"
+    STANDARD = "standard"
     CODING = "coding"
     MESSAGING = "messaging"
     FULL = "full"
@@ -61,6 +63,18 @@ CORE_TOOL_PROFILES: Dict[ToolProfileId, ToolProfile] = {
         allow=[
             "get_current_time",
             "session_status"
+        ],
+        deny=[]
+    ),
+    ToolProfileId.STANDARD: ToolProfile(
+        id=ToolProfileId.STANDARD,
+        label="标准",
+        description="包含常用内置能力，适合默认对话任务",
+        allow=[
+            "group:builtin",
+            "group:web",
+            "group:browser",
+            "get_current_time",
         ],
         deny=[]
     ),
