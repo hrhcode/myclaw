@@ -22,7 +22,8 @@ class ConversationService:
         self,
         db: AsyncSession,
         message: str,
-        conversation_id: Optional[int] = None
+        conversation_id: Optional[int] = None,
+        session_id: Optional[int] = None,
     ) -> Tuple[int, Conversation]:
         """
         获取或创建会话
@@ -48,7 +49,7 @@ class ConversationService:
         else:
             title = message[:20] + "..." if len(message) > 20 else message
             logger.info(f"[ConversationService] 创建新会话，标题: {title}")
-            conversation = await ConversationDAO.create(db, title)
+            conversation = await ConversationDAO.create(db, title, session_id=session_id)
             return conversation.id, conversation
 
     async def get_by_id(
@@ -84,6 +85,14 @@ class ConversationService:
             会话列表
         """
         return await ConversationDAO.list_all(db, limit)
+
+    async def list_by_session(
+        self,
+        db: AsyncSession,
+        session_id: int,
+        limit: int = 100,
+    ) -> List[Conversation]:
+        return await ConversationDAO.list_by_session(db, session_id, limit)
 
     async def rename(
         self,

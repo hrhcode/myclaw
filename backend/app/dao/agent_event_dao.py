@@ -13,6 +13,7 @@ class AgentEventDAO:
     @staticmethod
     async def create(
         db: AsyncSession,
+        session_id: Optional[int],
         conversation_id: int,
         run_id: str,
         event_type: str,
@@ -21,6 +22,7 @@ class AgentEventDAO:
         message_id: Optional[int] = None,
     ) -> AgentEvent:
         agent_event = AgentEvent(
+            session_id=session_id,
             conversation_id=conversation_id,
             message_id=message_id,
             run_id=run_id,

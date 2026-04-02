@@ -1,35 +1,39 @@
-import sys
+from __future__ import annotations
+
 import asyncio
 import os
-
-# Windows 系统需要设置事件循环策略以支持子进程
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+import sys
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import chat, history, config, memory, logs, tools
-from app.core.database import engine, Base, AsyncSessionLocal
-from app.services.log_service import cleanup_log_handlers, setup_log_handlers
-from app.common.logging_config import setup_logging, get_logger
+
+from app.api import automations, chat, config, history, logs, memory, sessions, skills, tools
+from app.common.logging_config import get_logger, setup_logging
 from app.common.security import require_api_auth
+from app.core.bootstrap import ensure_default_session, ensure_runtime_schema
+from app.core.database import AsyncSessionLocal, Base, engine
+from app.dao.conversation_dao import ConversationDAO
+from app.services.log_service import cleanup_log_handlers, setup_log_handlers
 from app.tools import tool_registry
 from app.tools.builtin import register_all_builtin_tools
-from app.dao.conversation_dao import ConversationDAO
-import logging
+from app.tools.builtin.session_tools import configure_session_tools
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 setup_logging()
 logger = get_logger(__name__)
 
 DEFAULT_CONVERSATION_TITLE = "main"
 
-app = FastAPI(title="AI对话助手API", version="1.0.0")
+app = FastAPI(title="MyClaw API", version="1.0.0")
 
 
 def _parse_cors_origins() -> list[str]:
     raw = os.getenv("MYCLAW_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
     origins = [item.strip() for item in raw.split(",") if item.strip()]
     return origins or ["http://localhost:5173", "http://127.0.0.1:5173"]
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,67 +44,68 @@ app.add_middleware(
 )
 
 protected = [Depends(require_api_auth)]
-app.include_router(chat.router, prefix="/api", tags=["聊天"], dependencies=protected)
-app.include_router(history.router, prefix="/api", tags=["历史记录"], dependencies=protected)
-app.include_router(config.router, prefix="/api", tags=["配置管理"], dependencies=protected)
-app.include_router(memory.router, prefix="/api", tags=["记忆搜索"], dependencies=protected)
-app.include_router(logs.router, prefix="/api", tags=["日志"], dependencies=protected)
-app.include_router(tools.router, prefix="/api", tags=["工具管理"], dependencies=protected)
+app.include_router(chat.router, prefix="/api", tags=["chat"], dependencies=protected)
+app.include_router(history.router, prefix="/api", tags=["history"], dependencies=protected)
+app.include_router(config.router, prefix="/api", tags=["config"], dependencies=protected)
+app.include_router(memory.router, prefix="/api", tags=["memory"], dependencies=protected)
+app.include_router(logs.router, prefix="/api", tags=["logs"], dependencies=protected)
+app.include_router(tools.router, prefix="/api", tags=["tools"], dependencies=protected)
+app.include_router(sessions.router, prefix="/api", tags=["sessions"], dependencies=protected)
+app.include_router(skills.router, prefix="/api", tags=["skills"], dependencies=protected)
+app.include_router(automations.router, prefix="/api", tags=["automations"], dependencies=protected)
 
 
-async def ensure_default_conversation():
-    """
-    确保至少存在一个默认会话
-    如果没有任何会话，则创建名为"main"的默认会话
-    """
+async def ensure_default_conversation() -> None:
     async with AsyncSessionLocal() as db:
+        default_session = await ensure_default_session(db)
         conversations = await ConversationDAO.list_all(db, limit=1)
-        if not conversations:
-            logger.info("[初始化] 未发现任何会话，创建默认会话 'main'")
-            await ConversationDAO.create(db, DEFAULT_CONVERSATION_TITLE)
-            logger.info("[初始化] 默认会话 'main' 创建成功")
-        else:
-            logger.debug(f"[初始化] 已存在 {len(conversations)} 个会话，无需创建默认会话")
+        if conversations:
+            return
+        logger.info("[startup] creating default conversation for main session")
+        await ConversationDAO.create(
+            db,
+            DEFAULT_CONVERSATION_TITLE,
+            session_id=default_session.id,
+        )
 
 
 @app.on_event("startup")
-async def startup_event():
+async def startup_event() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
+
+    await ensure_runtime_schema(engine)
     await setup_log_handlers()
-    
     await ensure_default_conversation()
-    
-    # 注册内置工具，传递数据库会话以加载工具启用状态
+
+    configure_session_tools(
+        AsyncSessionLocal,
+        chat.agent_loop_controller.dispatch_message_for_automation,
+    )
+
     async with AsyncSessionLocal() as db:
         await register_all_builtin_tools(tool_registry, db)
-    
-    logger.info(f"已注册 {len(tool_registry.list_tools())} 个内置工具")
 
-    logger.info("=" * 50)
-    logger.info("MyClaw AI对话助手 后端服务启动")
-    logger.info("=" * 50)
-    logger.info(f"数据库: SQLite (async)")
-    logger.info(f"API路由:")
-    logger.info(f"  - /api/chat/stream (聊天)")
-    logger.info(f"  - /api/conversations (会话管理)")
-    logger.info(f"  - /api/config (配置管理)")
-    logger.info(f"  - /api/memory (记忆搜索)")
-    logger.info(f"  - /api/logs (日志)")
-    logger.info(f"  - /api/tools (工具管理)")
-    logger.info(f"  - /api/logs/stream (日志WebSocket)")
-    logger.info(f"  - /api/logs/history (历史日志)")
-    logger.info(f"  - /api/logs/stats (日志统计)")
-    logger.info(f"CORS: {', '.join(_parse_cors_origins())}")
-    logger.info(f"API文档: http://127.0.0.1:8000/docs")
-    logger.info("=" * 50)
+    await automations.automation_service.start(
+        AsyncSessionLocal,
+        chat.agent_loop_controller.dispatch_message_for_automation,
+    )
+
+    logger.info("registered %s builtin tools", len(tool_registry.list_tools()))
+    logger.info("MyClaw backend started")
+    logger.info("CORS origins: %s", ", ".join(_parse_cors_origins()))
+    logger.info("Docs: http://127.0.0.1:8000/docs")
 
 
 @app.on_event("shutdown")
-async def shutdown_event():
+async def shutdown_event() -> None:
+    await automations.automation_service.stop()
     await cleanup_log_handlers()
 
+
 @app.get("/")
-async def root():
-    return {"message": "MyClaw AI对话助手API服务已启动", "docs": "/docs"}
+async def root() -> dict[str, str]:
+    return {
+        "message": "MyClaw API is running.",
+        "docs": "/docs",
+    }

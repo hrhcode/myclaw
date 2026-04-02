@@ -1,4 +1,4 @@
-﻿export type MessageRole = 'user' | 'assistant';
+export type MessageRole = 'user' | 'assistant';
 
 export type AgentTraceEventType =
   | 'reasoning'
@@ -20,6 +20,7 @@ export interface AgentTraceEventPayload {
   stalled_iterations?: number;
   iteration?: number;
   conversation_id?: number;
+  session_id?: number;
   run_id?: string;
 }
 
@@ -32,6 +33,7 @@ export interface AgentTraceEvent {
 
 export interface ToolCallFromDB {
   id: number;
+  session_id?: number | null;
   tool_name: string;
   tool_call_id: string;
   arguments: string;
@@ -54,6 +56,7 @@ export interface AgentEventFromDB {
 
 export interface Message {
   id: number;
+  session_id?: number | null;
   conversation_id: number;
   role: MessageRole;
   content: string;
@@ -67,6 +70,7 @@ export interface Message {
 
 export interface Conversation {
   id: number;
+  session_id?: number | null;
   title: string;
   created_at: string;
   updated_at: string;
@@ -81,7 +85,92 @@ export interface ConversationDetail extends Conversation {
   };
 }
 
+export interface Session {
+  id: number;
+  name: string;
+  mode: string;
+  workspace_path?: string | null;
+  model?: string | null;
+  provider?: string | null;
+  tool_profile: string;
+  tool_allow: string[];
+  tool_deny: string[];
+  max_iterations: number;
+  context_summary: string;
+  memory_auto_extract: boolean;
+  memory_threshold: number;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SessionRunSummary {
+  run_id: string;
+  conversation_id: number;
+  user_message: string;
+  stop_reason?: string | null;
+  compacted_summary?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+}
+
+export interface SessionStatus {
+  id: number;
+  name: string;
+  mode: string;
+  workspace_path?: string | null;
+  model?: string | null;
+  provider?: string | null;
+  tool_profile: string;
+  tool_allow: string[];
+  tool_deny: string[];
+  max_iterations: number;
+  context_summary: string;
+  memory_auto_extract: boolean;
+  memory_threshold: number;
+  is_default: boolean;
+  recent_runs: SessionRunSummary[];
+}
+
+export interface Skill {
+  name: string;
+  path: string;
+  description: string;
+}
+
+export interface SessionSkill {
+  skill_name: string;
+  skill_path: string;
+  enabled: boolean;
+}
+
+export interface Automation {
+  id: number;
+  name: string;
+  session_id: number;
+  prompt: string;
+  schedule_type: string;
+  schedule_value: string;
+  enabled: boolean;
+  last_run_at?: string | null;
+  next_run_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AutomationRun {
+  id: number;
+  automation_id: number;
+  session_id: number;
+  status: string;
+  triggered_at: string;
+  completed_at?: string | null;
+  error?: string | null;
+  run_id?: string | null;
+}
+
 export interface ChatRequest {
+  session_id?: number;
   conversation_id?: number;
   message: string;
 }
@@ -115,6 +204,7 @@ export interface MemorySearchResult {
 
 export interface LongTermMemory {
   id: number;
+  session_id?: number | null;
   key: string | null;
   content: string;
   importance: number;

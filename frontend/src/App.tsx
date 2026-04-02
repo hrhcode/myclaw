@@ -19,6 +19,8 @@ const HistoryLogsPage = lazy(() =>
   })),
 );
 const ToolsPage = lazy(() => import("./components/tools/ToolsPage"));
+const SessionsPage = lazy(() => import("./components/sessions/SessionsPage"));
+const AutomationsPage = lazy(() => import("./components/automations/AutomationsPage"));
 
 /**
  * 主应用组件
@@ -35,6 +37,8 @@ const App: React.FC = () => {
               <Route path="/chat/:conversationId" element={<ChatPage />} />
               <Route path="/conversations" element={<ConversationsPage />} />
               <Route path="/memory" element={<MemoryPage />} />
+              <Route path="/sessions" element={<SessionsPage />} />
+              <Route path="/automations" element={<AutomationsPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/tools" element={<ToolsPage />} />
               <Route

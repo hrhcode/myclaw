@@ -8,6 +8,7 @@ from app.tools.builtin.web_search_tool import get_web_search_tool
 from app.tools.builtin.web_fetch_tool import get_web_fetch_tool
 from app.tools.builtin.exec_tool import get_exec_tool
 from app.tools.builtin.process_tool import get_process_tool
+from app.tools.builtin.session_tools import get_session_tools
 from app.tools.builtin.browser_tool import get_browser_tools
 
 __all__ = [
@@ -16,6 +17,7 @@ __all__ = [
     "get_web_fetch_tool",
     "get_exec_tool",
     "get_process_tool",
+    "get_session_tools",
     "get_browser_tools",
     "register_all_builtin_tools",
 ]
@@ -54,4 +56,9 @@ async def register_all_builtin_tools(registry, db=None) -> None:
                 if enabled_str:
                     tool.enabled = enabled_str.lower() == "true"
             
+            registry.register(tool)
+
+    session_tools = get_session_tools()
+    for tool in session_tools:
+        if isinstance(tool, ToolDefinition):
             registry.register(tool)

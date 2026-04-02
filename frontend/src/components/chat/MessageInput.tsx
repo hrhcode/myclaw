@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { Command, Loader2, PlusCircle, SendHorizonal } from "lucide-react";
+import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Command, Loader2, PlusCircle, SendHorizonal } from 'lucide-react';
 
 interface MessageInputProps {
   onSendMessage: (message: string) => void;
@@ -16,8 +16,8 @@ interface CommandItem {
 
 const COMMANDS: CommandItem[] = [
   {
-    command: "/new",
-    description: "创建一个新的对话",
+    command: '/new',
+    description: '创建一条新的聊天记录',
     icon: <PlusCircle size={15} />,
   },
 ];
@@ -27,13 +27,13 @@ const MessageInput: React.FC<MessageInputProps> = ({
   disabled = false,
   onCreateNewChat: _onCreateNewChat,
 }) => {
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [showCommands, setShowCommands] = useState(false);
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const filteredCommands = message.startsWith("/")
+  const filteredCommands = message.startsWith('/')
     ? COMMANDS.filter((cmd) =>
         cmd.command.toLowerCase().startsWith(message.toLowerCase()),
       )
@@ -45,12 +45,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
       return;
     }
 
-    textarea.style.height = "auto";
+    textarea.style.height = 'auto';
     textarea.style.height = `${Math.min(textarea.scrollHeight, 220)}px`;
   }, [message]);
 
   useEffect(() => {
-    if (message.startsWith("/")) {
+    if (message.startsWith('/')) {
       setShowCommands(true);
       setSelectedCommandIndex(0);
       return;
@@ -73,13 +73,13 @@ const MessageInput: React.FC<MessageInputProps> = ({
     }
 
     onSendMessage(message.trim());
-    setMessage("");
+    setMessage('');
     setShowCommands(false);
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (showCommands && filteredCommands.length > 0) {
-      if (event.key === "ArrowDown") {
+      if (event.key === 'ArrowDown') {
         event.preventDefault();
         setSelectedCommandIndex((prev) =>
           prev < filteredCommands.length - 1 ? prev + 1 : 0,
@@ -87,7 +87,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         return;
       }
 
-      if (event.key === "ArrowUp") {
+      if (event.key === 'ArrowUp') {
         event.preventDefault();
         setSelectedCommandIndex((prev) =>
           prev > 0 ? prev - 1 : filteredCommands.length - 1,
@@ -95,19 +95,19 @@ const MessageInput: React.FC<MessageInputProps> = ({
         return;
       }
 
-      if (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) {
+      if (event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey)) {
         event.preventDefault();
         selectCommand(filteredCommands[selectedCommandIndex]);
         return;
       }
 
-      if (event.key === "Escape") {
+      if (event.key === 'Escape') {
         setShowCommands(false);
         return;
       }
     }
 
-    if (event.key === "Enter" && !event.shiftKey) {
+    if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       handleSubmit(event);
     }
@@ -121,11 +121,11 @@ const MessageInput: React.FC<MessageInputProps> = ({
         <motion.div
           animate={{
             borderColor: isFocused
-              ? "var(--accent-soft)"
-              : "var(--panel-border)",
+              ? 'var(--accent-soft)'
+              : 'var(--panel-border)',
             boxShadow: isFocused
-              ? "0 0 0 1px var(--accent-soft), var(--shadow-md)"
-              : "var(--shadow-sm)",
+              ? '0 0 0 1px var(--accent-soft), var(--shadow-md)'
+              : 'var(--shadow-sm)',
           }}
           transition={{ duration: 0.18 }}
           className="chat-composer-shell"
@@ -156,8 +156,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 disabled={!canSend}
                 whileHover={canSend ? { scale: 1.03 } : {}}
                 whileTap={canSend ? { scale: 0.97 } : {}}
-                className={`chat-send-button ${canSend ? "is-ready" : ""}`}
-                aria-label={disabled ? "正在发送消息" : "发送消息"}
+                className={`chat-send-button ${canSend ? 'is-ready' : ''}`}
+                aria-label={disabled ? '正在发送消息' : '发送消息'}
               >
                 {disabled ? (
                   <Loader2 size={16} className="animate-spin" />
@@ -185,7 +185,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                   type="button"
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => selectCommand(cmd)}
-                  className={`command-panel-item ${index === selectedCommandIndex ? "is-selected" : ""}`}
+                  className={`command-panel-item ${index === selectedCommandIndex ? 'is-selected' : ''}`}
                 >
                   <span className="command-panel-icon">{cmd.icon}</span>
                   <span className="command-panel-command">{cmd.command}</span>

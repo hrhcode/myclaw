@@ -21,6 +21,7 @@ class MemoryDAO:
     async def create(
         db: AsyncSession,
         content: str,
+        session_id: Optional[int] = None,
         key: Optional[str] = None,
         importance: float = 0.5,
         source: Optional[str] = None
@@ -40,6 +41,7 @@ class MemoryDAO:
         """
         logger.debug(f"[DAO-Memory] 创建长期记忆，key: {key or '无'}")
         memory = LongTermMemory(
+            session_id=session_id,
             key=key,
             content=content,
             importance=importance,

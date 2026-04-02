@@ -1,8 +1,9 @@
-import type { ReactNode } from "react";
-import { memo } from "react";
-import Sidebar from "./Sidebar";
-import ThemeToggle from "../common/ThemeToggle";
-import { useApp } from "../../contexts/AppContext";
+import type { ReactNode } from 'react';
+import { memo } from 'react';
+
+import Sidebar from './Sidebar';
+import ThemeToggle from '../common/ThemeToggle';
+import { useApp } from '../../contexts/AppContext';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -11,7 +12,7 @@ interface MainLayoutProps {
 }
 
 /**
- * 主布局组件 - 包含侧边栏、顶部栏和内容区域
+ * 主布局组件，包含侧边栏、顶部栏和内容区。
  */
 const MainLayout: React.FC<MainLayoutProps> = ({
   children,
@@ -36,7 +37,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
               {headerTitle && (
                 <h1
                   className="text-lg font-semibold"
-                  style={{ color: "var(--text-primary)" }}
+                  style={{ color: 'var(--text-primary)' }}
                 >
                   {headerTitle}
                 </h1>

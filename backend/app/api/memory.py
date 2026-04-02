@@ -1,28 +1,25 @@
-"""
-记忆搜索API
-提供语义搜索和长期记忆管理功能的HTTP接口
-业务逻辑已委托给Service/DAO层，API层仅处理HTTP请求/响应
-"""
+from __future__ import annotations
+
+import asyncio
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+
 from app.core.database import get_db
 from app.dao.memory_dao import MemoryDAO
-from app.services.vector_search_service import (
-    hybrid_memory_search,
-    index_long_term_memory_embedding,
-    batch_index_conversation_messages
-)
 from app.schemas.schemas import (
+    LongTermMemoryCreate,
+    LongTermMemoryResponse,
+    LongTermMemoryUpdate,
     MemorySearchRequest,
     MemorySearchResponse,
-    LongTermMemoryCreate,
-    LongTermMemoryUpdate,
-    LongTermMemoryResponse
 )
-from app.common.constants import LOG_SEPARATOR
-import logging
-import asyncio
+from app.services.vector_search_service import (
+    batch_index_conversation_messages,
+    hybrid_memory_search,
+    index_long_term_memory_embedding,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -31,21 +28,8 @@ logger = logging.getLogger(__name__)
 @router.post("/memory/search", response_model=MemorySearchResponse)
 async def search_memory(
     request: MemorySearchRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    语义搜索记忆（消息 + 长期记忆）
-
-    通过向量相似度搜索相关的历史消息和长期记忆
-    """
-    logger.info(LOG_SEPARATOR)
-    logger.info("[记忆搜索API] 收到搜索请求")
-    logger.info(f"  ├─ 查询: {request.query[:50]}{'...' if len(request.query) > 50 else ''}")
-    logger.info(f"  ├─ 会话ID: {request.conversation_id or '全部'}")
-    logger.info(f"  ├─ 返回数量: {request.top_k}")
-    logger.info(f"  ├─ 最小分数: {request.min_score}")
-    logger.info(f"  └─ 混合模式: {'启用' if request.use_hybrid else '禁用'}")
-
     try:
         results = await hybrid_memory_search(
             db=db,
@@ -61,114 +45,68 @@ async def search_memory(
             enable_mmr=request.enable_mmr,
             mmr_lambda=request.mmr_lambda,
             enable_temporal_decay=request.enable_temporal_decay,
-            half_life_days=request.half_life_days
+            half_life_days=request.half_life_days,
         )
-
-        logger.info(f"[记忆搜索API] 搜索完成，返回 {len(results)} 条结果")
-        for i, r in enumerate(results, 1):
-            logger.debug(f"  #{i}: 分数={r.score:.3f}, 来源={r.source}")
-        logger.info(LOG_SEPARATOR)
-
         return MemorySearchResponse(results=results)
-
-    except Exception as e:
-        logger.error(f"[记忆搜索API] 搜索失败: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"搜索失败: {str(e)}")
+    except Exception as exc:
+        logger.exception("[memory] search failed")
+        raise HTTPException(status_code=500, detail=f"memory search failed: {exc}") from exc
 
 
 @router.post("/memory/index/{conversation_id}")
 async def index_conversation(
     conversation_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    为指定会话的所有消息生成向量嵌入
-    """
-    logger.info(LOG_SEPARATOR)
-    logger.info(f"[消息索引API] 开始索引会话 {conversation_id} 的消息")
-
     try:
         indexed_count = await batch_index_conversation_messages(conversation_id)
-
-        logger.info(f"[消息索引API] 索引完成，共索引 {indexed_count} 条消息")
-        logger.info(LOG_SEPARATOR)
-
         return {
-            "message": "索引完成",
+            "message": "index completed",
             "conversation_id": conversation_id,
-            "indexed_count": indexed_count
+            "indexed_count": indexed_count,
         }
+    except Exception as exc:
+        logger.exception("[memory] index conversation failed")
+        raise HTTPException(status_code=500, detail=f"indexing failed: {exc}") from exc
 
-    except Exception as e:
-        logger.error(f"[消息索引API] 索引失败: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"索引失败: {str(e)}")
 
-
-@router.get("/memory/long-term", response_model=List[LongTermMemoryResponse])
+@router.get("/memory/long-term", response_model=list[LongTermMemoryResponse])
 async def list_long_term_memories(
     db: AsyncSession = Depends(get_db),
-    limit: int = 50
+    limit: int = 50,
+    session_id: int | None = None,
 ):
-    """
-    获取所有长期记忆
-    """
-    logger.info(f"[长期记忆API] 获取长期记忆列表，限制: {limit}")
-
     memories = await MemoryDAO.list_all(db, limit)
-
-    logger.info(f"[长期记忆API] 返回 {len(memories)} 条长期记忆")
-
+    if session_id is not None:
+        memories = [memory for memory in memories if memory.session_id == session_id]
     return memories
 
 
 @router.post("/memory/long-term", response_model=LongTermMemoryResponse)
 async def create_long_term_memory(
     memory_create: LongTermMemoryCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    创建长期记忆
-    """
-    logger.info(LOG_SEPARATOR)
-    logger.info("[长期记忆API] 创建新长期记忆")
-    logger.info(f"  ├─ Key: {memory_create.key or '无'}")
-    logger.info(f"  ├─ 内容: {memory_create.content[:50]}{'...' if len(memory_create.content) > 50 else ''}")
-    logger.info(f"  ├─ 重要性: {memory_create.importance}")
-    logger.info(f"  └─ 来源: {memory_create.source or '手动创建'}")
-
     memory = await MemoryDAO.create(
         db=db,
+        session_id=getattr(memory_create, "session_id", None),
         content=memory_create.content,
         key=memory_create.key,
         importance=memory_create.importance,
-        source=memory_create.source
+        source=memory_create.source,
     )
-
-    logger.info(f"[长期记忆API] 记忆已保存，ID: {memory.id}")
-
     asyncio.create_task(index_long_term_memory_embedding(memory.id))
-    logger.info(f"[长期记忆API] 已创建异步嵌入任务")
-    logger.info(LOG_SEPARATOR)
-
     return memory
 
 
 @router.get("/memory/long-term/{memory_id}", response_model=LongTermMemoryResponse)
 async def get_long_term_memory(
     memory_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    获取指定的长期记忆
-    """
-    logger.debug(f"[长期记忆API] 获取记忆 ID: {memory_id}")
-
     memory = await MemoryDAO.get_by_id(db, memory_id)
-
     if not memory:
-        logger.warning(f"[长期记忆API] 记忆不存在，ID: {memory_id}")
-        raise HTTPException(status_code=404, detail="长期记忆不存在")
-
+        raise HTTPException(status_code=404, detail="memory not found")
     return memory
 
 
@@ -176,18 +114,11 @@ async def get_long_term_memory(
 async def update_long_term_memory(
     memory_id: int,
     memory_update: LongTermMemoryUpdate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    更新长期记忆
-    """
-    logger.info(LOG_SEPARATOR)
-    logger.info(f"[长期记忆API] 更新记忆 ID: {memory_id}")
-
-    existing_memory = await MemoryDAO.get_by_id(db, memory_id)
-    if not existing_memory:
-        logger.warning(f"[长期记忆API] 记忆不存在，ID: {memory_id}")
-        raise HTTPException(status_code=404, detail="长期记忆不存在")
+    existing = await MemoryDAO.get_by_id(db, memory_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="memory not found")
 
     memory = await MemoryDAO.update(
         db=db,
@@ -195,35 +126,20 @@ async def update_long_term_memory(
         content=memory_update.content,
         key=memory_update.key,
         importance=memory_update.importance,
-        source=memory_update.source
+        source=memory_update.source,
     )
 
     if memory_update.content is not None:
         asyncio.create_task(index_long_term_memory_embedding(memory.id))
-        logger.info(f"[长期记忆API] 已创建异步嵌入任务（内容已更新）")
-
-    logger.info(f"[长期记忆API] 更新完成")
-    logger.info(LOG_SEPARATOR)
-
     return memory
 
 
 @router.delete("/memory/long-term/{memory_id}")
 async def delete_long_term_memory(
     memory_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    删除长期记忆
-    """
-    logger.info(f"[长期记忆API] 删除记忆 ID: {memory_id}")
-
-    success = await MemoryDAO.delete(db, memory_id)
-
-    if not success:
-        logger.warning(f"[长期记忆API] 记忆不存在，ID: {memory_id}")
-        raise HTTPException(status_code=404, detail="长期记忆不存在")
-
-    logger.info(f"[长期记忆API] 记忆已删除，ID: {memory_id}")
-
-    return {"message": "长期记忆已删除"}
+    deleted = await MemoryDAO.delete(db, memory_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="memory not found")
+    return {"message": "memory deleted"}

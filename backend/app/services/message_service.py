@@ -8,6 +8,7 @@ import json
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.agent_loop.prompting import build_model_history
 from app.models.models import Message, ToolCall
 from app.dao.message_dao import MessageDAO
 from app.dao.tool_call_dao import ToolCallDAO
@@ -25,6 +26,7 @@ class MessageService:
     async def save(
         self,
         db: AsyncSession,
+        session_id: Optional[int],
         conversation_id: int,
         role: str,
         content: str,
@@ -44,7 +46,7 @@ class MessageService:
             保存的消息对象
         """
         message = await MessageDAO.create(
-            db, conversation_id, role, content
+            db, session_id, conversation_id, role, content
         )
 
         if generate_embedding:
@@ -59,6 +61,7 @@ class MessageService:
     async def save_tool_call(
         self,
         db: AsyncSession,
+        session_id: Optional[int],
         conversation_id: int,
         message_id: Optional[int],
         tool_name: str,
@@ -89,6 +92,7 @@ class MessageService:
         """
         return await ToolCallDAO.create(
             db=db,
+            session_id=session_id,
             conversation_id=conversation_id,
             message_id=message_id,
             tool_name=tool_name,
@@ -103,6 +107,7 @@ class MessageService:
     async def process_tool_calls(
         self,
         db: AsyncSession,
+        session_id: Optional[int],
         conversation_id: int,
         message_id: Optional[int],
         tool_calls: List[Dict[str, Any]],
@@ -185,8 +190,13 @@ class MessageService:
                 arguments["_config"] = config
                 logger.info(f"[MessageService]   ✓ 已获取浏览器配置注入")
 
+            if tool_name in {"sessions_list", "sessions_history", "sessions_send", "session_status"}:
+                arguments["_db"] = db
+
             safe_args = {}
             for k, v in arguments.items():
+                if k.startswith("_"):
+                    continue
                 if "key" in k.lower() or "token" in k.lower():
                     safe_args[k] = "***"
                 else:
@@ -199,6 +209,7 @@ class MessageService:
 
             save_result = await self.save_tool_call(
                 db=db,
+                session_id=session_id,
                 conversation_id=conversation_id,
                 message_id=message_id,
                 tool_name=tool_name,
@@ -245,6 +256,29 @@ class MessageService:
         """
         messages = await MessageDAO.get_conversation_history(db, conversation_id)
         return [{"role": msg.role, "content": msg.content} for msg in messages]
+
+    async def get_model_history(
+        self,
+        db: AsyncSession,
+        conversation_id: int
+    ) -> List[Dict[str, str]]:
+        """
+        获取发给模型的会话历史。
+
+        与普通历史不同，这里会把已持久化的工具调用摘要挂到对应 assistant 消息上，
+        让新一轮请求也能继承关键工具轨迹。
+        """
+        messages = await MessageDAO.get_conversation_history(db, conversation_id)
+        assistant_message_ids = [msg.id for msg in messages if msg.role == "assistant"]
+        tool_call_records = await ToolCallDAO.list_by_message_ids(db, assistant_message_ids)
+
+        tool_call_map: Dict[int, List[ToolCall]] = {}
+        for record in tool_call_records:
+            if record.message_id is None:
+                continue
+            tool_call_map.setdefault(record.message_id, []).append(record)
+
+        return build_model_history(messages, tool_call_map)
 
     async def get_by_id(
         self,

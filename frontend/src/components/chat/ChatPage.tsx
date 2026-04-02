@@ -1,12 +1,14 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle } from 'lucide-react';
+
 import MainLayout from '../layout/MainLayout';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import ThemeToggle from '../common/ThemeToggle';
 import ConversationSelect from '../common/ConversationSelect';
+import SessionSelect from '../common/SessionSelect';
 import { useApp } from '../../contexts/AppContext';
 import { sendMessageStream, getConfig } from '../../services/api';
 import type { AgentTraceEvent, AgentTraceEventPayload, AgentTraceEventType, Message } from '../../types';
@@ -52,6 +54,7 @@ const ChatPage: React.FC = () => {
   const navigate = useNavigate();
   const {
     conversations,
+    currentSessionId,
     currentConversationId,
     messages,
     isConfigured,
@@ -70,7 +73,7 @@ const ChatPage: React.FC = () => {
   useEffect(() => {
     checkConfiguration();
     loadConversations();
-  }, []);
+  }, [loadConversations]);
 
   useEffect(() => {
     if (conversationId) {
@@ -110,7 +113,7 @@ const ChatPage: React.FC = () => {
   };
 
   const handleCreateNewChat = async () => {
-    const newConversation = await createNewConversation('New Chat');
+    const newConversation = await createNewConversation('新聊天');
     if (newConversation) {
       selectConversation(newConversation.id);
       navigate(`/chat/${newConversation.id}`, { replace: true });
@@ -152,20 +155,25 @@ const ChatPage: React.FC = () => {
 
   const handleSendMessage = async (content: string) => {
     const trimmedContent = content.trim();
+    const isChatCommand = trimmedContent.startsWith('/');
 
     if (trimmedContent === '/new') {
       await handleCreateNewChat();
       return;
     }
 
-    if (isConfigured === false) {
+    if (isConfigured === false && !isChatCommand) {
       showNotice('请先在设置中配置 API Key。');
       navigate('/settings');
       return;
     }
 
     if (!currentConversationId) {
-      showNotice('会话仍在加载中，请稍后重试。');
+      showNotice('聊天记录仍在加载中，请稍后重试。');
+      return;
+    }
+    if (!currentSessionId) {
+      showNotice('工作会话仍在加载中，请稍后重试。');
       return;
     }
 
@@ -197,6 +205,7 @@ const ChatPage: React.FC = () => {
     try {
       await sendMessageStream(
         {
+          session_id: currentSessionId,
           conversation_id: conversationIdToUse,
           message: trimmedContent,
         },
@@ -246,7 +255,7 @@ const ChatPage: React.FC = () => {
             console.error('Chat error:', error);
             updateStreamingMessage(tempAiMessage.id, (message) => ({
               ...message,
-              content: message.content || 'Failed to send message. Please check your API key and tool configuration.',
+              content: message.content || '消息发送失败，请检查 API Key 和工具配置后重试。',
               traceEvents: appendTraceEvent(message.traceEvents, 'loop_warning', {
                 message: error.message,
                 severity: 'error',
@@ -266,7 +275,7 @@ const ChatPage: React.FC = () => {
       console.error('Failed to send message:', error);
       updateStreamingMessage(tempAiMessage.id, (message) => ({
         ...message,
-        content: 'Failed to send message. Please check your API key and tool configuration.',
+        content: '消息发送失败，请检查 API Key 和工具配置后重试。',
         isStreaming: false,
       }));
       showNotice('消息发送失败，请检查配置后重试。');
@@ -279,8 +288,19 @@ const ChatPage: React.FC = () => {
     <MainLayout showHeader={false}>
       <div className="chat-page">
         <header className="chat-header">
-          <div className="flex items-center gap-3 min-w-0">
-            <ConversationSelect />
+          <div className="flex items-center gap-3 min-w-0 flex-wrap">
+            <div className="flex flex-col gap-1 min-w-[200px]">
+              <span className="text-xs font-medium px-1" style={{ color: 'var(--text-muted)' }}>
+                工作会话
+              </span>
+              <SessionSelect />
+            </div>
+            <div className="flex flex-col gap-1 min-w-[220px]">
+              <span className="text-xs font-medium px-1" style={{ color: 'var(--text-muted)' }}>
+                聊天记录
+              </span>
+              <ConversationSelect />
+            </div>
           </div>
 
           <div className="flex items-center gap-3">

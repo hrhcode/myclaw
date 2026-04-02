@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent_loop import AgentLoopController
+from app.agent_loop.controller import AgentLoopController
 from app.core.database import get_db
 from app.schemas.schemas import ChatRequest
 from app.tools import tool_registry

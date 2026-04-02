@@ -38,6 +38,7 @@ class ProgressSnapshot:
 class AgentRunState:
     run_id: str
     conversation_id: int
+    session_id: int
     user_message: str
     messages: List[Dict[str, Any]]
     memory_context: str = ""

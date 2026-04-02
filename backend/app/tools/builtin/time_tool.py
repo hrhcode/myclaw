@@ -1,24 +1,42 @@
 """
-时间查询工具
+Time tool.
 
-提供获取当前时间的功能
+Provides the current date/time in a few simple formats.
 """
+from __future__ import annotations
+
 from datetime import datetime
-from typing import Dict, Any
+from typing import Any, Dict
+
 from app.tools.base import BaseTool, ToolDefinition, create_tool
 
 
+WEEKDAYS_ZH = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+MONTHS_ZH = [
+    "一月",
+    "二月",
+    "三月",
+    "四月",
+    "五月",
+    "六月",
+    "七月",
+    "八月",
+    "九月",
+    "十月",
+    "十一月",
+    "十二月",
+]
+
+
 class TimeTool(BaseTool):
-    """时间查询工具"""
-    
     @property
     def name(self) -> str:
         return "get_current_time"
-    
+
     @property
     def description(self) -> str:
-        return "获取当前的日期、时间、时区信息"
-    
+        return "Get the current date, time, timezone, and timestamp."
+
     @property
     def parameters(self) -> Dict[str, Any]:
         return {
@@ -26,107 +44,67 @@ class TimeTool(BaseTool):
             "properties": {
                 "format": {
                     "type": "string",
-                    "description": "时间格式",
-                    "enum": ["iso", "friendly", "timestamp"]
+                    "description": "Output format for the time value.",
+                    "enum": ["iso", "friendly", "timestamp"],
+                    "default": "friendly",
                 },
                 "timezone": {
                     "type": "string",
-                    "description": "时区，例如：Asia/Shanghai、UTC。默认为本地时区",
-                    "default": "local"
+                    "description": "Timezone name such as Asia/Shanghai or UTC. Defaults to local timezone.",
+                    "default": "local",
                 },
                 "include_date": {
                     "type": "boolean",
-                    "description": "是否包含日期信息",
-                    "default": True
-                }
+                    "description": "Whether to include date information in friendly format.",
+                    "default": True,
+                },
             },
-            "required": []
+            "required": [],
         }
-    
+
     async def execute(
         self,
         format: str = "friendly",
         timezone: str = "local",
-        include_date: bool = True
+        include_date: bool = True,
     ) -> Dict[str, Any]:
-        """
-        执行时间查询
-        
-        Args:
-            format: 时间格式
-                - iso: ISO 格式 (YYYY-MM-DD HH:MM:SS)
-                - friendly: 友好格式 (2024年1月1日 12:00:00)
-                - timestamp: Unix 时间戳
-            timezone: 时区
-            include_date: 是否包含日期
-            
-        Returns:
-            时间信息字典
-        """
-        now = datetime.now()
-        
+        now = datetime.now().astimezone()
+
         if timezone != "local":
             try:
                 import pytz
+
                 tz = pytz.timezone(timezone)
                 now = now.astimezone(tz)
             except Exception:
-                pass
-        
-        result = {}
-        
+                timezone = "local"
+
         if format == "iso":
-            result["time"] = now.strftime("%Y-%m-%d %H:%M:%S")
+            rendered = now.isoformat(timespec="seconds")
         elif format == "timestamp":
-            result["time"] = int(now.timestamp())
+            rendered = str(int(now.timestamp()))
+        elif include_date:
+            rendered = (
+                f"{now.year}年{MONTHS_ZH[now.month - 1]}{now.day}日"
+                f" {WEEKDAYS_ZH[now.weekday()]} {now:%H:%M:%S}"
+            )
         else:
-            if include_date:
-                weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-                months = ["一月", "二月", "三月", "四月", "五月", "六月", 
-                            "七月", "八月", "九月", "十月", "十一月", "十二月"]
-                
-                result["time"] = now.strftime(f"%Y年{months[now.month-1]}{now.day}日 {weekdays[now.weekday]} {now.hour:02d}:{now.minute:02d}")
-            else:
-                result["time"] = now.strftime("%H:%M:%S")
-        
-        result["format"] = format
-        result["timezone"] = str(now.tzinfo) if now.tzinfo else "UTC"
-        result["timestamp"] = int(now.timestamp())
-        
-        return result
+            rendered = now.strftime("%H:%M:%S")
+
+        return {
+            "time": rendered,
+            "format": format,
+            "timezone": str(now.tzinfo) if now.tzinfo else "local",
+            "timestamp": int(now.timestamp()),
+            "iso": now.isoformat(timespec="seconds"),
+        }
 
 
 def get_current_time_tool() -> ToolDefinition:
-    """
-    获取时间查询工具定义
-    
-    Returns:
-        工具定义实例
-    """
-    tool_instance = TimeTool()
+    tool = TimeTool()
     return create_tool(
-        name="get_current_time",
-        description="获取当前的日期、时间、时区信息",
-        parameters={
-            "type": "object",
-            "properties": {
-                "format": {
-                    "type": "string",
-                    "description": "时间格式",
-                    "enum": ["iso", "friendly", "timestamp"]
-                },
-                "timezone": {
-                    "type": "string",
-                    "description": "时区，例如：Asia/Shanghai、UTC。默认为本地时区",
-                    "default": "local"
-                },
-                "include_date": {
-                    "type": "boolean",
-                    "description": "是否包含日期信息",
-                    "default": True
-                }
-            },
-            "required": []
-        },
-        execute=tool_instance.execute
+        name=tool.name,
+        description=tool.description,
+        parameters=tool.parameters,
+        execute=tool.execute,
     )

@@ -1,4 +1,4 @@
-import { NavLink, useLocation, matchPath } from "react-router-dom";
+import { NavLink, useLocation, matchPath } from 'react-router-dom';
 import {
   MessageCircleMore,
   FolderOpen,
@@ -9,8 +9,10 @@ import {
   ScrollText,
   Bot,
   Wrench,
-} from "lucide-react";
-import { useState, useMemo } from "react";
+  Clock3,
+  LayoutPanelTop,
+} from 'lucide-react';
+import { useState, useMemo } from 'react';
 
 interface SidebarProps {
   isCollapsed: boolean;
@@ -25,39 +27,41 @@ interface NavItem {
 }
 
 /**
- * 左侧导航菜单组件 - 显示聊天、会话、配置三个入口
+ * 侧边导航菜单，展示聊天、会话、自动化等入口。
  */
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
   const location = useLocation();
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   /**
-   * 导航项配置 - 使用 useMemo 避免每次渲染重新创建数组
+   * 导航项配置，使用 useMemo 避免重复创建数组。
    */
   const navItems = useMemo<NavItem[]>(
     () => [
       {
-        path: "/chat",
+        path: '/chat',
         icon: <MessageCircleMore size={22} />,
-        label: "聊天",
-        pattern: "/chat/*",
+        label: '聊天',
+        pattern: '/chat/*',
       },
-      { path: "/conversations", icon: <FolderOpen size={22} />, label: "会话" },
-      { path: "/memory", icon: <Brain size={22} />, label: "记忆" },
-      { path: "/tools", icon: <Wrench size={22} />, label: "工具" },
-      { path: "/settings", icon: <Settings size={22} />, label: "配置" },
+      { path: '/conversations', icon: <FolderOpen size={22} />, label: '聊天记录' },
+      { path: '/memory', icon: <Brain size={22} />, label: '记忆' },
+      { path: '/sessions', icon: <LayoutPanelTop size={22} />, label: '工作会话' },
+      { path: '/automations', icon: <Clock3 size={22} />, label: '自动化' },
+      { path: '/tools', icon: <Wrench size={22} />, label: '工具' },
+      { path: '/settings', icon: <Settings size={22} />, label: '设置' },
       {
-        path: "/logs",
+        path: '/logs',
         icon: <ScrollText size={22} />,
-        label: "日志",
-        pattern: "/logs/*",
+        label: '日志',
+        pattern: '/logs/*',
       },
     ],
     [],
   );
 
   /**
-   * 判断导航项是否激活 - 使用 useMemo 优化避免不必要的重计算
+   * 判断当前激活的导航项。
    */
   const activeItem = useMemo(() => {
     const currentPath = location.pathname;
@@ -72,8 +76,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
       }
     }
 
-    if (currentPath === "/") {
-      return "/chat";
+    if (currentPath === '/') {
+      return '/chat';
     }
 
     return null;
@@ -83,15 +87,15 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
     <div
       className="h-full flex flex-col glass-card overflow-hidden relative sidebar-container"
       style={{
-        borderRight: "1px solid var(--glass-border)",
+        borderRight: '1px solid var(--glass-border)',
         width: isCollapsed ? 72 : 240,
-        transition: "width 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+        transition: 'width 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
         flexShrink: 0,
       }}
     >
       <div
         className="p-4 flex-shrink-0 flex items-center justify-between"
-        style={{ borderBottom: "1px solid var(--glass-border)" }}
+        style={{ borderBottom: '1px solid var(--glass-border)' }}
       >
         {!isCollapsed && (
           <div className="flex items-center gap-3">
@@ -100,7 +104,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
             </div>
             <span
               className="text-lg font-semibold"
-              style={{ color: "var(--text-primary)" }}
+              style={{ color: 'var(--text-primary)' }}
             >
               MyClaw
             </span>
@@ -109,9 +113,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
 
         <button
           onClick={onToggleCollapse}
-          className={`p-2.5 rounded-xl glass transition-colors hover:bg-white/10 ${isCollapsed ? "mx-auto" : ""}`}
-          style={{ color: "var(--text-secondary)" }}
-          aria-label={isCollapsed ? "展开侧边栏" : "折叠侧边栏"}
+          className={`p-2.5 rounded-xl glass transition-colors hover:bg-white/10 ${isCollapsed ? 'mx-auto' : ''}`}
+          style={{ color: 'var(--text-secondary)' }}
+          aria-label={isCollapsed ? '展开侧边栏' : '折叠侧边栏'}
         >
           {isCollapsed ? <PanelLeft size={20} /> : <PanelLeftClose size={20} />}
         </button>
@@ -127,17 +131,17 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
                 onMouseEnter={() => setHoveredItem(item.path)}
                 onMouseLeave={() => setHoveredItem(null)}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative ${
-                  isCollapsed ? "justify-center" : ""
+                  isCollapsed ? 'justify-center' : ''
                 } ${
                   active
-                    ? "bg-gradient-to-r from-primary/20 to-primary-dark/20"
-                    : "hover:bg-white/5"
+                    ? 'bg-gradient-to-r from-primary/20 to-primary-dark/20'
+                    : 'hover:bg-white/5'
                 }`}
                 style={{
-                  color: active ? "var(--primary)" : "var(--text-secondary)",
+                  color: active ? 'var(--primary)' : 'var(--text-secondary)',
                 }}
               >
-                <span className={active ? "text-primary" : ""}>
+                <span className={active ? 'text-primary' : ''}>
                   {item.icon}
                 </span>
 
@@ -150,10 +154,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
                 <div
                   className="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-2 rounded-lg text-sm whitespace-nowrap z-50"
                   style={{
-                    backgroundColor: "var(--glass-bg)",
-                    border: "1px solid var(--glass-border)",
-                    color: "var(--text-primary)",
-                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+                    backgroundColor: 'var(--glass-bg)',
+                    border: '1px solid var(--glass-border)',
+                    color: 'var(--text-primary)',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
                   }}
                 >
                   {item.label}
@@ -166,13 +170,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
 
       <div
         className="p-4 flex-shrink-0"
-        style={{ borderTop: "1px solid var(--glass-border)" }}
+        style={{ borderTop: '1px solid var(--glass-border)' }}
       >
         <div
-          className={`flex items-center ${isCollapsed ? "justify-center" : "justify-between"} text-xs`}
-          style={{ color: "var(--text-muted)" }}
+          className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} text-xs`}
+          style={{ color: 'var(--text-muted)' }}
         >
-          {!isCollapsed && <span>AI对话助手</span>}
+          {!isCollapsed && <span>个人 Agent 助手</span>}
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
             {!isCollapsed && <span>在线</span>}

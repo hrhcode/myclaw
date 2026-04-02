@@ -20,6 +20,7 @@ class MessageDAO:
     @staticmethod
     async def create(
         db: AsyncSession,
+        session_id: Optional[int],
         conversation_id: int,
         role: str,
         content: str
@@ -38,6 +39,7 @@ class MessageDAO:
         """
         logger.debug(f"[DAO-Message] 创建消息 - 会话ID: {conversation_id}, 角色: {role}")
         message = Message(
+            session_id=session_id,
             conversation_id=conversation_id,
             role=role,
             content=content

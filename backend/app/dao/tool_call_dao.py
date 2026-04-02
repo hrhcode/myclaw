@@ -21,6 +21,7 @@ class ToolCallDAO:
     @staticmethod
     async def create(
         db: AsyncSession,
+        session_id: Optional[int],
         conversation_id: int,
         tool_name: str,
         tool_call_id: str,
@@ -51,6 +52,7 @@ class ToolCallDAO:
         """
         logger.debug(f"[DAO-ToolCall] 创建工具调用记录，工具: {tool_name}")
         tool_call = ToolCall(
+            session_id=session_id,
             conversation_id=conversation_id,
             message_id=message_id,
             tool_name=tool_name,

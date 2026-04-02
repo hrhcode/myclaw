@@ -2,6 +2,8 @@
 import type {
   AgentTraceEventPayload,
   AgentTraceEventType,
+  Automation,
+  AutomationRun,
   ChatRequest,
   ConfigItem,
   Conversation,
@@ -9,6 +11,10 @@ import type {
   Message,
   Model,
   Provider,
+  Session,
+  SessionSkill,
+  SessionStatus,
+  Skill,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
@@ -58,6 +64,7 @@ export interface StreamMessage {
   arguments?: string;
   phase?: string;
   conversation_id?: number;
+  session_id?: number;
   run_id?: string;
   severity?: string;
   message?: string;
@@ -222,6 +229,11 @@ export const getConversations = async (): Promise<Conversation[]> => {
   return response.data;
 };
 
+export const getConversationsBySession = async (sessionId: number): Promise<Conversation[]> => {
+  const response = await api.get<Conversation[]>('/conversations', { params: { session_id: sessionId } });
+  return response.data;
+};
+
 export const getConversationStats = async (): Promise<ConversationStats[]> => {
   const response = await api.get<ConversationStats[]>('/conversations/stats');
   return response.data;
@@ -229,6 +241,11 @@ export const getConversationStats = async (): Promise<ConversationStats[]> => {
 
 export const createConversation = async (title: string): Promise<Conversation> => {
   const response = await api.post<Conversation>('/conversations', { title });
+  return response.data;
+};
+
+export const createConversationForSession = async (title: string, sessionId: number): Promise<Conversation> => {
+  const response = await api.post<Conversation>('/conversations', { title, session_id: sessionId });
   return response.data;
 };
 
@@ -324,8 +341,10 @@ export interface LongTermMemory {
   updated_at: string;
 }
 
-export const getLongTermMemories = async (): Promise<LongTermMemory[]> => {
-  const response = await api.get<LongTermMemory[]>('/memory/long-term');
+export const getLongTermMemories = async (sessionId?: number): Promise<LongTermMemory[]> => {
+  const response = await api.get<LongTermMemory[]>('/memory/long-term', {
+    params: sessionId ? { session_id: sessionId } : undefined,
+  });
   return response.data;
 };
 
@@ -334,12 +353,14 @@ export const createLongTermMemory = async (
   key?: string,
   importance: number = 0.5,
   source?: string,
+  sessionId?: number,
 ): Promise<LongTermMemory> => {
   const response = await api.post<LongTermMemory>('/memory/long-term', {
     content,
     key,
     importance,
     source,
+    session_id: sessionId,
   });
   return response.data;
 };
@@ -483,5 +504,90 @@ export const getBrowserConfig = async (): Promise<BrowserConfigResponse> => {
 
 export const setBrowserConfig = async (config: BrowserConfig): Promise<{ message: string }> => {
   const response = await api.put<{ message: string }>('/config/browser', config);
+  return response.data;
+};
+
+export const getSessions = async (): Promise<Session[]> => {
+  const response = await api.get<Session[]>('/sessions');
+  return response.data;
+};
+
+export const createSession = async (payload: Partial<Session> & { name: string }): Promise<Session> => {
+  const response = await api.post<Session>('/sessions', payload);
+  return response.data;
+};
+
+export const updateSession = async (sessionId: number, payload: Partial<Session>): Promise<Session> => {
+  const response = await api.put<Session>(`/sessions/${sessionId}`, payload);
+  return response.data;
+};
+
+export const deleteSession = async (sessionId: number): Promise<void> => {
+  await api.delete(`/sessions/${sessionId}`);
+};
+
+export const getSessionStatus = async (sessionId: number): Promise<SessionStatus> => {
+  const response = await api.get<SessionStatus>(`/sessions/${sessionId}/status`);
+  return response.data;
+};
+
+export const getSessionHistorySummary = async (
+  sessionId: number,
+): Promise<{ session_id: number; summary: string; recent_messages: string[] }> => {
+  const response = await api.get<{ session_id: number; summary: string; recent_messages: string[] }>(
+    `/sessions/${sessionId}/history-summary`,
+  );
+  return response.data;
+};
+
+export const dispatchSessionMessage = async (
+  sessionId: number,
+  message: string,
+): Promise<{ success: boolean; session_id: number; run_id?: string }> => {
+  const response = await api.post<{ success: boolean; session_id: number; run_id?: string }>(
+    `/sessions/${sessionId}/dispatch`,
+    { message },
+  );
+  return response.data;
+};
+
+export const getSkills = async (): Promise<Skill[]> => {
+  const response = await api.get<Skill[]>('/skills');
+  return response.data;
+};
+
+export const getSessionSkills = async (sessionId: number): Promise<SessionSkill[]> => {
+  const response = await api.get<{ skills: SessionSkill[] }>(`/sessions/${sessionId}/skills`);
+  return response.data.skills;
+};
+
+export const updateSessionSkills = async (sessionId: number, skills: SessionSkill[]): Promise<SessionSkill[]> => {
+  const response = await api.put<{ skills: SessionSkill[] }>(`/sessions/${sessionId}/skills`, { skills });
+  return response.data.skills;
+};
+
+export const getAutomations = async (): Promise<Automation[]> => {
+  const response = await api.get<Automation[]>('/automations');
+  return response.data;
+};
+
+export const createAutomation = async (
+  payload: Omit<Automation, 'id' | 'created_at' | 'updated_at' | 'last_run_at' | 'next_run_at'>,
+): Promise<Automation> => {
+  const response = await api.post<Automation>('/automations', payload);
+  return response.data;
+};
+
+export const updateAutomation = async (automationId: number, payload: Partial<Automation>): Promise<Automation> => {
+  const response = await api.put<Automation>(`/automations/${automationId}`, payload);
+  return response.data;
+};
+
+export const deleteAutomation = async (automationId: number): Promise<void> => {
+  await api.delete(`/automations/${automationId}`);
+};
+
+export const getAutomationRuns = async (automationId: number): Promise<AutomationRun[]> => {
+  const response = await api.get<AutomationRun[]>(`/automations/${automationId}/runs`);
   return response.data;
 };

@@ -1,375 +1,254 @@
-<p align="center">
-  <h1 align="center">MyClaw - AI 聊天助手</h1>
-  <p align="center">
-    简体中文 | <a href="README_EN.md">English</a>
-  </p>
-</p>
+# MyClaw
 
-基于 GLM-4 的智能对话 AI 助手，具备语义记忆搜索、长期记忆管理、工具调用和实时日志监控功能。
+MyClaw 是一个面向个人使用的精简 Agent 平台，主入口是 React + FastAPI 的 Web 应用。当前版本已经从“单机会话聊天应用”升级为“带工作会话、自动化、记忆和会话协作能力的个人 Agent 控制台”。
 
-## ✨ 功能特性
+## 当前状态
 
-- 🚀 **现代化聊天界面** - 界面简洁响应，支持流式输出和 AI 思考过程展示
-- 🧠 **语义记忆搜索** - 基于向量的消息和长期记忆混合搜索，支持 MMR 重排序和时间衰减
-- 💾 **长期记忆管理** - 持久化存储和检索重要信息，支持重要性评分
-- 🔧 **工具调用系统** - 支持动态注册工具，AI 可调用外部工具执行任务
-- 🖥️ **浏览器自动化** - 支持浏览器启动、导航、截图、点击等自动化操作
-- 📊 **实时日志监控** - 基于 WebSocket 的实时日志流和历史查看
-- 🌙 **深色模式** - 完整的深色主题支持
-- 💬 **对话管理** - 创建、切换和删除对话
-- 📝 **Markdown 渲染** - 富文本显示和代码高亮
-- ⚙️ **前端配置** - 直接在 UI 中配置 API Key 和模型参数
+- 后端已补齐核心个人版能力：
+  - `Session Runtime`：按工作会话隔离模型、工作区、工具配置和上下文摘要
+  - `Workspace + Skills`：支持本地工作区、技能发现、启停和提示注入
+  - `Session Tools`：支持跨会话查询历史、状态和任务派发
+  - `Automation`：支持固定间隔、每日、每周调度的个人自动化任务
+  - `Memory`：支持长期记忆、会话级记忆策略和自动提炼
+- 后端 API 已完成本地回归联调。
+- 后端测试已补齐 `session / automation / memory / tool executor` 相关覆盖。
+- 前端已打通会话、自动化、记忆的闭环页面。
+- 前端核心导航和主页面文案已统一为中文。
 
-## 🛠 技术栈
+## 核心能力
 
-| 层级     | 技术栈                                     |
-| --------- | ------------------------------------------ |
-| 前端      | React 19 + TypeScript + Vite + TailwindCSS |
-| 后端      | Python 3.10+ + FastAPI + SQLAlchemy 2.0 (Async) |
-| 数据库    | SQLite + sqlite-vec (向量扩展) + FTS5 (全文搜索) |
-| AI 模型   | GLM-4-Flash / GLM-4 / GLM-4-Plus (智谱 AI) |
-| 向量嵌入  | OpenRouter API (NVIDIA Llama-Nemotron) 或本地 sentence-transformers |
+### 1. 聊天与 Agent 运行
 
-## 📁 项目结构
+- 流式聊天响应
+- 每条回复保留运行轨迹和工具调用事件
+- 支持聊天命令：
+  - `/new`
+  - `/reset`
+  - `/compact`
+  - `/status`
 
-```
+### 2. 工作会话
+
+- 创建、切换、重命名、删除工作会话
+- 设置默认工作会话
+- 每个工作会话独立维护：
+  - `workspace_path`
+  - `model / provider`
+  - `tool_profile`
+  - `tool_allow / tool_deny`
+  - `max_iterations`
+  - `context_summary`
+  - `memory_auto_extract / memory_threshold`
+
+### 3. Skills 与提示注入
+
+- 自动发现本地 skills
+- 为不同工作会话独立启停 skills
+- 注入工作区提示和会话摘要
+- 支持项目级提示文件：
+  - `AGENTS.md`
+  - `TOOLS.md`
+
+### 4. 跨会话协作
+
+- `sessions_list`
+- `sessions_history`
+- `sessions_send`
+- `session_status`
+
+支持从一个工作会话向另一个工作会话派发任务，并触发一次新的 Agent 运行。
+
+### 5. 自动化
+
+- 创建、编辑、启停、删除自动化任务
+- 支持两类调度：
+  - 固定间隔
+  - 每日 / 每周固定时间
+- 自动化结果会写入：
+  - 对应工作会话历史
+  - automation run 记录
+
+### 6. 长期记忆
+
+- 长期记忆列表、搜索、筛选、排序
+- 支持区分来源：
+  - 手动创建
+  - 会话摘要
+  - 自动提炼
+- 支持记忆检索参数配置：
+  - top-k
+  - 最低相关度
+  - 混合检索权重
+  - MMR 重排
+  - 时间衰减
+
+## 技术栈
+
+- 前端：React 19、TypeScript、Vite、Tailwind CSS、Framer Motion
+- 后端：FastAPI、SQLAlchemy、Pydantic
+- 数据库：SQLite
+- 模型接入：当前以现有 LLM 配置体系为主
+
+## 项目结构
+
+```text
 myclaw/
-├── frontend/                      # 前端应用 (React + TypeScript)
-│   ├── src/
-│   │   ├── components/          # React 组件
-│   │   │   ├── chat/             # 聊天页面和消息组件
-│   │   │   ├── conversations/     # 对话列表页面
-│   │   │   ├── memory/           # 记忆搜索和管理组件
-│   │   │   ├── settings/         # 设置页面
-│   │   │   ├── tools/            # 工具管理页面
-│   │   │   └── layout/           # 布局组件
-│   │   ├── contexts/             # React 上下文 (AppContext, ThemeContext)
-│   │   ├── hooks/                # 自定义 Hooks
-│   │   ├── services/             # API 服务层
-│   │   └── types/                # TypeScript 类型定义
-│   └── package.json
-│
-├── backend/                      # 后端应用 (Python + FastAPI)
-│   ├── app/
-│   │   ├── api/                  # API 路由层 (Web层)
-│   │   │   ├── chat.py           # 聊天接口 (流式响应)
-│   │   │   ├── history.py        # 对话历史 CRUD
-│   │   │   ├── memory.py         # 记忆搜索和长期记忆管理
-│   │   │   ├── config.py         # 配置管理
-│   │   │   ├── logs.py           # 日志流和历史查询
-│   │   │   └── tools.py          # 工具管理
-│   │   │
-│   │   ├── services/             # 业务逻辑层 (Service层)
-│   │   │   ├── llm_service.py           # LLM 调用封装
-│   │   │   ├── conversation_service.py   # 会话业务逻辑
-│   │   │   ├── message_service.py       # 消息业务逻辑
-│   │   │   ├── vector_search_service.py # 向量搜索编排 (混合搜索)
-│   │   │   ├── embedding_service.py     # 向量嵌入生成
-│   │   │   ├── memory_flush_service.py  # 记忆刷新服务
-│   │   │   ├── memory_summarizer.py     # 记忆摘要生成
-│   │   │   ├── sqlite_vec_service.py    # sqlite-vec 封装
-│   │   │   └── log_service.py           # 日志服务
-│   │   │
-│   │   ├── dao/                  # 数据访问层 (DAO层)
-│   │   │   ├── conversation_dao.py  # 会话数据访问
-│   │   │   ├── message_dao.py       # 消息数据访问
-│   │   │   ├── memory_dao.py        # 长期记忆数据访问
-│   │   │   ├── config_dao.py        # 配置数据访问
-│   │   │   └── tool_call_dao.py     # 工具调用记录访问
-│   │   │
-│   │   ├── models/               # ORM 实体层 (Domain层)
-│   │   │   └── models.py          # SQLAlchemy 模型定义
-│   │   │
-│   │   ├── schemas/              # DTO 层 (Domain层)
-│   │   │   └── schemas.py         # Pydantic Schema 定义
-│   │   │
-│   │   ├── tools/                # 工具系统
-│   │   │   ├── registry.py        # 工具注册表
-│   │   │   ├── executor.py        # 工具执行器
-│   │   │   ├── base.py            # 工具基类定义
-│   │   │   ├── schemas.py        # 工具 Schema 定义
-│   │   │   └── builtin/           # 内置工具实现
-│   │   │       └── time_tool.py   # 获取当前时间工具
-│   │   │
-│   │   ├── common/               # 公共组件 (Common层)
-│   │   │   ├── config.py          # 配置读写工具
-│   │   │   ├── constants.py       # 常量定义
-│   │   │   ├── exceptions.py      # 全局异常定义
-│   │   │   ├── response.py       # 统一响应模型
-│   │   │   ├── logging_config.py  # 日志配置
-│   │   └── utils/                # 工具函数
-│   │   │       ├── embedding.py   # 嵌入向量工具
-│   │   │       ├── search.py      # 搜索算法工具
-│   │   │       ├── text.py        # 文本处理工具
-│   │   │       └── logging.py     # 日志工具
-│   │   │
-│   │   ├── core/                 # 核心配置
-│   │   │   └── database.py       # 数据库配置和会话管理
-│   │   │
-│   │   └── main.py               # 应用入口
-│   │
-│   ├── migrations/               # 数据库迁移脚本
-│   │   └── run_migration.py
-│   │
-│   └── requirements.txt
-│
-├── start_all.ps1                  # 一键启动脚本 (Windows)
-├── README.md
-└── README_EN.md
+├─ frontend/
+│  ├─ src/
+│  │  ├─ components/
+│  │  │  ├─ chat/             # 聊天页
+│  │  │  ├─ conversations/    # 聊天记录页
+│  │  │  ├─ sessions/         # 工作会话页
+│  │  │  ├─ automations/      # 自动化页
+│  │  │  ├─ memory/           # 记忆页
+│  │  │  ├─ settings/         # 设置页
+│  │  │  ├─ tools/            # 工具页
+│  │  │  └─ layout/           # 布局组件
+│  │  ├─ contexts/
+│  │  ├─ services/
+│  │  └─ types/
+│  └─ package.json
+├─ backend/
+│  ├─ app/
+│  │  ├─ agent_loop/
+│  │  ├─ api/
+│  │  ├─ core/
+│  │  ├─ dao/
+│  │  ├─ models/
+│  │  ├─ schemas/
+│  │  ├─ services/
+│  │  └─ tools/
+│  ├─ tests/
+│  └─ requirements.txt
+├─ start_all.ps1
+└─ README.md
 ```
 
-## 🏗 后端架构
+## 快速开始
 
-后端采用经典的分层架构设计：
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      API Layer (api/)                        │
-│         负责处理 HTTP 请求/响应，参数校验，路由分发              │
-│    chat.py | history.py | config.py | memory.py | logs.py  │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Service Layer (services/)                  │
-│              封装业务逻辑，处理业务规则和流程                   │
-│  llm_service | vector_search_service | embedding_service    │
-│  conversation_service | message_service | log_service       │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      DAO Layer (dao/)                        │
-│            封装数据库操作，提供统一的数据访问接口               │
-│  conversation_dao | message_dao | memory_dao | config_dao   │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   Models & Schemas Layer                     │
-│        Models: SQLAlchemy ORM 实体定义                        │
-│        Schemas: Pydantic DTO 定义                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## 🚀 快速开始
-
-### 前置要求
+### 环境要求
 
 - Python 3.10+
 - Node.js 18+
-- 智谱 AI API Key (用于 LLM 对话)
-- OpenRouter API Key (用于向量嵌入，可选)
+- 一个可用的模型 API Key
 
 ### 1. 安装后端依赖
 
-```bash
+```powershell
 cd backend
 pip install -r requirements.txt
 ```
 
 ### 2. 安装前端依赖
 
-```bash
+```powershell
 cd frontend
 npm install
 ```
 
 ### 3. 启动服务
 
-**方式 A: 一键启动 (Windows)**
+方式 A：一键启动
 
 ```powershell
 .\start_all.ps1
 ```
 
-**方式 B: 手动启动**
+方式 B：分别启动
 
-```bash
-# 终端 1 - 后端
+```powershell
+# 终端 1
 cd backend
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-# 终端 2 - 前端
+```powershell
+# 终端 2
 cd frontend
 npm run dev
 ```
 
-### 4. 配置 API Key
+启动后访问：
 
-1. 打开 <http://localhost:5173>
-2. 进入设置页面
-3. 输入您的智谱 AI API Key
-4. 保存配置
+- 前端：[http://localhost:5173](http://localhost:5173)
+- 后端 OpenAPI：[http://localhost:8000/docs](http://localhost:8000/docs)
 
-## 📚 API 文档
+## 主要 API
 
-启动后端后，访问 API 文档：
+### 聊天
 
-- Swagger UI: <http://localhost:8000/docs>
-- ReDoc: <http://localhost:8000/redoc>
+- `POST /api/chat/stream`
 
-### 主要接口
+### 工作会话
 
-| 接口                               | 方法          | 描述                     |
-| ---------------------------------- | ------------- | ------------------------ |
-| `/api/chat/stream`                 | POST          | 与 AI 进行流式对话       |
-| `/api/conversations`               | GET/POST/DELETE/PUT | 会话管理           |
-| `/api/conversations/{id}/messages` | GET           | 获取对话消息             |
-| `/api/memory/search`               | POST          | 语义记忆搜索             |
-| `/api/memory/long-term`            | GET/POST/PUT/DELETE | 长期记忆 CRUD    |
-| `/api/memory/index/{id}`           | POST          | 为会话消息生成向量索引   |
-| `/api/logs/stream`                 | WebSocket     | 实时日志流               |
-| `/api/logs/history`                | GET           | 历史日志查询             |
-| `/api/logs/stats`                  | GET           | 日志统计信息             |
-| `/api/logs/cleanup`                | POST          | 日志清理                 |
-| `/api/config`                      | GET/POST/PUT/DELETE | 配置管理          |
-| `/api/config/providers`             | GET           | 获取 LLM 提供商列表      |
-| `/api/tools`                       | GET           | 获取工具列表             |
-| `/api/tools/{name}/toggle`         | PUT           | 启用/禁用工具            |
+- `GET /api/sessions`
+- `POST /api/sessions`
+- `PUT /api/sessions/{id}`
+- `DELETE /api/sessions/{id}`
+- `GET /api/sessions/{id}/status`
+- `POST /api/sessions/{id}/dispatch`
+- `GET /api/sessions/{id}/history-summary`
 
-## 🗄 数据库结构
+### Skills
 
-### conversations（对话表）
+- `GET /api/skills`
+- `GET /api/sessions/{id}/skills`
+- `PUT /api/sessions/{id}/skills`
 
-| 字段       | 类型      | 描述                 |
-| ---------- | --------- | -------------------- |
-| id         | INTEGER   | 主键，自增           |
-| title      | TEXT      | 对话标题             |
-| created_at | DATETIME  | 创建时间             |
-| updated_at | DATETIME  | 更新时间             |
+### 自动化
 
-### messages（消息表）
+- `GET /api/automations`
+- `POST /api/automations`
+- `PUT /api/automations/{id}`
+- `DELETE /api/automations/{id}`
+- `GET /api/automations/{id}/runs`
 
-| 字段             | 类型      | 描述                 |
-| ---------------- | --------- | -------------------- |
-| id               | INTEGER   | 主键                 |
-| conversation_id  | INTEGER   | 对话外键             |
-| role             | TEXT      | 角色 (user/assistant)|
-| content          | TEXT      | 消息内容             |
-| embedding        | BLOB      | 向量嵌入             |
-| embedding_model  | TEXT      | 嵌入模型名称         |
-| created_at       | DATETIME  | 创建时间             |
+### 记忆
 
-### long_term_memory（长期记忆表）
+- `GET /api/memory/long-term`
+- `POST /api/memory/long-term`
+- `PUT /api/memory/long-term/{id}`
+- `DELETE /api/memory/long-term/{id}`
+- `POST /api/memory/search`
 
-| 字段       | 类型      | 描述                   |
-| ---------- | --------- | ---------------------- |
-| id         | INTEGER   | 主键                   |
-| key        | TEXT      | 记忆键（可选）         |
-| content    | TEXT      | 记忆内容               |
-| embedding  | BLOB      | 向量嵌入               |
-| importance | FLOAT     | 重要性分数 (0-1)       |
-| source     | TEXT      | 记忆来源               |
-| created_at | DATETIME  | 创建时间               |
-| updated_at | DATETIME  | 更新时间               |
+## 测试
 
-### tool_calls（工具调用记录表）
+后端测试可在 `backend` 目录运行：
 
-| 字段              | 类型      | 描述                   |
-| ----------------- | --------- | ---------------------- |
-| id                | INTEGER   | 主键                   |
-| message_id        | INTEGER   | 关联消息外键           |
-| conversation_id   | INTEGER   | 对话外键               |
-| tool_name         | TEXT      | 工具名称               |
-| tool_call_id      | TEXT      | 工具调用 ID            |
-| arguments         | TEXT      | 调用参数 (JSON)        |
-| result            | TEXT      | 调用结果 (JSON)        |
-| status            | TEXT      | 状态 (pending/success/failed) |
-| error             | TEXT      | 错误信息               |
-| created_at        | DATETIME  | 创建时间               |
+```powershell
+$env:PYTHONPATH='D:\Project\Me\myclaw-new\myclaw\backend'
+python -m unittest discover -s tests -p "test_*.py"
+```
 
-### embedding_cache（嵌入缓存表）
+当前已补充并通过的重点测试包括：
 
-| 字段              | 类型      | 描述                   |
-| ----------------- | --------- | ---------------------- |
-| id                | INTEGER   | 主键                   |
-| content_hash      | TEXT      | 内容哈希 (唯一索引)    |
-| embedding         | BLOB      | 向量嵌入               |
-| model             | TEXT      | 嵌入模型名称           |
-| created_at        | DATETIME  | 创建时间               |
-| last_accessed_at  | DATETIME  | 最后访问时间           |
-| access_count      | INTEGER   | 访问次数               |
+- `test_session_service.py`
+- `test_automation_service.py`
+- `test_memory_api.py`
+- `test_tool_executor.py`
+- `test_agent_loop_prompting.py`
+- `test_time_tool.py`
 
-### logs（日志表）
+前端构建验证：
 
-| 字段       | 类型      | 描述                   |
-| ---------- | --------- | ---------------------- |
-| id         | INTEGER   | 主键                   |
-| timestamp  | TEXT      | 日志时间戳             |
-| level      | TEXT      | 日志级别               |
-| logger     | TEXT      | 日志记录器名称         |
-| message    | TEXT      | 日志消息               |
-| extra      | TEXT      | 额外信息 (JSON)        |
-| created_at | DATETIME  | 创建时间               |
-
-## 🔧 记忆搜索功能
-
-应用支持高级记忆搜索功能：
-
-- **混合搜索**: 结合向量相似度 (sqlite-vec) 和 BM25 全文搜索
-- **MMR 重排序**: 最大边际相关性 (Maximal Marginal Relevance) 实现多样化结果
-- **时间衰减**: 基于时间的重要性评分衰减
-- **可配置参数**:
-  - `top_k`: 返回结果数量
-  - `min_score`: 最小相似度阈值
-  - `vector_weight` / `text_weight`: 混合搜索权重
-  - `mmr_lambda`: MMR 平衡参数
-  - `enable_temporal_decay`: 是否启用时间衰减
-  - `half_life_days`: 时间衰减半衰期
-
-## 🔧 工具调用系统
-
-工具调用系统采用注册表模式，支持动态注册和管理工具：
-
-- **注册工具**: 通过 `ToolRegistry` 注册新工具
-- **执行工具**: 通过 `ToolExecutor` 执行工具调用
-- **内置工具**:
-  - `get_current_time` - 获取当前时间
-  - `browser_start` - 启动浏览器
-  - `browser_navigate` - 导航到指定 URL
-  - `browser_snapshot` - 获取页面快照
-  - `browser_screenshot` - 截图页面或元素
-  - `browser_click` - 点击页面元素
-  - `browser_type` - 在元素中输入文本
-  - `browser_hover` - 悬停页面元素
-  - `browser_wait` - 等待条件满足
-  - `browser_scroll` - 滚动页面
-  - `browser_press` - 模拟键盘按键
-  - `browser_select` - 选择下拉框选项
-  - `browser_history` - 浏览器历史前进/后退
-  - `browser_stop` - 停止浏览器
-  - `web_search` - 网络搜索
-- **工具过滤**: 支持 allow/deny 列表控制可用工具
-
-## 📝 开发
-
-### 前端
-
-```bash
+```powershell
 cd frontend
-npm run dev      # 开发服务器
-npm run build    # 生产构建
-npm run preview  # 预览生产构建
-npm run lint     # 运行 ESLint
+npm run build
 ```
 
-### 后端
+## 当前已知边界
 
-```bash
-cd backend
-python -m uvicorn app.main:app --reload  # 开发模式（热重载）
-```
+- 当前定位为个人单用户版本，不包含团队、多租户、多渠道接入
+- 安全审批、沙箱隔离、提权控制暂未作为本阶段重点
+- Canvas、语音、移动端节点、插件市场暂未纳入
+- 历史聊天内容如果本身是英文，会按原始消息内容展示，不会被 UI 翻译
 
-## ⚠️ 注意事项
+## 开发建议
 
-1. 请妥善保管您的 API Key，切勿分享给他人
-2. API Key 存储在浏览器的 localStorage 中
-3. 每次对话都会调用智谱 AI API，请注意使用量
-4. 数据库文件会在首次运行时自动创建
-5. 向量嵌入会在消息保存后异步生成
-6. 首次搜索前需确保消息已生成向量嵌入
+- 优先通过工作会话隔离不同项目
+- 对长期任务优先使用自动化而不是手动重复触发
+- 对固定项目目录建议配置 `workspace_path` 和本地 skills
 
-## 📄 许可证
+## License
 
-MIT License
+MIT

@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { createPortal } from "react-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   MessageSquare,
   Clock,
@@ -13,11 +13,12 @@ import {
   Check,
   Search,
   Loader2,
-} from "lucide-react";
-import MainLayout from "../layout/MainLayout";
-import { useApp } from "../../contexts/AppContext";
-import { getConversationStats } from "../../services/api";
-import type { Conversation, Message } from "../../types";
+} from 'lucide-react';
+
+import MainLayout from '../layout/MainLayout';
+import { useApp } from '../../contexts/AppContext';
+import { getConversationStats } from '../../services/api';
+import type { Conversation, Message } from '../../types';
 
 interface ConversationWithStats extends Conversation {
   messageCount: number;
@@ -37,9 +38,11 @@ interface RenameDialogProps {
   onCancel: () => void;
 }
 
-/**
- * 确认删除对话框组件
- */
+const normalizeConversationTitle = (title: string) => {
+  if (title === 'New Chat') return '新聊天';
+  return title;
+};
+
 const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   title,
   message,
@@ -51,7 +54,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.15, ease: "easeOut" }}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
       className="fixed inset-0 z-[9999] flex items-center justify-center"
       onClick={onCancel}
     >
@@ -61,9 +64,9 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
         className="relative glass-card p-6 rounded-2xl max-w-sm w-full mx-4 shadow-2xl"
-        style={{ border: "1px solid var(--glass-border)" }}
+        style={{ border: '1px solid var(--glass-border)' }}
       >
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
@@ -71,12 +74,12 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           </div>
           <h3
             className="text-lg font-semibold"
-            style={{ color: "var(--text-primary)" }}
+            style={{ color: 'var(--text-primary)' }}
           >
             {title}
           </h3>
         </div>
-        <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>
+        <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
           {message}
         </p>
         <div className="flex gap-3">
@@ -85,7 +88,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             whileTap={{ scale: 0.98 }}
             onClick={onCancel}
             className="flex-1 py-2.5 px-4 rounded-xl glass text-sm font-medium"
-            style={{ color: "var(--text-secondary)" }}
+            style={{ color: 'var(--text-secondary)' }}
           >
             取消
           </motion.button>
@@ -104,9 +107,6 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   );
 };
 
-/**
- * 重命名对话框组件
- */
 const RenameDialog: React.FC<RenameDialogProps> = ({
   currentTitle,
   onConfirm,
@@ -123,7 +123,7 @@ const RenameDialog: React.FC<RenameDialogProps> = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.15, ease: "easeOut" }}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
       className="fixed inset-0 z-[9999] flex items-center justify-center"
       onClick={onCancel}
     >
@@ -133,23 +133,23 @@ const RenameDialog: React.FC<RenameDialogProps> = ({
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
         className="relative glass-card p-6 rounded-2xl max-w-sm w-full mx-4 shadow-2xl"
-        style={{ border: "1px solid var(--glass-border)" }}
+        style={{ border: '1px solid var(--glass-border)' }}
       >
         <div className="flex items-center justify-between mb-4">
           <h3
             className="text-lg font-semibold"
-            style={{ color: "var(--text-primary)" }}
+            style={{ color: 'var(--text-primary)' }}
           >
-            重命名会话
+            重命名聊天记录
           </h3>
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={onCancel}
             className="p-1.5 rounded-lg transition-colors"
-            style={{ color: "var(--text-muted)" }}
+            style={{ color: 'var(--text-muted)' }}
           >
             <X size={18} />
           </motion.button>
@@ -157,16 +157,16 @@ const RenameDialog: React.FC<RenameDialogProps> = ({
         <input
           type="text"
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="请输入会话标题"
+          onChange={(event) => setTitle(event.target.value)}
+          placeholder="请输入聊天记录标题"
           className="w-full px-4 py-3 glass-input rounded-xl mb-4"
-          style={{ color: "var(--text-primary)" }}
+          style={{ color: 'var(--text-primary)' }}
           autoFocus
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && title.trim()) {
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && title.trim()) {
               onConfirm(title.trim());
             }
-            if (e.key === "Escape") {
+            if (event.key === 'Escape') {
               onCancel();
             }
           }}
@@ -177,7 +177,7 @@ const RenameDialog: React.FC<RenameDialogProps> = ({
             whileTap={{ scale: 0.98 }}
             onClick={onCancel}
             className="flex-1 py-2.5 px-4 rounded-xl glass text-sm font-medium"
-            style={{ color: "var(--text-secondary)" }}
+            style={{ color: 'var(--text-secondary)' }}
           >
             取消
           </motion.button>
@@ -198,9 +198,6 @@ const RenameDialog: React.FC<RenameDialogProps> = ({
   );
 };
 
-/**
- * 会话管理页面 - 显示所有会话，支持删除、重命名、跳转聊天
- */
 const ConversationsPage: React.FC = () => {
   const navigate = useNavigate();
   const {
@@ -213,16 +210,13 @@ const ConversationsPage: React.FC = () => {
     ConversationWithStats[]
   >([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [renameTarget, setRenameTarget] = useState<{
     id: number;
     title: string;
   } | null>(null);
 
-  /**
-   * 加载会话统计信息
-   */
   const loadConversationStats = async () => {
     setIsLoading(true);
     try {
@@ -230,20 +224,21 @@ const ConversationsPage: React.FC = () => {
       const statsMap = new Map(
         statsResponse.map((item) => [item.conversation_id, item]),
       );
-      const stats = conversations.map((conv) => {
-        const item = statsMap.get(conv.id);
+      const stats = conversations.map((conversation) => {
+        const item = statsMap.get(conversation.id);
         const lastMessage =
           item?.last_message_content && item.last_message_created_at
             ? {
                 id: item.last_message_id || Date.now(),
-                conversation_id: conv.id,
-                role: "assistant" as const,
+                conversation_id: conversation.id,
+                role: 'assistant' as const,
                 content: item.last_message_content,
                 created_at: item.last_message_created_at,
               }
             : undefined;
         return {
-          ...conv,
+          ...conversation,
+          title: normalizeConversationTitle(conversation.title),
           messageCount: item?.message_count || 0,
           lastMessage,
         };
@@ -255,7 +250,7 @@ const ConversationsPage: React.FC = () => {
         ),
       );
     } catch (error) {
-      console.error("Failed to load conversation stats:", error);
+      console.error('Failed to load conversation stats:', error);
     } finally {
       setIsLoading(false);
     }
@@ -274,9 +269,6 @@ const ConversationsPage: React.FC = () => {
     }
   }, [conversations]);
 
-  /**
-   * 格式化日期显示
-   */
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -285,37 +277,27 @@ const ConversationsPage: React.FC = () => {
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return "刚刚";
-    if (diffMins < 60) return `${diffMins}分钟前`;
-    if (diffHours < 24) return `${diffHours}小时前`;
-    if (diffDays < 7) return `${diffDays}天前`;
-    return date.toLocaleDateString("zh-CN");
+    if (diffMins < 1) return '刚刚';
+    if (diffMins < 60) return `${diffMins} 分钟前`;
+    if (diffHours < 24) return `${diffHours} 小时前`;
+    if (diffDays < 7) return `${diffDays} 天前`;
+    return date.toLocaleDateString('zh-CN');
   };
 
-  /**
-   * 截断消息内容
-   */
   const truncateMessage = (content: string, maxLength: number = 50) => {
     if (content.length <= maxLength) return content;
-    return content.substring(0, maxLength) + "...";
+    return `${content.substring(0, maxLength)}...`;
   };
 
-  /**
-   * 过滤会话列表
-   */
-  const filteredConversations = conversationsWithStats.filter((conv) =>
-    conv.title.toLowerCase().includes(searchQuery.toLowerCase()),
+  const filteredConversations = conversationsWithStats.filter((conversation) =>
+    normalizeConversationTitle(conversation.title).toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
-  /**
-   * 处理删除会话
-   * 如果只剩一个会话，则不允许删除
-   */
   const handleDelete = async () => {
     if (deleteTarget === null) return;
 
     if (conversations.length <= 1) {
-      alert("无法删除最后一个会话，系统至少需要保留一个会话");
+      alert('无法删除最后一条聊天记录，系统至少需要保留一条。');
       setDeleteTarget(null);
       return;
     }
@@ -324,48 +306,42 @@ const ConversationsPage: React.FC = () => {
       await removeConversation(deleteTarget);
       setDeleteTarget(null);
     } catch (error) {
-      console.error("Failed to delete conversation:", error);
-      alert("删除会话失败，请稍后重试");
+      console.error('Failed to delete conversation:', error);
+      alert('删除聊天记录失败，请稍后重试。');
     }
   };
 
-  /**
-   * 处理重命名会话
-   */
   const handleRename = async (newTitle: string) => {
     if (renameTarget === null || !newTitle) return;
     try {
       await renameConversationById(renameTarget.id, newTitle);
       setRenameTarget(null);
     } catch (error) {
-      console.error("Failed to rename conversation:", error);
+      console.error('Failed to rename conversation:', error);
     }
   };
 
-  /**
-   * 跳转到聊天页面
-   */
   const goToChat = (conversationId: number) => {
     navigate(`/chat/${conversationId}`);
   };
 
   return (
-    <MainLayout headerTitle="会话管理">
+    <MainLayout headerTitle="聊天记录">
       <div className="h-full flex flex-col p-6">
         <div className="mb-6">
           <div className="relative">
             <Search
               size={18}
               className="absolute left-4 top-1/2 -translate-y-1/2"
-              style={{ color: "var(--text-muted)" }}
+              style={{ color: 'var(--text-muted)' }}
             />
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索会话..."
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="搜索聊天记录..."
               className="w-full pl-12 pr-4 py-3 glass-input rounded-xl"
-              style={{ color: "var(--text-primary)" }}
+              style={{ color: 'var(--text-primary)' }}
             />
           </div>
         </div>
@@ -375,7 +351,7 @@ const ConversationsPage: React.FC = () => {
             <div className="flex items-center justify-center h-64">
               <motion.div
                 animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
               >
                 <Loader2 size={32} className="text-primary" />
               </motion.div>
@@ -386,43 +362,43 @@ const ConversationsPage: React.FC = () => {
                 size={48}
                 strokeWidth={1}
                 className="mb-4 opacity-50"
-                style={{ color: "var(--text-muted)" }}
+                style={{ color: 'var(--text-muted)' }}
               />
-              <p style={{ color: "var(--text-muted)" }}>
-                {searchQuery ? "没有找到匹配的会话" : "暂无会话"}
+              <p style={{ color: 'var(--text-muted)' }}>
+                {searchQuery ? '没有找到匹配的聊天记录' : '暂无聊天记录'}
               </p>
               <p
                 className="text-sm mt-1 opacity-60"
-                style={{ color: "var(--text-muted)" }}
+                style={{ color: 'var(--text-muted)' }}
               >
-                {searchQuery ? "尝试其他搜索词" : "开始一个新的对话吧"}
+                {searchQuery ? '试试别的关键词' : '先开始一条新的聊天吧'}
               </p>
             </div>
           ) : (
             <div
               className="hidden lg:block glass-card rounded-2xl overflow-hidden"
-              style={{ border: "1px solid var(--glass-border)" }}
+              style={{ border: '1px solid var(--glass-border)' }}
             >
               <div
                 className="grid gap-0"
                 style={{
-                  gridTemplateColumns: "1fr 100px 140px 120px",
+                  gridTemplateColumns: '1fr 100px 140px 120px',
                 }}
               >
                 <div
                   className="px-5 py-3.5 text-xs font-medium uppercase tracking-wider"
                   style={{
-                    color: "var(--text-muted)",
-                    borderBottom: "1px solid var(--glass-border)",
+                    color: 'var(--text-muted)',
+                    borderBottom: '1px solid var(--glass-border)',
                   }}
                 >
-                  会话标题
+                  标题
                 </div>
                 <div
                   className="px-4 py-3.5 text-xs font-medium uppercase tracking-wider text-center"
                   style={{
-                    color: "var(--text-muted)",
-                    borderBottom: "1px solid var(--glass-border)",
+                    color: 'var(--text-muted)',
+                    borderBottom: '1px solid var(--glass-border)',
                   }}
                 >
                   消息数
@@ -430,17 +406,17 @@ const ConversationsPage: React.FC = () => {
                 <div
                   className="px-4 py-3.5 text-xs font-medium uppercase tracking-wider"
                   style={{
-                    color: "var(--text-muted)",
-                    borderBottom: "1px solid var(--glass-border)",
+                    color: 'var(--text-muted)',
+                    borderBottom: '1px solid var(--glass-border)',
                   }}
                 >
-                  更新时间
+                  最近更新
                 </div>
                 <div
                   className="px-4 py-3.5 text-xs font-medium uppercase tracking-wider text-center"
                   style={{
-                    color: "var(--text-muted)",
-                    borderBottom: "1px solid var(--glass-border)",
+                    color: 'var(--text-muted)',
+                    borderBottom: '1px solid var(--glass-border)',
                   }}
                 >
                   操作
@@ -448,43 +424,43 @@ const ConversationsPage: React.FC = () => {
               </div>
 
               <AnimatePresence mode="popLayout">
-                {filteredConversations.map((conv, index) => (
+                {filteredConversations.map((conversation, index) => (
                   <motion.div
-                    key={conv.id}
+                    key={conversation.id}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }}
                     transition={{ delay: index * 0.03 }}
                     className="grid group cursor-pointer hover:bg-[var(--glass-bg)] transition-colors"
                     style={{
-                      gridTemplateColumns: "1fr 100px 140px 120px",
+                      gridTemplateColumns: '1fr 100px 140px 120px',
                       borderBottom:
                         index < filteredConversations.length - 1
-                          ? "1px solid var(--glass-border)"
-                          : "none",
+                          ? '1px solid var(--glass-border)'
+                          : 'none',
                     }}
-                    onClick={() => goToChat(conv.id)}
+                    onClick={() => goToChat(conversation.id)}
                   >
                     <div className="px-5 py-4 flex items-center gap-3">
                       <div
                         className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ backgroundColor: "var(--primary-alpha)" }}
+                        style={{ backgroundColor: 'var(--primary-alpha)' }}
                       >
                         <MessageSquare size={18} className="text-primary" />
                       </div>
                       <div className="min-w-0">
                         <h3
                           className="text-sm font-medium truncate"
-                          style={{ color: "var(--text-primary)" }}
+                          style={{ color: 'var(--text-primary)' }}
                         >
-                          {conv.title}
+                          {normalizeConversationTitle(conversation.title)}
                         </h3>
-                        {conv.lastMessage && (
+                        {conversation.lastMessage && (
                           <p
                             className="text-xs truncate mt-0.5"
-                            style={{ color: "var(--text-muted)" }}
+                            style={{ color: 'var(--text-muted)' }}
                           >
-                            {truncateMessage(conv.lastMessage.content, 40)}
+                            {truncateMessage(conversation.lastMessage.content, 40)}
                           </p>
                         )}
                       </div>
@@ -494,21 +470,21 @@ const ConversationsPage: React.FC = () => {
                       <span
                         className="text-sm font-medium px-2.5 py-1 rounded-lg"
                         style={{
-                          backgroundColor: "var(--glass-bg)",
-                          color: "var(--text-secondary)",
+                          backgroundColor: 'var(--glass-bg)',
+                          color: 'var(--text-secondary)',
                         }}
                       >
-                        {conv.messageCount}
+                        {conversation.messageCount}
                       </span>
                     </div>
 
                     <div className="px-4 py-4 flex items-center gap-2">
-                      <Clock size={14} style={{ color: "var(--text-muted)" }} />
+                      <Clock size={14} style={{ color: 'var(--text-muted)' }} />
                       <span
                         className="text-sm"
-                        style={{ color: "var(--text-muted)" }}
+                        style={{ color: 'var(--text-muted)' }}
                       >
-                        {formatDate(conv.updated_at)}
+                        {formatDate(conversation.updated_at)}
                       </span>
                     </div>
 
@@ -516,21 +492,12 @@ const ConversationsPage: React.FC = () => {
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRenameTarget({ id: conv.id, title: conv.title });
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setRenameTarget({ id: conversation.id, title: normalizeConversationTitle(conversation.title) });
                         }}
                         className="p-2 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                        style={{ color: "var(--text-muted)" }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.color = "var(--primary)";
-                          e.currentTarget.style.backgroundColor =
-                            "var(--glass-bg)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.color = "var(--text-muted)";
-                          e.currentTarget.style.backgroundColor = "transparent";
-                        }}
+                        style={{ color: 'var(--text-muted)' }}
                         title="重命名"
                       >
                         <Edit3 size={16} />
@@ -538,21 +505,12 @@ const ConversationsPage: React.FC = () => {
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteTarget(conv.id);
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setDeleteTarget(conversation.id);
                         }}
                         className="p-2 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                        style={{ color: "var(--text-muted)" }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.color = "#ef4444";
-                          e.currentTarget.style.backgroundColor =
-                            "rgba(239, 68, 68, 0.1)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.color = "var(--text-muted)";
-                          e.currentTarget.style.backgroundColor = "transparent";
-                        }}
+                        style={{ color: 'var(--text-muted)' }}
                         title="删除"
                       >
                         <Trash2 size={16} />
@@ -561,16 +519,7 @@ const ConversationsPage: React.FC = () => {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         className="p-2 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                        style={{ color: "var(--text-muted)" }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.color = "var(--primary)";
-                          e.currentTarget.style.backgroundColor =
-                            "var(--glass-bg)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.color = "var(--text-muted)";
-                          e.currentTarget.style.backgroundColor = "transparent";
-                        }}
+                        style={{ color: 'var(--text-muted)' }}
                         title="进入聊天"
                       >
                         <ArrowRight size={16} />
@@ -585,65 +534,65 @@ const ConversationsPage: React.FC = () => {
           {filteredConversations.length > 0 && (
             <div className="lg:hidden grid grid-cols-1 gap-3">
               <AnimatePresence mode="popLayout">
-                {filteredConversations.map((conv, index) => (
+                {filteredConversations.map((conversation, index) => (
                   <motion.div
-                    key={conv.id}
+                    key={conversation.id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ delay: index * 0.03 }}
                     className="glass-card rounded-xl p-4 cursor-pointer"
-                    style={{ border: "1px solid var(--glass-border)" }}
-                    onClick={() => goToChat(conv.id)}
+                    style={{ border: '1px solid var(--glass-border)' }}
+                    onClick={() => goToChat(conversation.id)}
                   >
                     <div className="flex items-center gap-3 mb-2">
                       <div
                         className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                        style={{ backgroundColor: "var(--primary-alpha)" }}
+                        style={{ backgroundColor: 'var(--primary-alpha)' }}
                       >
                         <MessageSquare size={16} className="text-primary" />
                       </div>
                       <h3
                         className="text-sm font-medium truncate flex-1"
-                        style={{ color: "var(--text-primary)" }}
+                        style={{ color: 'var(--text-primary)' }}
                       >
-                        {conv.title}
+                        {normalizeConversationTitle(conversation.title)}
                       </h3>
                       <span
                         className="text-xs px-2 py-0.5 rounded-md"
                         style={{
-                          backgroundColor: "var(--glass-bg)",
-                          color: "var(--text-muted)",
+                          backgroundColor: 'var(--glass-bg)',
+                          color: 'var(--text-muted)',
                         }}
                       >
-                        {conv.messageCount} 条消息
+                        {conversation.messageCount} 条消息
                       </span>
                     </div>
-                    {conv.lastMessage && (
+                    {conversation.lastMessage && (
                       <p
                         className="text-xs line-clamp-1 mb-2"
-                        style={{ color: "var(--text-muted)" }}
+                        style={{ color: 'var(--text-muted)' }}
                       >
-                        {truncateMessage(conv.lastMessage.content, 60)}
+                        {truncateMessage(conversation.lastMessage.content, 60)}
                       </p>
                     )}
                     <div className="flex items-center justify-between">
                       <span
                         className="text-xs"
-                        style={{ color: "var(--text-muted)" }}
+                        style={{ color: 'var(--text-muted)' }}
                       >
-                        {formatDate(conv.updated_at)}
+                        {formatDate(conversation.updated_at)}
                       </span>
                       <div className="flex items-center gap-1">
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setRenameTarget({ id: conv.id, title: conv.title });
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setRenameTarget({ id: conversation.id, title: normalizeConversationTitle(conversation.title) });
                           }}
                           className="p-1.5 rounded-lg"
-                          style={{ color: "var(--text-muted)" }}
+                          style={{ color: 'var(--text-muted)' }}
                           title="重命名"
                         >
                           <Edit3 size={14} />
@@ -651,12 +600,12 @@ const ConversationsPage: React.FC = () => {
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteTarget(conv.id);
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setDeleteTarget(conversation.id);
                           }}
                           className="p-1.5 rounded-lg"
-                          style={{ color: "var(--text-muted)" }}
+                          style={{ color: 'var(--text-muted)' }}
                           title="删除"
                         >
                           <Trash2 size={14} />
@@ -673,18 +622,18 @@ const ConversationsPage: React.FC = () => {
         <div
           className="mt-4 pt-4 text-center text-xs"
           style={{
-            color: "var(--text-muted)",
-            borderTop: "1px solid var(--glass-border)",
+            color: 'var(--text-muted)',
+            borderTop: '1px solid var(--glass-border)',
           }}
         >
-          共 {filteredConversations.length} 个会话
+          共 {filteredConversations.length} 条聊天记录
         </div>
 
         <AnimatePresence>
           {deleteTarget !== null && (
             <ConfirmDialog
-              title="删除会话"
-              message="确定要删除这个会话吗？删除后将无法恢复，所有消息记录都将被清除。"
+              title="删除聊天记录"
+              message="确认要删除这条聊天记录吗？删除后无法恢复，相关消息也会一并移除。"
               onConfirm={handleDelete}
               onCancel={() => setDeleteTarget(null)}
             />

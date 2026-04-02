@@ -1,22 +1,29 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import hashlib
 import json
 import logging
+import os
+from datetime import datetime
 from typing import Any, AsyncIterator, Dict, List, Optional
 from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agent_loop.prompting import build_memory_message, build_system_prompt
 from app.agent_loop.types import AgentRunState, LoopRuntimeConfig, ToolExecutionRecord
 from app.common.config import get_config_value
 from app.common.constants import API_KEY_KEY, LLM_MODEL_KEY
 from app.dao.agent_event_dao import AgentEventDAO
+from app.dao.agent_run_dao import AgentRunDAO
+from app.dao.memory_dao import MemoryDAO
 from app.dao.tool_call_dao import ToolCallDAO
 from app.schemas.schemas import ChatRequest
 from app.services.conversation_service import ConversationService
 from app.services.llm_service import get_llm_service
 from app.services.message_service import MessageService
+from app.services.session_service import SessionService
+from app.services.skill_service import SkillService
 from app.services.vector_search_service import hybrid_memory_search
 from app.tools import tool_executor, tool_registry, tools_to_zhipu_schemas
 from app.tools import groups as tool_groups
@@ -53,34 +60,64 @@ class AgentLoopController:
     ) -> None:
         self.conversation_service = conversation_service or ConversationService()
         self.message_service = message_service or MessageService()
+        self.session_service = SessionService()
+        self.skill_service = SkillService()
 
     async def run_stream(
         self,
         request: ChatRequest,
         db: AsyncSession,
     ) -> AsyncIterator[Dict[str, Any]]:
+        session = await self.session_service.resolve_session(db, request.session_id)
+
+        command_response = await self._handle_command(db, session.id, request)
+        if command_response is not None:
+            yield command_response
+            yield {"type": "done", "conversation_id": command_response["conversation_id"], "run_id": command_response["run_id"], "session_id": session.id}
+            return
+
         api_key = await get_config_value(db, API_KEY_KEY)
         if not api_key:
             raise RuntimeError("Zhipu API key is not configured")
 
-        model = await get_config_value(db, LLM_MODEL_KEY)
-        runtime_config = await self._load_runtime_config(db)
+        model = session.model or await get_config_value(db, LLM_MODEL_KEY)
+        runtime_config = await self._load_runtime_config(db, session)
         tool_executor.timeout_seconds = runtime_config.timeout_seconds
 
         conversation_id, _conversation = await self.conversation_service.get_or_create(
-            db, request.message, request.conversation_id
+            db, request.message, request.conversation_id, session_id=session.id
         )
-        await self.message_service.save(db, conversation_id, "user", request.message)
+        await self.message_service.save(db, session.id, conversation_id, "user", request.message)
 
-        message_history = await self.message_service.get_history(db, conversation_id)
+        message_history = await self.message_service.get_model_history(db, conversation_id)
         memory_context = await self._load_memory_context(db, conversation_id, request.message)
+        skill_context = await self.skill_service.build_session_skill_context(db, session.id)
+        workspace_context = self.skill_service.build_workspace_prompt_context(session.workspace_path)
 
         state = AgentRunState(
             run_id=str(uuid4()),
             conversation_id=conversation_id,
+            session_id=session.id,
             user_message=request.message,
-            messages=self._build_initial_messages(message_history, memory_context),
+            messages=self._build_initial_messages(
+                message_history,
+                memory_context,
+                runtime_config,
+                workspace_dir=session.workspace_path or os.getcwd(),
+                skill_context=skill_context,
+                workspace_context=workspace_context,
+                context_summary=session.context_summary or "",
+            ),
             memory_context=memory_context,
+        )
+        await AgentRunDAO.create(
+            db,
+            run_id=state.run_id,
+            session_id=session.id,
+            conversation_id=conversation_id,
+            user_message=request.message,
+            stop_reason=None,
+            compacted_summary="",
         )
 
         yield await self._emit_event(
@@ -90,6 +127,7 @@ class AgentLoopController:
                 "type": "conversation",
                 "conversation_id": conversation_id,
                 "run_id": state.run_id,
+                "session_id": session.id,
             },
             persist=False,
         )
@@ -125,6 +163,7 @@ class AgentLoopController:
                             "content": content,
                             "conversation_id": conversation_id,
                             "run_id": state.run_id,
+                            "session_id": session.id,
                         },
                         persist=False,
                     )
@@ -161,6 +200,7 @@ class AgentLoopController:
                                 "content": content,
                                 "conversation_id": conversation_id,
                                 "run_id": state.run_id,
+                                "session_id": session.id,
                             },
                             persist=False,
                         )
@@ -178,6 +218,7 @@ class AgentLoopController:
                                 "conversation_id": conversation_id,
                                 "run_id": state.run_id,
                                 "iteration": state.iteration,
+                                "session_id": session.id,
                             },
                             persist=False,
                         )
@@ -211,6 +252,7 @@ class AgentLoopController:
                                     "conversation_id": conversation_id,
                                     "run_id": state.run_id,
                                     "iteration": state.iteration,
+                                    "session_id": session.id,
                                 },
                                 persist=True,
                                 event_type="tool_call",
@@ -244,6 +286,7 @@ class AgentLoopController:
 
             tool_results = await self.message_service.process_tool_calls(
                 db=db,
+                session_id=session.id,
                 conversation_id=conversation_id,
                 message_id=None,
                 tool_calls=current_tool_calls,
@@ -285,6 +328,7 @@ class AgentLoopController:
                         "conversation_id": conversation_id,
                         "run_id": state.run_id,
                         "iteration": state.iteration,
+                        "session_id": session.id,
                     },
                     persist=True,
                     event_type="tool_result",
@@ -315,6 +359,7 @@ class AgentLoopController:
                             "run_id": state.run_id,
                             "iteration": state.iteration,
                             "phase": "post_tool_reflection",
+                            "session_id": session.id,
                         },
                         persist=True,
                         event_type="reasoning",
@@ -329,6 +374,7 @@ class AgentLoopController:
                         **progress_hint,
                         "conversation_id": conversation_id,
                         "run_id": state.run_id,
+                        "session_id": session.id,
                     },
                     persist=True,
                     event_type="progress_warning",
@@ -347,6 +393,7 @@ class AgentLoopController:
                         "count": detection.count,
                         "conversation_id": conversation_id,
                         "run_id": state.run_id,
+                        "session_id": session.id,
                     },
                     persist=True,
                     event_type="loop_warning",
@@ -367,14 +414,25 @@ class AgentLoopController:
             final_text = "I do not have enough new information to continue safely."
 
         assistant_message = await self.message_service.save(
-            db, conversation_id, "assistant", final_text
+            db, session.id, conversation_id, "assistant", final_text
         )
+        await self._maybe_extract_memory(db, session, request.message, final_text)
         if state.tool_calls_info:
             for tool_call in state.tool_calls_info:
                 tool_call_id = tool_call.get("id", "")
                 await ToolCallDAO.update_message_id(db, tool_call_id, assistant_message.id)
 
         await AgentEventDAO.update_message_id_by_run_id(db, state.run_id, assistant_message.id)
+
+        run_record = await AgentRunDAO.get_by_run_id(db, state.run_id)
+        if run_record:
+            await AgentRunDAO.update(
+                db,
+                run_record,
+                stop_reason=state.stop_reason,
+                compacted_summary=state.compacted_summary,
+                completed_at=datetime.utcnow(),
+            )
 
         yield await self._emit_event(
             db,
@@ -383,11 +441,117 @@ class AgentLoopController:
                 "type": "done",
                 "conversation_id": conversation_id,
                 "run_id": state.run_id,
+                "session_id": session.id,
             },
             persist=False,
         )
 
-    async def _load_runtime_config(self, db: AsyncSession) -> LoopRuntimeConfig:
+    async def _maybe_extract_memory(self, db: AsyncSession, session: Any, user_message: str, final_text: str) -> None:
+        if not session.memory_auto_extract:
+            return
+        combined = f"User: {user_message}\nAssistant: {final_text}".strip()
+        if len(combined) < max(session.memory_threshold, 1) * 20:
+            return
+        try:
+            await MemoryDAO.create(
+                db,
+                session_id=session.id,
+                content=self._truncate_text(combined, 2000),
+                importance=0.6,
+                source=f"session:{session.name}:auto_extract",
+            )
+        except Exception:
+            logger.exception("[agent_loop] automatic memory extraction failed")
+
+    async def dispatch_message(
+        self,
+        db: AsyncSession,
+        session_id: int,
+        message: str,
+    ) -> Dict[str, Any]:
+        stream = self.run_stream(ChatRequest(session_id=session_id, message=message), db)
+        final_event: Dict[str, Any] = {"session_id": session_id}
+        async for event in stream:
+            final_event = event
+        return final_event
+
+    async def dispatch_message_for_automation(self, session_id: int, message: str, automation_id: Optional[int] = None) -> str:
+        from app.core.database import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as db:
+            result = await self.dispatch_message(db, session_id, message)
+            return str(result.get("run_id") or "")
+
+    async def _handle_command(
+        self,
+        db: AsyncSession,
+        session_id: int,
+        request: ChatRequest,
+    ) -> Optional[Dict[str, Any]]:
+        if not request.message.startswith("/"):
+            return None
+        command = request.message.strip().split()[0].lower()
+        conversation_id, _conversation = await self.conversation_service.get_or_create(
+            db, request.message, request.conversation_id, session_id=session_id
+        )
+        run_id = str(uuid4())
+
+        if command in {"/new", "/reset"}:
+            if command == "/new":
+                new_conversation, _ = await self.conversation_service.get_or_create(
+                    db, "New Chat", None, session_id=session_id
+                )
+                content = f"Created a new conversation in session {session_id}."
+                conversation_id = new_conversation
+            else:
+                session = await self.session_service.get_by_id(db, session_id)
+                if session:
+                    await self.session_service.update(db, session_id, context_summary="")
+                content = "Session context summary has been reset."
+        elif command == "/compact":
+            messages = await self.message_service.get_recent_messages(db, conversation_id, limit=8)
+            summary_lines = ["## Manual Compact"]
+            for message in messages:
+                summary_lines.append(f"- [{message.role}] {self._truncate_text(message.content, 180)}")
+            compact_summary = "\n".join(summary_lines[:10])
+            await self.session_service.update(db, session_id, context_summary=compact_summary)
+            content = compact_summary
+        elif command == "/status":
+            status = await self.session_service.get_status(db, session_id)
+            content = json.dumps(status, ensure_ascii=False, indent=2)
+        else:
+            return None
+
+        assistant_message = await self.message_service.save(db, session_id, conversation_id, "assistant", content, generate_embedding=False)
+        await AgentRunDAO.create(
+            db,
+            run_id=run_id,
+            session_id=session_id,
+            conversation_id=conversation_id,
+            user_message=request.message,
+            stop_reason="command",
+            compacted_summary=content[:1000],
+            completed_at=datetime.utcnow(),
+        )
+        await AgentEventDAO.create(
+            db=db,
+            session_id=session_id,
+            conversation_id=conversation_id,
+            run_id=run_id,
+            event_type="reasoning",
+            payload=json.dumps({"content": f"Handled chat command {command}"}, ensure_ascii=False),
+            sequence=1,
+            message_id=assistant_message.id,
+        )
+        return {
+            "type": "content",
+            "content": content,
+            "conversation_id": conversation_id,
+            "run_id": run_id,
+            "session_id": session_id,
+        }
+
+    async def _load_runtime_config(self, db: AsyncSession, session: Any) -> LoopRuntimeConfig:
         tool_enabled = await get_config_value(db, "tool_enabled")
         tool_max_iterations = await get_config_value(db, "tool_max_iterations")
         tool_timeout = await get_config_value(db, "tool_timeout_seconds")
@@ -400,11 +564,11 @@ class AgentLoopController:
 
         return LoopRuntimeConfig(
             use_tools=tool_enabled == "true" if tool_enabled else True,
-            max_iterations=int(tool_max_iterations) if tool_max_iterations else 5,
+            max_iterations=session.max_iterations or (int(tool_max_iterations) if tool_max_iterations else 5),
             timeout_seconds=int(tool_timeout) if tool_timeout else 30,
-            profile=tool_profile or "full",
-            allow=allow_list,
-            deny=deny_list,
+            profile=session.tool_profile or tool_profile or "full",
+            allow=[item.strip() for item in (session.tool_allow or "").split(",") if item.strip()] or allow_list,
+            deny=[item.strip() for item in (session.tool_deny or "").split(",") if item.strip()] or deny_list,
         )
 
     async def _load_memory_context(
@@ -442,11 +606,52 @@ class AgentLoopController:
         return build_memory_context(memory_results)
 
     def _build_initial_messages(
-        self, message_history: List[Dict[str, Any]], memory_context: str
+        self,
+        message_history: List[Dict[str, Any]],
+        memory_context: str,
+        runtime_config: LoopRuntimeConfig,
+        *,
+        workspace_dir: str,
+        skill_context: str = "",
+        workspace_context: str = "",
+        context_summary: str = "",
     ) -> List[Dict[str, Any]]:
+        messages: List[Dict[str, Any]] = [
+            {
+                "role": "system",
+                "content": build_system_prompt(
+                    tool_enabled=runtime_config.use_tools,
+                    max_iterations=runtime_config.max_iterations,
+                    profile=runtime_config.profile,
+                    workspace_dir=workspace_dir,
+                    available_tool_names=self._get_prompt_tool_names(runtime_config),
+                ),
+            }
+        ]
+        if context_summary:
+            messages.append(
+                {
+                    "role": "system",
+                    "content": (
+                        "## Session Context Summary\n"
+                        f"{context_summary}\n\n"
+                        "Use this as prior working context for the current session."
+                    ),
+                }
+            )
+        if workspace_context:
+            messages.append({"role": "system", "content": workspace_context})
+        if skill_context:
+            messages.append({"role": "system", "content": skill_context})
         if memory_context:
-            return [{"role": "system", "content": memory_context}, *message_history]
-        return list(message_history)
+            messages.append(
+                {
+                    "role": "system",
+                    "content": build_memory_message(memory_context),
+                }
+            )
+        messages.extend(message_history)
+        return messages
 
     def _resolve_tools(
         self, runtime_config: LoopRuntimeConfig, state: AgentRunState
@@ -474,7 +679,7 @@ class AgentLoopController:
 
         if not filtered_tools:
             logger.warning(
-                "[agent_loop] 当前策略下无可用工具: profile=%s allow=%s deny=%s",
+                "[agent_loop] 褰撳墠绛栫暐涓嬫棤鍙敤宸ュ叿: profile=%s allow=%s deny=%s",
                 runtime_config.profile,
                 runtime_config.allow,
                 runtime_config.deny,
@@ -482,6 +687,29 @@ class AgentLoopController:
             return None
 
         return tools_to_zhipu_schemas(filtered_tools)
+
+    def _get_prompt_tool_names(self, runtime_config: LoopRuntimeConfig) -> List[str]:
+        if not runtime_config.use_tools:
+            return []
+
+        enabled_tools = tool_registry.list_enabled_tools()
+        resolver = create_profile_resolver(tool_groups)
+        policy = resolver.resolve(
+            profile_id=runtime_config.profile,
+            custom_allow=runtime_config.allow,
+            custom_deny=runtime_config.deny,
+        )
+        allowed = policy.get("allow", set())
+        denied = policy.get("deny", set())
+
+        tool_names: List[str] = []
+        for tool in enabled_tools:
+            if tool.name in denied:
+                continue
+            if allowed and tool.name not in allowed:
+                continue
+            tool_names.append(tool.name)
+        return tool_names
 
     def _build_assistant_tool_message(
         self,
@@ -513,6 +741,7 @@ class AgentLoopController:
             return None
 
         last_record = state.tool_history[-1]
+        previous_record = state.tool_history[-2] if len(state.tool_history) >= 2 else None
         signature = self._make_progress_signature(last_record)
         made_progress = self._tool_result_shows_progress(state, last_record)
 
@@ -529,6 +758,29 @@ class AgentLoopController:
             state.progress.stalled_iterations += 1
 
         state.progress.last_signature = signature
+
+        if (
+            previous_record is not None
+            and not previous_record.success
+            and not last_record.success
+            and previous_record.tool_name == last_record.tool_name
+            and previous_record.arguments == last_record.arguments
+        ):
+            state.messages.append(
+                {
+                    "role": "system",
+                    "content": (
+                        "The same tool call has failed repeatedly with the same inputs. "
+                        "Do not retry it again. Explain the failure and provide the best possible answer."
+                    ),
+                }
+            )
+            state.force_answer_next = True
+            return {
+                "type": "progress_warning",
+                "stalled_iterations": state.progress.stalled_iterations,
+                "message": f"Repeated failure detected for tool `{last_record.tool_name}`.",
+            }
 
         if state.progress.stalled_iterations < 2:
             return None
@@ -646,7 +898,7 @@ class AgentLoopController:
             for key in preferred_keys:
                 if key in value:
                     if key == "snapshot" and isinstance(value[key], str):
-                        # Snapshot 是浏览器页面核心上下文，尽量保留更多文本给模型。
+                        # Keep more browser snapshot text because it often contains critical page state.
                         sanitized[key] = self._truncate_text(
                             value[key],
                             MAX_MODEL_TOOL_RESULT_CHARS,
@@ -739,8 +991,15 @@ class AgentLoopController:
         state.compacted_summary = "\n".join(summary_lines)
 
         compacted_messages: List[Dict[str, Any]] = []
+        if state.messages and state.messages[0].get("role") == "system":
+            compacted_messages.append(state.messages[0])
         if state.memory_context:
-            compacted_messages.append({"role": "system", "content": state.memory_context})
+            compacted_messages.append(
+                {
+                    "role": "system",
+                    "content": build_memory_message(state.memory_context),
+                }
+            )
         compacted_messages.append({"role": "system", "content": state.compacted_summary})
         compacted_messages.extend(recent_messages)
         state.messages = compacted_messages
@@ -768,6 +1027,7 @@ class AgentLoopController:
         state.event_sequence += 1
         await AgentEventDAO.create(
             db=db,
+            session_id=state.session_id,
             conversation_id=state.conversation_id,
             run_id=state.run_id,
             event_type=event_type,
@@ -788,17 +1048,19 @@ class AgentLoopController:
         latest = state.tool_history[-1]
         tool_result_preview = self._truncate_text(latest.sanitized_content, 420)
         prompt = (
-            f"用户目标：{self._truncate_text(state.user_message, 180)}\n"
-            f"最近工具：{latest.tool_name}\n"
-            f"是否成功：{'是' if latest.success else '否'}\n"
-            f"工具输出：{tool_result_preview}\n"
-            "请输出一段简短思考，包含：1) 这次工具执行得到的关键信息；"
-            "2) 下一步打算。不要给最终答案，不要使用 Markdown，控制在 120 字以内。"
+            f"User goal: {self._truncate_text(state.user_message, 180)}\\n"
+            f"Latest tool: {latest.tool_name}\\n"
+            f"Success: {'yes' if latest.success else 'no'}\\n"
+            f"Tool output: {tool_result_preview}\\n"
+            "Write a short internal reflection with: "
+            "1) the key signal learned from this tool call, and "
+            "2) the next best step. "
+            "Do not give the final answer. Do not use markdown. Keep it under 120 words."
         )
         messages = [
             {
                 "role": "system",
-                "content": "你是多步工具代理的内部思考器，只输出简短思考文本。",
+                "content": "You are an internal reasoning assistant for a multi-step agent. Output brief plain text only.",
             },
             {"role": "user", "content": prompt},
         ]
@@ -814,5 +1076,5 @@ class AgentLoopController:
                     chunks.append(content)
             return self._truncate_text("".join(chunks).strip(), 300)
         except Exception:
-            logger.exception("[agent_loop] 生成工具后思考摘要失败")
+            logger.exception("[agent_loop] failed to generate post-tool reasoning")
             return ""

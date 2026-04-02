@@ -2,11 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, MessageCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+
 import { useApp } from '../../contexts/AppContext';
 
 interface ConversationSelectProps {
   className?: string;
 }
+
+const normalizeConversationTitle = (title?: string | null) => {
+  if (!title) return '选择聊天记录';
+  if (title === 'New Chat') return '新聊天';
+  return title;
+};
 
 const ConversationSelect: React.FC<ConversationSelectProps> = ({ className = '' }) => {
   const { conversations, currentConversationId, selectConversation } = useApp();
@@ -44,11 +51,11 @@ const ConversationSelect: React.FC<ConversationSelectProps> = ({ className = '' 
         whileTap={{ scale: 0.99 }}
         onClick={() => setIsOpen((value) => !value)}
         className="conversation-select-trigger"
+        aria-label="选择聊天记录"
+        title="选择聊天记录"
       >
         <MessageCircle size={16} style={{ color: 'var(--accent)' }} />
-        <span className="conversation-select-label">
-          {currentConversation?.title || '选择会话'}
-        </span>
+        <span className="conversation-select-label">{normalizeConversationTitle(currentConversation?.title)}</span>
         <motion.div animate={{ rotate: isOpen ? 180 : 0 }} transition={{ duration: 0.18 }}>
           <ChevronDown size={16} style={{ color: 'var(--text-muted)' }} />
         </motion.div>
@@ -64,7 +71,7 @@ const ConversationSelect: React.FC<ConversationSelectProps> = ({ className = '' 
             className="conversation-select-menu"
           >
             {sortedConversations.length === 0 ? (
-              <div className="conversation-select-empty">暂无会话</div>
+              <div className="conversation-select-empty">暂无聊天记录</div>
             ) : (
               sortedConversations.map((conversation) => (
                 <button
@@ -73,7 +80,7 @@ const ConversationSelect: React.FC<ConversationSelectProps> = ({ className = '' 
                   className={`conversation-select-item ${conversation.id === currentConversationId ? 'is-active' : ''}`}
                 >
                   <MessageCircle size={14} />
-                  <span>{conversation.title}</span>
+                  <span>{normalizeConversationTitle(conversation.title)}</span>
                 </button>
               ))
             )}

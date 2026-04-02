@@ -1,6 +1,7 @@
-from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional, List
+from typing import List, Optional
+
+from pydantic import BaseModel
 
 
 class ConversationBase(BaseModel):
@@ -8,7 +9,7 @@ class ConversationBase(BaseModel):
 
 
 class ConversationCreate(ConversationBase):
-    pass
+    session_id: Optional[int] = None
 
 
 class ConversationUpdate(BaseModel):
@@ -17,6 +18,7 @@ class ConversationUpdate(BaseModel):
 
 class ConversationResponse(ConversationBase):
     id: int
+    session_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 
@@ -30,10 +32,6 @@ class MessageBase(BaseModel):
 
 
 class ToolCallInMessage(BaseModel):
-    """
-    消息中嵌套的工具调用信息
-    用于在消息响应中返回关联的工具调用记录
-    """
     id: int
     tool_name: str
     tool_call_id: str
@@ -63,6 +61,7 @@ class AgentEventInMessage(BaseModel):
 
 class MessageResponse(MessageBase):
     id: int
+    session_id: Optional[int] = None
     conversation_id: int
     created_at: datetime
     tool_calls: List[ToolCallInMessage] = []
@@ -73,6 +72,7 @@ class MessageResponse(MessageBase):
 
 
 class ChatRequest(BaseModel):
+    session_id: Optional[int] = None
     conversation_id: Optional[int] = None
     message: str
 
@@ -111,6 +111,7 @@ class MemorySearchRequest(BaseModel):
     enable_mmr: bool = True
     mmr_lambda: float = 0.7
     enable_temporal_decay: bool = True
+    half_life_days: int = 30
 
 
 class MemorySearchResult(BaseModel):
@@ -130,6 +131,7 @@ class MemorySearchResponse(BaseModel):
 
 
 class LongTermMemoryBase(BaseModel):
+    session_id: Optional[int] = None
     key: Optional[str] = None
     content: str
     importance: float = 0.5
@@ -149,6 +151,7 @@ class LongTermMemoryUpdate(BaseModel):
 
 class LongTermMemoryResponse(LongTermMemoryBase):
     id: int
+    session_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 
@@ -194,24 +197,19 @@ class MemorySearchResponseExtended(BaseModel):
     model: Optional[str] = None
 
 
- 
-
- 
 class ToolCallBase(BaseModel):
-    """工具调用基础 Schema"""
     tool_name: str
     tool_call_id: str
     arguments: str
 
 
 class ToolCallCreate(ToolCallBase):
-    """创建工具调用"""
     pass
 
 
 class ToolCallResponse(ToolCallBase):
-    """工具调用响应"""
     id: int
+    session_id: Optional[int] = None
     message_id: Optional[int] = None
     conversation_id: int
     result: Optional[str] = None
@@ -226,7 +224,6 @@ class ToolCallResponse(ToolCallBase):
 
 
 class ToolConfigRequest(BaseModel):
-    """工具配置请求"""
     profile: Optional[str] = "full"
     allow: Optional[List[str]] = None
     deny: Optional[List[str]] = None
@@ -235,7 +232,6 @@ class ToolConfigRequest(BaseModel):
 
 
 class ToolConfigResponse(BaseModel):
-    """工具配置响应"""
     profile: str
     allow: List[str]
     deny: List[str]
@@ -244,7 +240,6 @@ class ToolConfigResponse(BaseModel):
 
 
 class ToolInfo(BaseModel):
-    """工具信息"""
     name: str
     description: str
     enabled: bool
@@ -252,13 +247,11 @@ class ToolInfo(BaseModel):
 
 
 class ToolListResponse(BaseModel):
-    """工具列表响应"""
     tools: List[ToolInfo]
     total: int
 
 
 class WebSearchConfig(BaseModel):
-    """网络搜索配置"""
     provider: str = "tavily"
     tavily_api_key: Optional[str] = None
     max_results: int = 5
@@ -269,7 +262,6 @@ class WebSearchConfig(BaseModel):
 
 
 class WebSearchConfigResponse(BaseModel):
-    """网络搜索配置响应"""
     provider: str
     tavily_api_key: Optional[str] = None
     max_results: int
@@ -280,7 +272,6 @@ class WebSearchConfigResponse(BaseModel):
 
 
 class BrowserConfig(BaseModel):
-    """浏览器配置"""
     default_type: str = "chromium"
     headless: bool = False
     viewport_width: int = 1280
@@ -295,7 +286,6 @@ class BrowserConfig(BaseModel):
 
 
 class BrowserConfigResponse(BaseModel):
-    """浏览器配置响应"""
     default_type: str
     headless: bool
     viewport_width: int
@@ -307,3 +297,149 @@ class BrowserConfigResponse(BaseModel):
     idle_timeout_ms: int
     use_system_browser: bool
     system_browser_channel: str
+
+
+class SessionBase(BaseModel):
+    name: str
+    mode: str = "personal"
+    workspace_path: Optional[str] = None
+    model: Optional[str] = None
+    provider: Optional[str] = None
+    tool_profile: str = "full"
+    tool_allow: List[str] = []
+    tool_deny: List[str] = []
+    max_iterations: int = 5
+    context_summary: str = ""
+    memory_auto_extract: bool = False
+    memory_threshold: int = 8
+    is_default: bool = False
+
+
+class SessionCreate(SessionBase):
+    pass
+
+
+class SessionUpdate(BaseModel):
+    name: Optional[str] = None
+    mode: Optional[str] = None
+    workspace_path: Optional[str] = None
+    model: Optional[str] = None
+    provider: Optional[str] = None
+    tool_profile: Optional[str] = None
+    tool_allow: Optional[List[str]] = None
+    tool_deny: Optional[List[str]] = None
+    max_iterations: Optional[int] = None
+    context_summary: Optional[str] = None
+    memory_auto_extract: Optional[bool] = None
+    memory_threshold: Optional[int] = None
+    is_default: Optional[bool] = None
+
+
+class SessionResponse(SessionBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AgentRunSummary(BaseModel):
+    run_id: str
+    conversation_id: int
+    user_message: str
+    stop_reason: Optional[str] = None
+    compacted_summary: Optional[str] = None
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+
+
+class SessionStatusResponse(BaseModel):
+    id: int
+    name: str
+    mode: str
+    workspace_path: Optional[str] = None
+    model: Optional[str] = None
+    provider: Optional[str] = None
+    tool_profile: str
+    tool_allow: List[str] = []
+    tool_deny: List[str] = []
+    max_iterations: int
+    context_summary: str = ""
+    memory_auto_extract: bool = False
+    memory_threshold: int = 8
+    is_default: bool = False
+    recent_runs: List[AgentRunSummary] = []
+
+
+class SessionDispatchRequest(BaseModel):
+    message: str
+
+
+class SessionHistorySummaryResponse(BaseModel):
+    session_id: int
+    summary: str
+    recent_messages: List[str] = []
+
+
+class SkillResponse(BaseModel):
+    name: str
+    path: str
+    description: str = ""
+
+
+class SessionSkillItem(BaseModel):
+    skill_name: str
+    skill_path: str
+    enabled: bool = True
+
+
+class SessionSkillUpdateRequest(BaseModel):
+    skills: List[SessionSkillItem]
+
+
+class AutomationBase(BaseModel):
+    name: str
+    session_id: int
+    prompt: str
+    schedule_type: str
+    schedule_value: str
+    enabled: bool = True
+
+
+class AutomationCreate(AutomationBase):
+    pass
+
+
+class AutomationUpdate(BaseModel):
+    name: Optional[str] = None
+    session_id: Optional[int] = None
+    prompt: Optional[str] = None
+    schedule_type: Optional[str] = None
+    schedule_value: Optional[str] = None
+    enabled: Optional[bool] = None
+
+
+class AutomationResponse(AutomationBase):
+    id: int
+    last_run_at: Optional[datetime] = None
+    next_run_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AutomationRunResponse(BaseModel):
+    id: int
+    automation_id: int
+    session_id: int
+    status: str
+    triggered_at: datetime
+    completed_at: Optional[datetime] = None
+    error: Optional[str] = None
+    run_id: Optional[str] = None
+
+    class Config:
+        from_attributes = True

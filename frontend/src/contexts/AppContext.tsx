@@ -1,11 +1,6 @@
-﻿import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-} from 'react';
+import { createContext, useContext, useEffect, useCallback, useState } from 'react';
 import type { ReactNode } from 'react';
+
 import type {
   AgentEventFromDB,
   AgentTraceEvent,
@@ -13,22 +8,34 @@ import type {
   AgentTraceEventType,
   Conversation,
   Message,
+  Session,
 } from '../types';
 import {
-  getConversations,
-  getMessages,
-  createConversation,
+  createConversationForSession,
+  createSession,
   deleteConversation,
+  deleteSession,
+  getConversationsBySession,
+  getMessages,
+  getSessions,
   renameConversation,
+  updateSession,
 } from '../services/api';
 
 interface AppContextType {
+  sessions: Session[];
+  currentSessionId: number | null;
   conversations: Conversation[];
   currentConversationId: number | null;
   messages: Message[];
   isConfigured: boolean | null;
   sidebarCollapsed: boolean;
-  loadConversations: () => Promise<void>;
+  loadSessions: () => Promise<void>;
+  selectSession: (id: number | null) => void;
+  createNewSession: (name?: string) => Promise<Session | null>;
+  updateSessionById: (id: number, payload: Partial<Session>) => Promise<void>;
+  removeSession: (id: number) => Promise<void>;
+  loadConversations: (sessionId?: number | null) => Promise<void>;
   selectConversation: (id: number | null) => void;
   createNewConversation: (title?: string) => Promise<Conversation | null>;
   removeConversation: (id: number) => Promise<void>;
@@ -42,10 +49,6 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-interface AppProviderProps {
-  children: ReactNode;
-}
-
 const parseAgentPayload = (payload: string): AgentTraceEventPayload => {
   try {
     return JSON.parse(payload) as AgentTraceEventPayload;
@@ -54,118 +57,141 @@ const parseAgentPayload = (payload: string): AgentTraceEventPayload => {
   }
 };
 
-const mapAgentEvents = (events?: AgentEventFromDB[]): AgentTraceEvent[] => {
-  if (!events || events.length === 0) {
-    return [];
-  }
-
-  return events.map((event) => ({
+const mapAgentEvents = (events?: AgentEventFromDB[]): AgentTraceEvent[] =>
+  (events || []).map((event) => ({
     id: `db-${event.id}`,
     type: event.event_type as AgentTraceEventType,
     createdAt: event.created_at,
     payload: parseAgentPayload(event.payload),
   }));
-};
 
-export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
+export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    const saved = localStorage.getItem('sidebar_collapsed');
-    return saved === 'true';
-  });
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('sidebar_collapsed') === 'true');
 
-  const loadConversations = useCallback(async () => {
+  const loadSessions = useCallback(async () => {
     try {
-      const data = await getConversations();
-      setConversations(data);
+      const data = await getSessions();
+      setSessions(data);
+      setCurrentSessionId((prev) => prev ?? data.find((item) => item.is_default)?.id ?? data[0]?.id ?? null);
+    } catch (error) {
+      console.error('Failed to load sessions:', error);
+    }
+  }, []);
 
-      setCurrentConversationId((prevId) => {
-        if (data.length > 0 && prevId === null) {
-          const sortedConversations = [...data].sort(
-            (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
-          );
-          return sortedConversations[0].id;
+  const loadConversations = useCallback(async (sessionId?: number | null) => {
+    const effectiveSessionId = sessionId ?? currentSessionId;
+    if (!effectiveSessionId) {
+      setConversations([]);
+      setCurrentConversationId(null);
+      return;
+    }
+    try {
+      const data = await getConversationsBySession(effectiveSessionId);
+      setConversations(data);
+      setCurrentConversationId((prev) => {
+        if (prev && data.some((item) => item.id === prev)) {
+          return prev;
         }
-        return prevId;
+        return data[0]?.id ?? null;
       });
     } catch (error) {
       console.error('Failed to load conversations:', error);
     }
+  }, [currentSessionId]);
+
+  const loadMessages = useCallback(async (conversationId: number) => {
+    try {
+      const data = await getMessages(conversationId);
+      setMessages(
+        data.map((message) => ({
+          ...message,
+          traceEvents: mapAgentEvents(message.agent_events),
+          runId: message.agent_events?.[0]?.run_id,
+        })),
+      );
+    } catch (error) {
+      console.error('Failed to load messages:', error);
+    }
+  }, []);
+
+  const selectSession = useCallback((id: number | null) => {
+    setCurrentSessionId(id);
+    setCurrentConversationId(null);
   }, []);
 
   const selectConversation = useCallback((id: number | null) => {
     setCurrentConversationId(id);
   }, []);
 
-  const loadMessages = useCallback(async (conversationId: number) => {
+  const createNewSession = useCallback(async (name = `session-${Date.now()}`): Promise<Session | null> => {
     try {
-      const data = await getMessages(conversationId);
-      const processedMessages: Message[] = data.map((message) => ({
-        ...message,
-        traceEvents: mapAgentEvents(message.agent_events),
-        runId: message.agent_events?.[0]?.run_id,
-      }));
-      setMessages(processedMessages);
+      const session = await createSession({ name, tool_profile: 'full', max_iterations: 5 });
+      await loadSessions();
+      setCurrentSessionId(session.id);
+      return session;
     } catch (error) {
-      console.error('Failed to load messages:', error);
+      console.error('Failed to create session:', error);
+      return null;
     }
-  }, []);
+  }, [loadSessions]);
 
-  const createNewConversation = useCallback(
-    async (title: string = 'New Chat'): Promise<Conversation | null> => {
-      try {
-        const newConversation = await createConversation(title);
-        setConversations((prev) => [newConversation, ...prev]);
-        return newConversation;
-      } catch (error) {
-        console.error('Failed to create conversation:', error);
-        return null;
-      }
-    },
-    [],
-  );
+  const updateSessionById = useCallback(async (id: number, payload: Partial<Session>) => {
+    const updated = await updateSession(id, payload);
+    setSessions((prev) => prev.map((session) => (session.id === id ? updated : session)));
+    if (payload.is_default) {
+      await loadSessions();
+    }
+  }, [loadSessions]);
 
-  const removeConversation = useCallback(
-    async (id: number): Promise<void> => {
-      try {
-        await deleteConversation(id);
-        setConversations((prev) => prev.filter((conversation) => conversation.id !== id));
-        if (currentConversationId === id) {
-          setCurrentConversationId(null);
-          setMessages([]);
-        }
-      } catch (error) {
-        console.error('Failed to delete conversation:', error);
-        throw error;
-      }
-    },
-    [currentConversationId],
-  );
+  const removeSession = useCallback(async (id: number) => {
+    await deleteSession(id);
+    await loadSessions();
+  }, [loadSessions]);
 
-  const renameConversationById = useCallback(async (id: number, title: string): Promise<void> => {
+  const createNewConversation = useCallback(async (title = 'New Chat'): Promise<Conversation | null> => {
+    if (!currentSessionId) {
+      return null;
+    }
     try {
-      const updated = await renameConversation(id, title);
-      setConversations((prev) =>
-        prev.map((conversation) =>
-          conversation.id === id
-            ? { ...conversation, title: updated.title, updated_at: updated.updated_at }
-            : conversation,
-        ),
-      );
+      const conversation = await createConversationForSession(title, currentSessionId);
+      setConversations((prev) => [conversation, ...prev]);
+      setCurrentConversationId(conversation.id);
+      return conversation;
     } catch (error) {
-      console.error('Failed to rename conversation:', error);
-      throw error;
+      console.error('Failed to create conversation:', error);
+      return null;
     }
+  }, [currentSessionId]);
+
+  const removeConversation = useCallback(async (id: number) => {
+    await deleteConversation(id);
+    setConversations((prev) => prev.filter((conversation) => conversation.id !== id));
+    if (currentConversationId === id) {
+      setCurrentConversationId(null);
+      setMessages([]);
+    }
+  }, [currentConversationId]);
+
+  const renameConversationById = useCallback(async (id: number, title: string) => {
+    const updated = await renameConversation(id, title);
+    setConversations((prev) =>
+      prev.map((conversation) =>
+        conversation.id === id ? { ...conversation, title: updated.title, updated_at: updated.updated_at } : conversation,
+      ),
+    );
   }, []);
 
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((prev) => {
-      const nextValue = !prev;
-      localStorage.setItem('sidebar_collapsed', String(nextValue));
-      return nextValue;
+      const next = !prev;
+      localStorage.setItem('sidebar_collapsed', String(next));
+      return next;
     });
   }, []);
 
@@ -175,8 +201,14 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    loadConversations();
-  }, [loadConversations]);
+    loadSessions();
+  }, [loadSessions]);
+
+  useEffect(() => {
+    if (currentSessionId) {
+      loadConversations(currentSessionId);
+    }
+  }, [currentSessionId, loadConversations]);
 
   useEffect(() => {
     if (currentConversationId) {
@@ -189,11 +221,18 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   return (
     <AppContext.Provider
       value={{
+        sessions,
+        currentSessionId,
         conversations,
         currentConversationId,
         messages,
         isConfigured,
         sidebarCollapsed,
+        loadSessions,
+        selectSession,
+        createNewSession,
+        updateSessionById,
+        removeSession,
         loadConversations,
         selectConversation,
         createNewConversation,

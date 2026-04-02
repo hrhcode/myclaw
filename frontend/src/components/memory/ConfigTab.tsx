@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertCircle, CheckCircle, Loader2 } from "lucide-react";
-import SearchConfigPanel from "./components/SearchConfigPanel";
-import { getConfig, setConfig } from "../../services/api";
-import { SectionCard } from "../admin";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+
+import SearchConfigPanel from './components/SearchConfigPanel';
+import { getConfig, setConfig } from '../../services/api';
+import { SectionCard } from '../admin';
 
 type MemoryConfig = {
   memory_top_k: string;
@@ -17,15 +18,15 @@ type MemoryConfig = {
 };
 
 const DEFAULT_CONFIG: MemoryConfig = {
-  memory_top_k: "5",
-  memory_min_score: "0.5",
-  memory_use_hybrid: "true",
-  memory_vector_weight: "0.7",
-  memory_text_weight: "0.3",
-  memory_enable_mmr: "true",
-  memory_mmr_lambda: "0.7",
-  memory_enable_temporal_decay: "true",
-  memory_half_life_days: "30",
+  memory_top_k: '5',
+  memory_min_score: '0.5',
+  memory_use_hybrid: 'true',
+  memory_vector_weight: '0.7',
+  memory_text_weight: '0.3',
+  memory_enable_mmr: 'true',
+  memory_mmr_lambda: '0.7',
+  memory_enable_temporal_decay: 'true',
+  memory_half_life_days: '30',
 };
 
 const CONFIG_KEYS = Object.keys(DEFAULT_CONFIG) as (keyof MemoryConfig)[];
@@ -33,8 +34,8 @@ const CONFIG_KEYS = Object.keys(DEFAULT_CONFIG) as (keyof MemoryConfig)[];
 const ConfigTab: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isAutoSaving, setIsAutoSaving] = useState(false);
-  const [saveState, setSaveState] = useState<"idle" | "saved" | "error">("idle");
-  const [saveErrorText, setSaveErrorText] = useState("");
+  const [saveState, setSaveState] = useState<'idle' | 'saved' | 'error'>('idle');
+  const [saveErrorText, setSaveErrorText] = useState('');
   const [config, setConfigState] = useState<MemoryConfig>(DEFAULT_CONFIG);
 
   const loadedRef = useRef(false);
@@ -63,11 +64,11 @@ const ConfigTab: React.FC = () => {
       setConfigState(loaded);
       lastSavedConfigRef.current = loaded;
       loadedRef.current = true;
-      setSaveState("idle");
+      setSaveState('idle');
     } catch (error) {
-      console.error("Failed to load config:", error);
-      setSaveState("error");
-      setSaveErrorText("加载记忆配置失败");
+      console.error('Failed to load config:', error);
+      setSaveState('error');
+      setSaveErrorText('加载记忆配置失败');
     } finally {
       setIsLoading(false);
     }
@@ -92,15 +93,15 @@ const ConfigTab: React.FC = () => {
 
       try {
         setIsAutoSaving(true);
-        setSaveState("idle");
+        setSaveState('idle');
         await Promise.all(changedKeys.map((key) => setConfig(key, config[key])));
         lastSavedConfigRef.current = config;
-        setSaveState("saved");
-        setSaveErrorText("");
+        setSaveState('saved');
+        setSaveErrorText('');
       } catch (error) {
-        console.error("Failed to auto save memory config:", error);
-        setSaveState("error");
-        setSaveErrorText("自动保存失败，请稍后重试");
+        console.error('Failed to auto save memory config:', error);
+        setSaveState('error');
+        setSaveErrorText('自动保存失败，请稍后重试');
       } finally {
         setIsAutoSaving(false);
       }
@@ -131,21 +132,21 @@ const ConfigTab: React.FC = () => {
         <div className="flex items-center gap-2 text-sm">
           {isAutoSaving ? (
             <>
-              <Loader2 size={15} className="animate-spin" style={{ color: "var(--accent)" }} />
-              <span style={{ color: "var(--text-secondary)" }}>配置变更已检测，正在自动保存...</span>
+              <Loader2 size={15} className="animate-spin" style={{ color: 'var(--accent)' }} />
+              <span style={{ color: 'var(--text-secondary)' }}>检测到配置变更，正在自动保存...</span>
             </>
-          ) : saveState === "saved" ? (
+          ) : saveState === 'saved' ? (
             <>
-              <CheckCircle size={15} style={{ color: "#16a34a" }} />
-              <span style={{ color: "#16a34a" }}>已自动保存</span>
+              <CheckCircle size={15} style={{ color: '#16a34a' }} />
+              <span style={{ color: '#16a34a' }}>已自动保存</span>
             </>
-          ) : saveState === "error" ? (
+          ) : saveState === 'error' ? (
             <>
-              <AlertCircle size={15} style={{ color: "#dc2626" }} />
-              <span style={{ color: "#dc2626" }}>{saveErrorText || "保存失败"}</span>
+              <AlertCircle size={15} style={{ color: '#dc2626' }} />
+              <span style={{ color: '#dc2626' }}>{saveErrorText || '保存失败'}</span>
             </>
           ) : (
-            <span style={{ color: "var(--text-muted)" }}>修改配置后会自动保存</span>
+            <span style={{ color: 'var(--text-muted)' }}>修改配置后会自动保存</span>
           )}
         </div>
       </SectionCard>

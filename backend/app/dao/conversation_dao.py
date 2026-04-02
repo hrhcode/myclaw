@@ -18,7 +18,7 @@ class ConversationDAO:
     """
 
     @staticmethod
-    async def create(db: AsyncSession, title: str) -> Conversation:
+    async def create(db: AsyncSession, title: str, session_id: Optional[int] = None) -> Conversation:
         """
         创建新会话
 
@@ -30,7 +30,7 @@ class ConversationDAO:
             新创建的会话对象
         """
         logger.debug(f"[DAO-Conversation] 创建会话，标题: {title[:20]}...")
-        conversation = Conversation(title=title)
+        conversation = Conversation(title=title, session_id=session_id)
         db.add(conversation)
         await db.commit()
         await db.refresh(conversation)
@@ -68,6 +68,16 @@ class ConversationDAO:
         """
         result = await db.execute(
             select(Conversation)
+            .order_by(Conversation.updated_at.desc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
+    @staticmethod
+    async def list_by_session(db: AsyncSession, session_id: int, limit: int = 100) -> List[Conversation]:
+        result = await db.execute(
+            select(Conversation)
+            .where(Conversation.session_id == session_id)
             .order_by(Conversation.updated_at.desc())
             .limit(limit)
         )
