@@ -71,7 +71,7 @@ const EmptyState: React.FC = () => (
         className="text-sm max-w-xs mx-auto"
         style={{ color: "var(--text-muted)" }}
       >
-        这里适合研究、编码、分析和多步骤推理。AI
+        这里适合研究、编码、分析和多步骤推理。智能体
         的回复与执行轨迹会保持清晰、克制地展开。
       </p>
     </div>
@@ -297,7 +297,7 @@ const TraceEventCard: React.FC<{
         <div className="px-4 pb-4 space-y-3">
           {event.type === "reasoning" && (
             <div className="trace-event-content trace-event-reasoning">
-              {event.payload.content || "No reasoning text captured."}
+              {event.payload.content || "当前没有可展示的思考内容。"}
             </div>
           )}
 
@@ -340,7 +340,7 @@ const TraceEventCard: React.FC<{
           {(event.type === "progress_warning" ||
             event.type === "loop_warning") && (
             <div className="trace-event-content text-sm whitespace-pre-wrap">
-              {event.payload.message || "检测到进展停滞后，AI 已调整执行策略。"}
+              {event.payload.message || "检测到进展停滞后，智能体已调整执行策略。"}
             </div>
           )}
         </div>
@@ -405,7 +405,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                 <div className="message-meta-main">
                   <MessageAvatar role={message.role} />
                   <span className="message-role-label">
-                    {message.role === "user" ? "你" : "AI"}
+                    {message.role === "user" ? "你" : "智能体"}
                   </span>
                 </div>
                 <span className="message-time">
@@ -445,7 +445,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                       0) === 0 ? (
                       <div className="trace-inline-pending">
                         <Loader2 size={14} className="animate-spin" />
-                        <span>AI 正在准备执行步骤…</span>
+                        <span>智能体正在准备执行步骤…</span>
                       </div>
                     ) : null}
                   </div>

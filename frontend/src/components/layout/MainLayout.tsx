@@ -1,57 +1,77 @@
-import type { ReactNode } from 'react';
-import { memo } from 'react';
+import type { ReactNode } from "react";
+import { memo } from "react";
+import { Bot } from "lucide-react";
 
-import Sidebar from './Sidebar';
-import ThemeToggle from '../common/ThemeToggle';
-import { useApp } from '../../contexts/AppContext';
+import ThemeToggle from "../common/ThemeToggle";
+import { useApp } from "../../contexts/AppContext";
+import Sidebar from "./Sidebar";
 
 interface MainLayoutProps {
   children: ReactNode;
-  showHeader?: boolean;
   headerTitle?: string;
+  headerSubtitle?: string;
+  headerActions?: ReactNode;
+  contentClassName?: string;
 }
 
-/**
- * 主布局组件，包含侧边栏、顶部栏和内容区。
- */
 const MainLayout: React.FC<MainLayoutProps> = ({
   children,
-  showHeader = true,
   headerTitle,
+  headerSubtitle,
+  headerActions,
+  contentClassName = "",
 }) => {
   const { sidebarCollapsed, toggleSidebar } = useApp();
 
   return (
-    <div className="app-container flex h-screen overflow-hidden">
-      <div className="app-bg-glow" />
+    <div className={`shell ${sidebarCollapsed ? "shell--nav-collapsed" : ""}`}>
+      <header className="topbar">
+        <div className="topbar-left">
+          <button
+            className="nav-collapse-toggle"
+            onClick={toggleSidebar}
+            aria-label={sidebarCollapsed ? "展开导航" : "收起导航"}
+            title={sidebarCollapsed ? "展开导航" : "收起导航"}
+          >
+            <span className="nav-collapse-toggle__icon">≡</span>
+          </button>
 
-      <Sidebar
-        isCollapsed={sidebarCollapsed}
-        onToggleCollapse={toggleSidebar}
-      />
-
-      <div className="main-content flex-1 flex flex-col overflow-hidden">
-        {showHeader && (
-          <header className="navbar h-16 flex items-center justify-between px-6 flex-shrink-0">
-            <div className="flex items-center gap-3">
-              {headerTitle && (
-                <h1
-                  className="text-lg font-semibold"
-                  style={{ color: 'var(--text-primary)' }}
-                >
-                  {headerTitle}
-                </h1>
-              )}
+          <div className="brand">
+            <div className="brand-logo">
+              <Bot size={18} />
             </div>
-
-            <div className="flex items-center gap-3">
-              <ThemeToggle />
+            <div className="brand-text">
+              <div className="brand-title">MYCLAW</div>
+              <div className="brand-sub">个人智能体控制台</div>
             </div>
-          </header>
+          </div>
+        </div>
+
+        <div className="topbar-status">
+          <div className="pill">
+            <span className="statusDot ok"></span>
+            <span>系统</span>
+            <span className="mono">就绪</span>
+          </div>
+          <ThemeToggle />
+        </div>
+      </header>
+
+      <Sidebar isCollapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
+
+      <main className={`content ${contentClassName}`.trim()}>
+        {(headerTitle || headerActions) && (
+          <section className="content-header">
+            <div>
+              {headerTitle ? <div className="page-title">{headerTitle}</div> : null}
+              {headerSubtitle ? <div className="page-sub">{headerSubtitle}</div> : null}
+            </div>
+            {headerActions ? <div className="page-meta">{headerActions}</div> : null}
+          </section>
         )}
 
-        <div className="flex-1 overflow-hidden">{children}</div>
-      </div>
+        {children}
+      </main>
     </div>
   );
 };

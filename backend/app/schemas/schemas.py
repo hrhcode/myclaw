@@ -382,6 +382,18 @@ class SessionHistorySummaryResponse(BaseModel):
     recent_messages: List[str] = []
 
 
+class GlobalRuntimeConfigResponse(BaseModel):
+    workspace_path: Optional[str] = None
+    memory_auto_extract: bool = False
+    memory_threshold: int = 8
+
+
+class GlobalRuntimeConfigUpdate(BaseModel):
+    workspace_path: Optional[str] = None
+    memory_auto_extract: Optional[bool] = None
+    memory_threshold: Optional[int] = None
+
+
 class SkillResponse(BaseModel):
     name: str
     path: str
@@ -400,7 +412,7 @@ class SessionSkillUpdateRequest(BaseModel):
 
 class AutomationBase(BaseModel):
     name: str
-    session_id: int
+    session_id: Optional[int] = None
     prompt: str
     schedule_type: str
     schedule_value: str

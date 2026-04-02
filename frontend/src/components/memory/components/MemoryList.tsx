@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { Edit3, Star, Trash2 } from 'lucide-react';
 
-import type { LongTermMemory, Session } from '../../../types';
+import type { LongTermMemory } from '../../../types';
 import { SectionCard } from '../../admin';
 
 interface MemoryListProps {
   memories: LongTermMemory[];
-  sessions: Session[];
   onEdit: (memory: LongTermMemory) => void;
   onDelete: (id: number) => void;
 }
@@ -34,12 +33,12 @@ const getSourceKind = (source?: string | null) => {
   return '自定义';
 };
 
-const MemoryList: React.FC<MemoryListProps> = ({ memories, sessions, onEdit, onDelete }) => {
+const MemoryList: React.FC<MemoryListProps> = ({ memories, onEdit, onDelete }) => {
   if (memories.length === 0) {
     return (
       <SectionCard className="py-12 text-center">
         <Star size={40} className="mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
-        <p style={{ color: 'var(--text-muted)' }}>还没有长期记忆，先创建一条来积累长期上下文吧。</p>
+        <p style={{ color: 'var(--text-muted)' }}>还没有长期记忆，先创建一条来积累长期上下文。</p>
       </SectionCard>
     );
   }
@@ -47,7 +46,7 @@ const MemoryList: React.FC<MemoryListProps> = ({ memories, sessions, onEdit, onD
   return (
     <div className="grid gap-3">
       {memories.map((memory) => (
-        <MemoryCard key={memory.id} memory={memory} sessions={sessions} onEdit={onEdit} onDelete={onDelete} />
+        <MemoryCard key={memory.id} memory={memory} onEdit={onEdit} onDelete={onDelete} />
       ))}
     </div>
   );
@@ -55,27 +54,24 @@ const MemoryList: React.FC<MemoryListProps> = ({ memories, sessions, onEdit, onD
 
 interface MemoryCardProps {
   memory: LongTermMemory;
-  sessions: Session[];
   onEdit: (memory: LongTermMemory) => void;
   onDelete: (id: number) => void;
 }
 
-const MemoryCard: React.FC<MemoryCardProps> = ({ memory, sessions, onEdit, onDelete }) => {
+const MemoryCard: React.FC<MemoryCardProps> = ({ memory, onEdit, onDelete }) => {
   const [expanded, setExpanded] = useState(false);
   const shouldTruncate = memory.content.length > 220 && !expanded;
   const tone = getImportanceTone(memory.importance);
   const score = Math.round(memory.importance * 10);
-  const sessionName = memory.session_id
-    ? sessions.find((session) => session.id === memory.session_id)?.name || `工作会话 ${memory.session_id}`
-    : '全局';
+  const scopeLabel = memory.session_id ? `隔离会话 ${memory.session_id}` : '全局';
 
   return (
     <SectionCard className="p-4">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 mb-2">
+        <div className="min-w-0 flex-1">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
             <span
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold"
+              className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold"
               style={{
                 backgroundColor: 'var(--surface-subtle)',
                 color: tone.color,
@@ -86,18 +82,30 @@ const MemoryCard: React.FC<MemoryCardProps> = ({ memory, sessions, onEdit, onDel
               <span>重要度 {score}/10（{tone.label}）</span>
             </span>
             {memory.key ? (
-              <span className="px-2 py-0.5 rounded-md text-xs" style={{ backgroundColor: 'var(--surface-subtle)', color: 'var(--text-secondary)' }}>
+              <span
+                className="rounded-md px-2 py-0.5 text-xs"
+                style={{ backgroundColor: 'var(--surface-subtle)', color: 'var(--text-secondary)' }}
+              >
                 标签：{memory.key}
               </span>
             ) : null}
-            <span className="px-2 py-0.5 rounded-md text-xs" style={{ backgroundColor: 'var(--surface-subtle)', color: 'var(--text-secondary)' }}>
-              会话：{sessionName}
+            <span
+              className="rounded-md px-2 py-0.5 text-xs"
+              style={{ backgroundColor: 'var(--surface-subtle)', color: 'var(--text-secondary)' }}
+            >
+              归属：{scopeLabel}
             </span>
-            <span className="px-2 py-0.5 rounded-md text-xs" style={{ backgroundColor: 'var(--surface-subtle)', color: 'var(--text-secondary)' }}>
+            <span
+              className="rounded-md px-2 py-0.5 text-xs"
+              style={{ backgroundColor: 'var(--surface-subtle)', color: 'var(--text-secondary)' }}
+            >
               类型：{getSourceKind(memory.source)}
             </span>
             {memory.source ? (
-              <span className="px-2 py-0.5 rounded-md text-xs" style={{ backgroundColor: 'var(--surface-subtle)', color: 'var(--text-secondary)' }}>
+              <span
+                className="rounded-md px-2 py-0.5 text-xs"
+                style={{ backgroundColor: 'var(--surface-subtle)', color: 'var(--text-secondary)' }}
+              >
                 来源：{memory.source}
               </span>
             ) : null}
@@ -118,7 +126,7 @@ const MemoryCard: React.FC<MemoryCardProps> = ({ memory, sessions, onEdit, onDel
             </button>
           ) : null}
 
-          <div className="mt-3 text-xs flex flex-wrap gap-3" style={{ color: 'var(--text-muted)' }}>
+          <div className="mt-3 flex flex-wrap gap-3 text-xs" style={{ color: 'var(--text-muted)' }}>
             <span>创建时间：{formatDate(memory.created_at)}</span>
             <span>更新时间：{formatDate(memory.updated_at)}</span>
           </div>
@@ -127,7 +135,7 @@ const MemoryCard: React.FC<MemoryCardProps> = ({ memory, sessions, onEdit, onDel
         <div className="flex items-center gap-1">
           <button
             type="button"
-            className="p-2 rounded-lg"
+            className="rounded-lg p-2"
             style={{ color: 'var(--text-secondary)' }}
             onClick={() => onEdit(memory)}
             title="编辑记忆"
@@ -136,7 +144,7 @@ const MemoryCard: React.FC<MemoryCardProps> = ({ memory, sessions, onEdit, onDel
           </button>
           <button
             type="button"
-            className="p-2 rounded-lg"
+            className="rounded-lg p-2"
             style={{ color: '#dc2626' }}
             onClick={() => onDelete(memory.id)}
             title="删除记忆"

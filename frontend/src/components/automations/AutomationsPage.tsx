@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 
 import MainLayout from '../layout/MainLayout';
-import { useApp } from '../../contexts/AppContext';
 import {
   createAutomation,
   deleteAutomation,
@@ -9,7 +8,7 @@ import {
   getAutomations,
   updateAutomation,
 } from '../../services/api';
-import type { Automation, AutomationRun } from '../../types';
+import type { Automation, AutomationPayload, AutomationRun } from '../../types';
 
 const EMPTY_AUTOMATION: Partial<Automation> = {
   name: '',
@@ -34,7 +33,6 @@ const formatRunStatus = (status: string) => {
 };
 
 const AutomationsPage: React.FC = () => {
-  const { currentSessionId, sessions } = useApp();
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [selectedAutomation, setSelectedAutomation] = useState<Automation | null>(null);
   const [runs, setRuns] = useState<AutomationRun[]>([]);
@@ -46,7 +44,7 @@ const AutomationsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadAutomations().catch((error) => console.error('Failed to load automations', error));
+    void loadAutomations().catch((error) => console.error('Failed to load automations', error));
   }, []);
 
   useEffect(() => {
@@ -54,7 +52,7 @@ const AutomationsPage: React.FC = () => {
       setRuns([]);
       return;
     }
-    getAutomationRuns(selectedAutomation.id)
+    void getAutomationRuns(selectedAutomation.id)
       .then(setRuns)
       .catch((error) => console.error('Failed to load automation runs', error));
   }, [selectedAutomation]);
@@ -65,7 +63,6 @@ const AutomationsPage: React.FC = () => {
     }
     const updated = await updateAutomation(selectedAutomation.id, {
       name: selectedAutomation.name,
-      session_id: selectedAutomation.session_id,
       prompt: selectedAutomation.prompt,
       schedule_type: selectedAutomation.schedule_type,
       schedule_value: selectedAutomation.schedule_value,
@@ -78,19 +75,14 @@ const AutomationsPage: React.FC = () => {
   return (
     <MainLayout headerTitle="自动化任务">
       <div className="admin-page">
-        <div className="admin-frame p-4 h-full overflow-y-auto space-y-4">
+        <div className="admin-frame h-full space-y-4 overflow-y-auto p-4">
           <button
             type="button"
             className="btn-secondary"
-            disabled={!currentSessionId}
             onClick={async () => {
-              if (!currentSessionId) {
-                return;
-              }
               const created = await createAutomation({
-                ...(EMPTY_AUTOMATION as Omit<Automation, 'id' | 'created_at' | 'updated_at' | 'last_run_at' | 'next_run_at'>),
-                name: `自动化任务-${Date.now()}`,
-                session_id: currentSessionId,
+                ...(EMPTY_AUTOMATION as AutomationPayload),
+                name: `自动化任务 ${Date.now()}`,
                 prompt: '总结最近进展，并给出当前最值得执行的下一步建议。',
               });
               await loadAutomations();
@@ -100,7 +92,7 @@ const AutomationsPage: React.FC = () => {
             新建自动化
           </button>
 
-          <div className="grid grid-cols-1 lg:grid-cols-[320px,1fr] gap-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[320px,1fr]">
             <div className="space-y-2">
               {automations.map((automation) => (
                 <button
@@ -108,15 +100,16 @@ const AutomationsPage: React.FC = () => {
                   type="button"
                   className="w-full rounded-xl border p-3 text-left"
                   style={{
-                    borderColor: selectedAutomation?.id === automation.id ? 'var(--accent)' : 'var(--panel-border)',
+                    borderColor:
+                      selectedAutomation?.id === automation.id ? 'var(--accent)' : 'var(--panel-border)',
                   }}
                   onClick={() => setSelectedAutomation(automation)}
                 >
                   <div className="font-semibold">{automation.name}</div>
-                  <div className="text-xs opacity-70">
-                    工作会话 #{automation.session_id} · {formatScheduleType(automation.schedule_type)}：{automation.schedule_value}
+                  <div className="mt-1 text-xs opacity-70">
+                    {formatScheduleType(automation.schedule_type)}：{automation.schedule_value}
                   </div>
-                  <div className="text-[11px] opacity-60 mt-1">
+                  <div className="mt-1 text-[11px] opacity-60">
                     {automation.enabled ? '已启用' : '已停用'} · 下次执行 {automation.next_run_at || '未排程'}
                   </div>
                 </button>
@@ -126,9 +119,9 @@ const AutomationsPage: React.FC = () => {
             <div className="glass-card rounded-2xl p-4">
               {selectedAutomation ? (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
-                      <label className="block text-sm mb-1">名称</label>
+                      <label className="mb-1 block text-sm">名称</label>
                       <input
                         className="admin-input w-full px-3 py-2"
                         value={selectedAutomation.name}
@@ -138,25 +131,7 @@ const AutomationsPage: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm mb-1">工作会话</label>
-                      <select
-                        className="admin-select w-full px-3 py-2"
-                        value={selectedAutomation.session_id}
-                        onChange={(event) =>
-                          setSelectedAutomation((prev) =>
-                            prev ? { ...prev, session_id: Number.parseInt(event.target.value, 10) } : prev,
-                          )
-                        }
-                      >
-                        {sessions.map((session) => (
-                          <option key={session.id} value={session.id}>
-                            {session.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm mb-1">调度方式</label>
+                      <label className="mb-1 block text-sm">调度方式</label>
                       <select
                         className="admin-select w-full px-3 py-2"
                         value={selectedAutomation.schedule_type}
@@ -183,14 +158,12 @@ const AutomationsPage: React.FC = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm mb-1">调度参数</label>
+                      <label className="mb-1 block text-sm">调度参数</label>
                       <input
                         className="admin-input w-full px-3 py-2"
                         value={selectedAutomation.schedule_value}
                         onChange={(event) =>
-                          setSelectedAutomation((prev) =>
-                            prev ? { ...prev, schedule_value: event.target.value } : prev,
-                          )
+                          setSelectedAutomation((prev) => (prev ? { ...prev, schedule_value: event.target.value } : prev))
                         }
                         placeholder={
                           selectedAutomation.schedule_type === 'interval'
@@ -204,9 +177,9 @@ const AutomationsPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm mb-1">任务提示词</label>
+                    <label className="mb-1 block text-sm">任务提示词</label>
                     <textarea
-                      className="admin-input w-full px-3 py-2 min-h-[160px]"
+                      className="admin-input min-h-[160px] w-full px-3 py-2"
                       value={selectedAutomation.prompt}
                       onChange={(event) =>
                         setSelectedAutomation((prev) => (prev ? { ...prev, prompt: event.target.value } : prev))
@@ -214,13 +187,13 @@ const AutomationsPage: React.FC = () => {
                     />
                   </div>
 
-                  <div className="text-sm opacity-80 space-y-1">
+                  <div className="space-y-1 text-sm opacity-80">
                     <div>最近执行：{selectedAutomation.last_run_at || '尚未执行'}</div>
                     <div>下次执行：{selectedAutomation.next_run_at || '尚未排程'}</div>
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" className="btn-secondary" onClick={saveAutomation}>
+                    <button type="button" className="btn-secondary" onClick={() => void saveAutomation()}>
                       保存
                     </button>
                     <button
@@ -256,7 +229,7 @@ const AutomationsPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <div className="font-semibold mb-2">最近执行记录</div>
+                    <div className="mb-2 font-semibold">最近执行记录</div>
                     <div className="space-y-2">
                       {runs.map((run) => (
                         <div
@@ -269,8 +242,8 @@ const AutomationsPage: React.FC = () => {
                             触发于 {run.triggered_at}
                             {run.completed_at ? ` · 完成于 ${run.completed_at}` : ''}
                           </div>
-                          {run.run_id ? <div className="text-xs opacity-70 mt-1">运行编号 {run.run_id}</div> : null}
-                          {run.error ? <div className="text-xs text-red-500 mt-1">{run.error}</div> : null}
+                          {run.run_id ? <div className="mt-1 text-xs opacity-70">运行编号 {run.run_id}</div> : null}
+                          {run.error ? <div className="mt-1 text-xs text-red-500">{run.error}</div> : null}
                         </div>
                       ))}
                     </div>

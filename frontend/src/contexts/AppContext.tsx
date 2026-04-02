@@ -8,34 +8,22 @@ import type {
   AgentTraceEventType,
   Conversation,
   Message,
-  Session,
 } from '../types';
 import {
-  createConversationForSession,
-  createSession,
+  createConversation,
   deleteConversation,
-  deleteSession,
-  getConversationsBySession,
+  getConversations,
   getMessages,
-  getSessions,
   renameConversation,
-  updateSession,
 } from '../services/api';
 
 interface AppContextType {
-  sessions: Session[];
-  currentSessionId: number | null;
   conversations: Conversation[];
   currentConversationId: number | null;
   messages: Message[];
   isConfigured: boolean | null;
   sidebarCollapsed: boolean;
-  loadSessions: () => Promise<void>;
-  selectSession: (id: number | null) => void;
-  createNewSession: (name?: string) => Promise<Session | null>;
-  updateSessionById: (id: number, payload: Partial<Session>) => Promise<void>;
-  removeSession: (id: number) => Promise<void>;
-  loadConversations: (sessionId?: number | null) => Promise<void>;
+  loadConversations: () => Promise<void>;
   selectConversation: (id: number | null) => void;
   createNewConversation: (title?: string) => Promise<Conversation | null>;
   removeConversation: (id: number) => Promise<void>;
@@ -66,33 +54,17 @@ const mapAgentEvents = (events?: AgentEventFromDB[]): AgentTraceEvent[] =>
   }));
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('sidebar_collapsed') === 'true');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem('sidebar_collapsed') === 'true',
+  );
 
-  const loadSessions = useCallback(async () => {
+  const loadConversations = useCallback(async () => {
     try {
-      const data = await getSessions();
-      setSessions(data);
-      setCurrentSessionId((prev) => prev ?? data.find((item) => item.is_default)?.id ?? data[0]?.id ?? null);
-    } catch (error) {
-      console.error('Failed to load sessions:', error);
-    }
-  }, []);
-
-  const loadConversations = useCallback(async (sessionId?: number | null) => {
-    const effectiveSessionId = sessionId ?? currentSessionId;
-    if (!effectiveSessionId) {
-      setConversations([]);
-      setCurrentConversationId(null);
-      return;
-    }
-    try {
-      const data = await getConversationsBySession(effectiveSessionId);
+      const data = await getConversations();
       setConversations(data);
       setCurrentConversationId((prev) => {
         if (prev && data.some((item) => item.id === prev)) {
@@ -103,7 +75,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (error) {
       console.error('Failed to load conversations:', error);
     }
-  }, [currentSessionId]);
+  }, []);
 
   const loadMessages = useCallback(async (conversationId: number) => {
     try {
@@ -120,46 +92,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
-  const selectSession = useCallback((id: number | null) => {
-    setCurrentSessionId(id);
-    setCurrentConversationId(null);
-  }, []);
-
   const selectConversation = useCallback((id: number | null) => {
     setCurrentConversationId(id);
   }, []);
 
-  const createNewSession = useCallback(async (name = `session-${Date.now()}`): Promise<Session | null> => {
+  const createNewConversation = useCallback(async (title = '新会话'): Promise<Conversation | null> => {
     try {
-      const session = await createSession({ name, tool_profile: 'full', max_iterations: 5 });
-      await loadSessions();
-      setCurrentSessionId(session.id);
-      return session;
-    } catch (error) {
-      console.error('Failed to create session:', error);
-      return null;
-    }
-  }, [loadSessions]);
-
-  const updateSessionById = useCallback(async (id: number, payload: Partial<Session>) => {
-    const updated = await updateSession(id, payload);
-    setSessions((prev) => prev.map((session) => (session.id === id ? updated : session)));
-    if (payload.is_default) {
-      await loadSessions();
-    }
-  }, [loadSessions]);
-
-  const removeSession = useCallback(async (id: number) => {
-    await deleteSession(id);
-    await loadSessions();
-  }, [loadSessions]);
-
-  const createNewConversation = useCallback(async (title = 'New Chat'): Promise<Conversation | null> => {
-    if (!currentSessionId) {
-      return null;
-    }
-    try {
-      const conversation = await createConversationForSession(title, currentSessionId);
+      const conversation = await createConversation(title);
       setConversations((prev) => [conversation, ...prev]);
       setCurrentConversationId(conversation.id);
       return conversation;
@@ -167,7 +106,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.error('Failed to create conversation:', error);
       return null;
     }
-  }, [currentSessionId]);
+  }, []);
 
   const removeConversation = useCallback(async (id: number) => {
     await deleteConversation(id);
@@ -201,18 +140,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   useEffect(() => {
-    loadSessions();
-  }, [loadSessions]);
-
-  useEffect(() => {
-    if (currentSessionId) {
-      loadConversations(currentSessionId);
-    }
-  }, [currentSessionId, loadConversations]);
+    void loadConversations();
+  }, [loadConversations]);
 
   useEffect(() => {
     if (currentConversationId) {
-      loadMessages(currentConversationId);
+      void loadMessages(currentConversationId);
     } else {
       setMessages([]);
     }
@@ -221,18 +154,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider
       value={{
-        sessions,
-        currentSessionId,
         conversations,
         currentConversationId,
         messages,
         isConfigured,
         sidebarCollapsed,
-        loadSessions,
-        selectSession,
-        createNewSession,
-        updateSessionById,
-        removeSession,
         loadConversations,
         selectConversation,
         createNewConversation,

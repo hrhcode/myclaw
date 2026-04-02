@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 
-import SearchConfigPanel from './components/SearchConfigPanel';
 import { getConfig, setConfig } from '../../services/api';
 import { SectionCard } from '../admin';
+import SearchConfigPanel from './components/SearchConfigPanel';
 
 type MemoryConfig = {
   memory_top_k: string;
@@ -56,10 +56,7 @@ const ConfigTab: React.FC = () => {
         }),
       );
 
-      const loaded = entries.reduce(
-        (acc, [key, value]) => ({ ...acc, [key]: value }),
-        DEFAULT_CONFIG,
-      );
+      const loaded = entries.reduce((acc, [key, value]) => ({ ...acc, [key]: value }), DEFAULT_CONFIG);
 
       setConfigState(loaded);
       lastSavedConfigRef.current = loaded;
@@ -75,7 +72,7 @@ const ConfigTab: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    loadConfig();
+    void loadConfig();
   }, [loadConfig]);
 
   useEffect(() => {
@@ -86,9 +83,7 @@ const ConfigTab: React.FC = () => {
     }
 
     autoSaveTimerRef.current = window.setTimeout(async () => {
-      const changedKeys = CONFIG_KEYS.filter(
-        (key) => config[key] !== lastSavedConfigRef.current[key],
-      );
+      const changedKeys = CONFIG_KEYS.filter((key) => config[key] !== lastSavedConfigRef.current[key]);
       if (changedKeys.length === 0) return;
 
       try {
@@ -120,7 +115,7 @@ const ConfigTab: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="h-full flex items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <Loader2 size={36} className="text-primary animate-spin" />
       </div>
     );

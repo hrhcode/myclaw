@@ -85,53 +85,6 @@ export interface ConversationDetail extends Conversation {
   };
 }
 
-export interface Session {
-  id: number;
-  name: string;
-  mode: string;
-  workspace_path?: string | null;
-  model?: string | null;
-  provider?: string | null;
-  tool_profile: string;
-  tool_allow: string[];
-  tool_deny: string[];
-  max_iterations: number;
-  context_summary: string;
-  memory_auto_extract: boolean;
-  memory_threshold: number;
-  is_default: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface SessionRunSummary {
-  run_id: string;
-  conversation_id: number;
-  user_message: string;
-  stop_reason?: string | null;
-  compacted_summary?: string | null;
-  started_at?: string | null;
-  completed_at?: string | null;
-}
-
-export interface SessionStatus {
-  id: number;
-  name: string;
-  mode: string;
-  workspace_path?: string | null;
-  model?: string | null;
-  provider?: string | null;
-  tool_profile: string;
-  tool_allow: string[];
-  tool_deny: string[];
-  max_iterations: number;
-  context_summary: string;
-  memory_auto_extract: boolean;
-  memory_threshold: number;
-  is_default: boolean;
-  recent_runs: SessionRunSummary[];
-}
-
 export interface Skill {
   name: string;
   path: string;
@@ -157,6 +110,15 @@ export interface Automation {
   created_at: string;
   updated_at: string;
 }
+
+export type AutomationPayload = {
+  name: string;
+  session_id?: number;
+  prompt: string;
+  schedule_type: string;
+  schedule_value: string;
+  enabled: boolean;
+};
 
 export interface AutomationRun {
   id: number;

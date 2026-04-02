@@ -1,11 +1,9 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Loader2, Wrench } from "lucide-react";
+
 import MainLayout from "../layout/MainLayout";
-import {
-  getTools,
-  toggleTool,
-} from "../../services/api";
+import { getTools, toggleTool } from "../../services/api";
 import type { ToolInfo } from "../../services/api";
 import { PageSection, SectionCard, StatusBadge, Switch } from "../admin";
 
@@ -32,12 +30,12 @@ const ToolCard: React.FC<ToolCardProps> = ({ tool, onToggle }) => {
             {tool.description}
           </p>
 
-          {Object.keys(tool.parameters?.properties || {}).length > 0 && (
+          {Object.keys(tool.parameters?.properties || {}).length > 0 ? (
             <div className="mt-3 flex flex-wrap gap-2">
               {Object.keys(tool.parameters?.properties || {}).map((key) => (
                 <span
                   key={key}
-                  className="px-2 py-1 rounded-md text-xs"
+                  className="rounded-md px-2 py-1 text-xs"
                   style={{
                     backgroundColor: "var(--surface-subtle)",
                     color: "var(--text-secondary)",
@@ -48,7 +46,7 @@ const ToolCard: React.FC<ToolCardProps> = ({ tool, onToggle }) => {
                 </span>
               ))}
             </div>
-          )}
+          ) : null}
         </div>
 
         <Switch
@@ -81,28 +79,23 @@ const ToolsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, []);
 
   const handleToggleTool = async (name: string, enabled: boolean) => {
     try {
       await toggleTool(name, enabled);
-      setTools((prev) =>
-        prev.map((tool) => (tool.name === name ? { ...tool, enabled } : tool)),
-      );
+      setTools((prev) => prev.map((tool) => (tool.name === name ? { ...tool, enabled } : tool)));
     } catch (err) {
-      console.error("切换工具状态失败:", err);
+      console.error("切换工具状态失败", err);
     }
   };
 
   if (loading) {
     return (
       <MainLayout headerTitle="工具">
-        <div className="h-full flex items-center justify-center">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          >
+        <div className="flex h-full items-center justify-center">
+          <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
             <Loader2 size={40} className="text-primary" />
           </motion.div>
         </div>
@@ -113,7 +106,7 @@ const ToolsPage: React.FC = () => {
   if (error) {
     return (
       <MainLayout headerTitle="工具">
-        <div className="h-full flex items-center justify-center">
+        <div className="flex h-full items-center justify-center">
           <p style={{ color: "var(--text-muted)" }}>{error}</p>
         </div>
       </MainLayout>
@@ -131,15 +124,13 @@ const ToolsPage: React.FC = () => {
             </div>
             <div className="admin-summary-card">
               <div className="admin-summary-label">已启用</div>
-              <div className="admin-summary-value">
-                {tools.filter((tool) => tool.enabled).length}
-              </div>
+              <div className="admin-summary-value">{tools.filter((tool) => tool.enabled).length}</div>
             </div>
           </div>
 
           <PageSection
             title="可用工具"
-            description="按需开关工具能力，不影响现有接口行为"
+            description="按需开关工具能力，不影响现有接口行为。"
             actions={
               <div className="inline-flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
                 <Wrench size={14} />
@@ -147,7 +138,7 @@ const ToolsPage: React.FC = () => {
               </div>
             }
           >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {tools.map((tool) => (
                 <motion.div key={tool.name} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
                   <ToolCard tool={tool} onToggle={handleToggleTool} />

@@ -3,6 +3,7 @@ import type {
   AgentTraceEventPayload,
   AgentTraceEventType,
   Automation,
+  AutomationPayload,
   AutomationRun,
   ChatRequest,
   ConfigItem,
@@ -11,9 +12,7 @@ import type {
   Message,
   Model,
   Provider,
-  Session,
   SessionSkill,
-  SessionStatus,
   Skill,
 } from '../types';
 
@@ -229,11 +228,6 @@ export const getConversations = async (): Promise<Conversation[]> => {
   return response.data;
 };
 
-export const getConversationsBySession = async (sessionId: number): Promise<Conversation[]> => {
-  const response = await api.get<Conversation[]>('/conversations', { params: { session_id: sessionId } });
-  return response.data;
-};
-
 export const getConversationStats = async (): Promise<ConversationStats[]> => {
   const response = await api.get<ConversationStats[]>('/conversations/stats');
   return response.data;
@@ -241,11 +235,6 @@ export const getConversationStats = async (): Promise<ConversationStats[]> => {
 
 export const createConversation = async (title: string): Promise<Conversation> => {
   const response = await api.post<Conversation>('/conversations', { title });
-  return response.data;
-};
-
-export const createConversationForSession = async (title: string, sessionId: number): Promise<Conversation> => {
-  const response = await api.post<Conversation>('/conversations', { title, session_id: sessionId });
   return response.data;
 };
 
@@ -507,62 +496,36 @@ export const setBrowserConfig = async (config: BrowserConfig): Promise<{ message
   return response.data;
 };
 
-export const getSessions = async (): Promise<Session[]> => {
-  const response = await api.get<Session[]>('/sessions');
-  return response.data;
-};
-
-export const createSession = async (payload: Partial<Session> & { name: string }): Promise<Session> => {
-  const response = await api.post<Session>('/sessions', payload);
-  return response.data;
-};
-
-export const updateSession = async (sessionId: number, payload: Partial<Session>): Promise<Session> => {
-  const response = await api.put<Session>(`/sessions/${sessionId}`, payload);
-  return response.data;
-};
-
-export const deleteSession = async (sessionId: number): Promise<void> => {
-  await api.delete(`/sessions/${sessionId}`);
-};
-
-export const getSessionStatus = async (sessionId: number): Promise<SessionStatus> => {
-  const response = await api.get<SessionStatus>(`/sessions/${sessionId}/status`);
-  return response.data;
-};
-
-export const getSessionHistorySummary = async (
-  sessionId: number,
-): Promise<{ session_id: number; summary: string; recent_messages: string[] }> => {
-  const response = await api.get<{ session_id: number; summary: string; recent_messages: string[] }>(
-    `/sessions/${sessionId}/history-summary`,
-  );
-  return response.data;
-};
-
-export const dispatchSessionMessage = async (
-  sessionId: number,
-  message: string,
-): Promise<{ success: boolean; session_id: number; run_id?: string }> => {
-  const response = await api.post<{ success: boolean; session_id: number; run_id?: string }>(
-    `/sessions/${sessionId}/dispatch`,
-    { message },
-  );
-  return response.data;
-};
-
 export const getSkills = async (): Promise<Skill[]> => {
   const response = await api.get<Skill[]>('/skills');
   return response.data;
 };
 
-export const getSessionSkills = async (sessionId: number): Promise<SessionSkill[]> => {
-  const response = await api.get<{ skills: SessionSkill[] }>(`/sessions/${sessionId}/skills`);
+export interface GlobalRuntimeConfig {
+  workspace_path?: string | null;
+  memory_auto_extract: boolean;
+  memory_threshold: number;
+}
+
+export const getGlobalRuntimeConfig = async (): Promise<GlobalRuntimeConfig> => {
+  const response = await api.get<GlobalRuntimeConfig>('/config/runtime');
+  return response.data;
+};
+
+export const updateGlobalRuntimeConfig = async (
+  payload: Partial<GlobalRuntimeConfig>,
+): Promise<GlobalRuntimeConfig> => {
+  const response = await api.put<GlobalRuntimeConfig>('/config/runtime', payload);
+  return response.data;
+};
+
+export const getGlobalSkills = async (): Promise<SessionSkill[]> => {
+  const response = await api.get<{ skills: SessionSkill[] }>('/config/skills');
   return response.data.skills;
 };
 
-export const updateSessionSkills = async (sessionId: number, skills: SessionSkill[]): Promise<SessionSkill[]> => {
-  const response = await api.put<{ skills: SessionSkill[] }>(`/sessions/${sessionId}/skills`, { skills });
+export const updateGlobalSkills = async (skills: SessionSkill[]): Promise<SessionSkill[]> => {
+  const response = await api.put<{ skills: SessionSkill[] }>('/config/skills', { skills });
   return response.data.skills;
 };
 
@@ -572,7 +535,7 @@ export const getAutomations = async (): Promise<Automation[]> => {
 };
 
 export const createAutomation = async (
-  payload: Omit<Automation, 'id' | 'created_at' | 'updated_at' | 'last_run_at' | 'next_run_at'>,
+  payload: AutomationPayload,
 ): Promise<Automation> => {
   const response = await api.post<Automation>('/automations', payload);
   return response.data;

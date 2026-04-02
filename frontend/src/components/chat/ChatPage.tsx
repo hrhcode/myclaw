@@ -1,23 +1,27 @@
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle } from 'lucide-react';
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { AlertTriangle, History, Plus, RefreshCw } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 
-import MainLayout from '../layout/MainLayout';
-import MessageList from './MessageList';
-import MessageInput from './MessageInput';
-import ThemeToggle from '../common/ThemeToggle';
-import ConversationSelect from '../common/ConversationSelect';
-import SessionSelect from '../common/SessionSelect';
-import { useApp } from '../../contexts/AppContext';
-import { sendMessageStream, getConfig } from '../../services/api';
-import type { AgentTraceEvent, AgentTraceEventPayload, AgentTraceEventType, Message } from '../../types';
+import type {
+  AgentTraceEvent,
+  AgentTraceEventPayload,
+  AgentTraceEventType,
+  Message,
+} from "../../types";
+import { useApp } from "../../contexts/AppContext";
+import { getConfig, sendMessageStream } from "../../services/api";
+import MainLayout from "../layout/MainLayout";
+import MessageInput from "./MessageInput";
+import MessageList from "./MessageList";
 
 const buildTraceEvent = (
   type: AgentTraceEventType,
   payload: AgentTraceEventPayload,
 ): AgentTraceEvent => ({
-  id: `${type}-${payload.tool_call_id || payload.iteration || Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  id: `${type}-${payload.tool_call_id || payload.iteration || Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`,
   type,
   createdAt: new Date().toISOString(),
   payload,
@@ -28,10 +32,9 @@ const appendTraceEvent = (
   type: AgentTraceEventType,
   payload: AgentTraceEventPayload,
 ): AgentTraceEvent[] => {
-  if (type === 'reasoning' && previousEvents.length > 0) {
+  if (type === "reasoning" && previousEvents.length > 0) {
     const lastEvent = previousEvents[previousEvents.length - 1];
-    if (lastEvent.type === 'reasoning') {
-      const mergedContent = `${lastEvent.payload.content || ''}${payload.content || ''}`;
+    if (lastEvent.type === "reasoning") {
       return [
         ...previousEvents.slice(0, -1),
         {
@@ -39,7 +42,7 @@ const appendTraceEvent = (
           payload: {
             ...lastEvent.payload,
             ...payload,
-            content: mergedContent,
+            content: `${lastEvent.payload.content || ""}${payload.content || ""}`,
           },
         },
       ];
@@ -54,7 +57,6 @@ const ChatPage: React.FC = () => {
   const navigate = useNavigate();
   const {
     conversations,
-    currentSessionId,
     currentConversationId,
     messages,
     isConfigured,
@@ -67,33 +69,37 @@ const ChatPage: React.FC = () => {
 
   const [isSending, setIsSending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const chunkBufferRef = useRef('');
+  const chunkBufferRef = useRef("");
   const flushTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    checkConfiguration();
-    loadConversations();
+    void checkConfiguration();
+    void loadConversations();
   }, [loadConversations]);
 
   useEffect(() => {
-    if (conversationId) {
-      const id = parseInt(conversationId, 10);
-      if (!Number.isNaN(id) && id !== currentConversationId) {
-        selectConversation(id);
-      }
+    if (!conversationId) {
+      return;
     }
-  }, [conversationId, selectConversation, currentConversationId]);
+    const id = Number.parseInt(conversationId, 10);
+    if (!Number.isNaN(id) && id !== currentConversationId) {
+      selectConversation(id);
+    }
+  }, [conversationId, currentConversationId, selectConversation]);
 
   useEffect(() => {
-    if (!currentConversationId && conversations.length > 0) {
-      const sortedConversations = [...conversations].sort(
-        (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
-      );
-      const mostRecent = sortedConversations[0];
-      selectConversation(mostRecent.id);
-      navigate(`/chat/${mostRecent.id}`, { replace: true });
+    if (currentConversationId || conversations.length === 0) {
+      return;
     }
-  }, [conversations, currentConversationId, selectConversation, navigate]);
+    const mostRecent = [...conversations].sort(
+      (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+    )[0];
+    if (!mostRecent) {
+      return;
+    }
+    selectConversation(mostRecent.id);
+    navigate(`/chat/${mostRecent.id}`, { replace: true });
+  }, [conversations, currentConversationId, navigate, selectConversation]);
 
   useEffect(() => {
     return () => {
@@ -105,7 +111,7 @@ const ChatPage: React.FC = () => {
 
   const checkConfiguration = async () => {
     try {
-      await getConfig('zhipu_api_key');
+      await getConfig("zhipu_api_key");
       setIsConfigured(true);
     } catch {
       setIsConfigured(false);
@@ -113,21 +119,27 @@ const ChatPage: React.FC = () => {
   };
 
   const handleCreateNewChat = async () => {
-    const newConversation = await createNewConversation('新聊天');
-    if (newConversation) {
-      selectConversation(newConversation.id);
-      navigate(`/chat/${newConversation.id}`, { replace: true });
+    const newConversation = await createNewConversation("新会话");
+    if (!newConversation) {
+      return;
     }
+    selectConversation(newConversation.id);
+    navigate(`/chat/${newConversation.id}`, { replace: true });
   };
 
-  const updateStreamingMessage = (tempMessageId: number, updater: (message: Message) => Message) => {
-    setMessages((prev) => prev.map((message) => (message.id === tempMessageId ? updater(message) : message)));
+  const updateStreamingMessage = (
+    tempMessageId: number,
+    updater: (message: Message) => Message,
+  ) => {
+    setMessages((previous) =>
+      previous.map((message) => (message.id === tempMessageId ? updater(message) : message)),
+    );
   };
 
   const showNotice = (message: string) => {
     setNotice(message);
     window.setTimeout(() => {
-      setNotice((prev) => (prev === message ? null : prev));
+      setNotice((previous) => (previous === message ? null : previous));
     }, 3000);
   };
 
@@ -136,7 +148,7 @@ const ChatPage: React.FC = () => {
       return;
     }
     const content = chunkBufferRef.current;
-    chunkBufferRef.current = '';
+    chunkBufferRef.current = "";
     updateStreamingMessage(tempMessageId, (message) => ({
       ...message,
       content: message.content + content,
@@ -155,67 +167,62 @@ const ChatPage: React.FC = () => {
 
   const handleSendMessage = async (content: string) => {
     const trimmedContent = content.trim();
-    const isChatCommand = trimmedContent.startsWith('/');
+    const isChatCommand = trimmedContent.startsWith("/");
 
-    if (trimmedContent === '/new') {
+    if (trimmedContent === "/new") {
       await handleCreateNewChat();
       return;
     }
 
     if (isConfigured === false && !isChatCommand) {
-      showNotice('请先在设置中配置 API Key。');
-      navigate('/settings');
+      showNotice("请先完成接口密钥配置。");
+      navigate("/settings");
       return;
     }
 
     if (!currentConversationId) {
-      showNotice('聊天记录仍在加载中，请稍后重试。');
-      return;
-    }
-    if (!currentSessionId) {
-      showNotice('工作会话仍在加载中，请稍后重试。');
+      showNotice("会话仍在加载中。");
       return;
     }
 
     setIsSending(true);
 
-    const conversationIdToUse = currentConversationId;
     const now = new Date().toISOString();
-
-    const userMessage: Message = {
-      id: Date.now(),
-      conversation_id: conversationIdToUse,
-      role: 'user',
-      content: trimmedContent,
-      created_at: now,
-    };
-
-    const tempAiMessage: Message = {
+    const tempAssistantMessage: Message = {
       id: Date.now() + 1,
-      conversation_id: conversationIdToUse,
-      role: 'assistant',
-      content: '',
+      conversation_id: currentConversationId,
+      role: "assistant",
+      content: "",
       created_at: now,
       traceEvents: [],
       isStreaming: true,
     };
 
-    setMessages((prev) => [...prev, userMessage, tempAiMessage]);
+    setMessages((previous) => [
+      ...previous,
+      {
+        id: Date.now(),
+        conversation_id: currentConversationId,
+        role: "user",
+        content: trimmedContent,
+        created_at: now,
+      },
+      tempAssistantMessage,
+    ]);
 
     try {
       await sendMessageStream(
         {
-          session_id: currentSessionId,
-          conversation_id: conversationIdToUse,
+          conversation_id: currentConversationId,
           message: trimmedContent,
         },
         {
           onChunk: (chunk) => {
             chunkBufferRef.current += chunk;
-            scheduleChunkFlush(tempAiMessage.id);
+            scheduleChunkFlush(tempAssistantMessage.id);
           },
           onConversation: (nextConversationId, runId) => {
-            updateStreamingMessage(tempAiMessage.id, (message) => ({
+            updateStreamingMessage(tempAssistantMessage.id, (message) => ({
               ...message,
               conversation_id: nextConversationId,
               runId,
@@ -227,42 +234,41 @@ const ChatPage: React.FC = () => {
             }
           },
           onTraceEvent: (type, payload) => {
-            updateStreamingMessage(tempAiMessage.id, (message) => ({
+            updateStreamingMessage(tempAssistantMessage.id, (message) => ({
               ...message,
               runId: payload.run_id || message.runId,
               traceEvents: appendTraceEvent(message.traceEvents, type, payload),
             }));
           },
-          onComplete: (_message, conversationIdFromStream) => {
+          onComplete: (_message, streamedConversationId) => {
             if (flushTimerRef.current !== null) {
               window.clearTimeout(flushTimerRef.current);
               flushTimerRef.current = null;
             }
-            flushBufferedChunk(tempAiMessage.id);
-            updateStreamingMessage(tempAiMessage.id, (message) => ({
+            flushBufferedChunk(tempAssistantMessage.id);
+            updateStreamingMessage(tempAssistantMessage.id, (message) => ({
               ...message,
-              conversation_id: conversationIdFromStream,
+              conversation_id: streamedConversationId,
               isStreaming: false,
             }));
-            loadConversations();
+            void loadConversations();
           },
           onError: (error) => {
             if (flushTimerRef.current !== null) {
               window.clearTimeout(flushTimerRef.current);
               flushTimerRef.current = null;
             }
-            flushBufferedChunk(tempAiMessage.id);
-            console.error('Chat error:', error);
-            updateStreamingMessage(tempAiMessage.id, (message) => ({
+            flushBufferedChunk(tempAssistantMessage.id);
+            updateStreamingMessage(tempAssistantMessage.id, (message) => ({
               ...message,
-              content: message.content || '消息发送失败，请检查 API Key 和工具配置后重试。',
-              traceEvents: appendTraceEvent(message.traceEvents, 'loop_warning', {
+              content: message.content || "消息发送失败，请检查接口密钥和工具配置。",
+              traceEvents: appendTraceEvent(message.traceEvents, "loop_warning", {
                 message: error.message,
-                severity: 'error',
+                severity: "error",
               }),
               isStreaming: false,
             }));
-            showNotice('消息发送失败，请检查配置后重试。');
+            showNotice("消息发送失败。");
           },
         },
       );
@@ -271,73 +277,77 @@ const ChatPage: React.FC = () => {
         window.clearTimeout(flushTimerRef.current);
         flushTimerRef.current = null;
       }
-      flushBufferedChunk(tempAiMessage.id);
-      console.error('Failed to send message:', error);
-      updateStreamingMessage(tempAiMessage.id, (message) => ({
+      flushBufferedChunk(tempAssistantMessage.id);
+      console.error("Failed to send message:", error);
+      updateStreamingMessage(tempAssistantMessage.id, (message) => ({
         ...message,
-        content: '消息发送失败，请检查 API Key 和工具配置后重试。',
+        content: "消息发送失败，请检查接口密钥和工具配置。",
         isStreaming: false,
       }));
-      showNotice('消息发送失败，请检查配置后重试。');
+      showNotice("消息发送失败。");
     } finally {
       setIsSending(false);
     }
   };
 
   return (
-    <MainLayout showHeader={false}>
-      <div className="chat-page">
-        <header className="chat-header">
-          <div className="flex items-center gap-3 min-w-0 flex-wrap">
-            <div className="flex flex-col gap-1 min-w-[200px]">
-              <span className="text-xs font-medium px-1" style={{ color: 'var(--text-muted)' }}>
-                工作会话
-              </span>
-              <SessionSelect />
-            </div>
-            <div className="flex flex-col gap-1 min-w-[220px]">
-              <span className="text-xs font-medium px-1" style={{ color: 'var(--text-muted)' }}>
-                聊天记录
-              </span>
-              <ConversationSelect />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <ThemeToggle />
-          </div>
-        </header>
-
+    <MainLayout
+      headerTitle="对话"
+      headerSubtitle="围绕当前会话持续推进任务，并实时查看执行轨迹。"
+      contentClassName="content--chat"
+      headerActions={
+        <div className="chat-controls">
+          <button
+            className="btn btn--icon"
+            onClick={() => void loadConversations()}
+            title="刷新会话列表"
+            aria-label="刷新会话列表"
+          >
+            <RefreshCw size={16} />
+          </button>
+          <Link
+            className="btn btn--icon"
+            to="/conversations"
+            title="查看会话列表"
+            aria-label="查看会话列表"
+          >
+            <History size={16} />
+          </Link>
+          <button
+            className="btn btn--icon"
+            onClick={() => void handleCreateNewChat()}
+            title="新建会话"
+            aria-label="新建会话"
+          >
+            <Plus size={16} />
+          </button>
+        </div>
+      }
+    >
+      <section className="card chat">
         <AnimatePresence>
-          {notice && (
+          {notice ? (
             <motion.div
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              className="px-6 pt-3"
+              className="callout danger"
             >
-              <div className="warning-banner p-3 text-sm">{notice}</div>
+              {notice}
             </motion.div>
-          )}
-          {isConfigured === false && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="px-6 pt-4"
-            >
-              <div className="warning-banner p-4 flex items-center gap-3">
-                <AlertTriangle size={20} className="text-yellow-500 flex-shrink-0" />
-                <p className="text-yellow-700 dark:text-yellow-200/90 text-sm">
-                  使用聊天前请先配置 API Key。{' '}
-                  <Link to="/settings" className="underline font-semibold">
-                    打开设置
-                  </Link>
-                </p>
-              </div>
-            </motion.div>
-          )}
+          ) : null}
         </AnimatePresence>
+
+        {isConfigured === false ? (
+          <div className="callout danger">
+            <div className="row">
+              <AlertTriangle size={16} />
+              <span>
+                尚未配置接口密钥。<Link to="/settings">前往设置</Link>
+              </span>
+            </div>
+          </div>
+        ) : null}
 
         <MessageList messages={messages} />
         <MessageInput
@@ -345,7 +355,7 @@ const ChatPage: React.FC = () => {
           disabled={isSending}
           onCreateNewChat={handleCreateNewChat}
         />
-      </div>
+      </section>
     </MainLayout>
   );
 };

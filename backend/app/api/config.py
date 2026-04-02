@@ -8,7 +8,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from app.core.database import get_db
 from app.dao.config_dao import ConfigDAO
-from app.schemas.schemas import ConfigCreate, ConfigUpdate, ConfigResponse, WebSearchConfig, WebSearchConfigResponse, BrowserConfig, BrowserConfigResponse
+from app.schemas.schemas import (
+    BrowserConfig,
+    BrowserConfigResponse,
+    ConfigCreate,
+    ConfigResponse,
+    ConfigUpdate,
+    GlobalRuntimeConfigResponse,
+    GlobalRuntimeConfigUpdate,
+    SessionSkillUpdateRequest,
+    WebSearchConfig,
+    WebSearchConfigResponse,
+)
 from app.common.constants import (
     API_KEY_KEY,
     LLM_MODEL_KEY,
@@ -37,10 +48,14 @@ from app.common.constants import (
     BROWSER_USE_SYSTEM_BROWSER_KEY,
     BROWSER_SYSTEM_BROWSER_CHANNEL_KEY,
 )
+from app.services.session_service import SessionService
+from app.services.skill_service import SkillService
 import logging
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+session_service = SessionService()
+skill_service = SkillService()
 
 SENSITIVE_CONFIG_KEYS = {
     API_KEY_KEY,
@@ -237,6 +252,51 @@ async def update_browser_config(
     )
 
     return {"message": "浏览器配置已更新"}
+
+
+@router.get("/config/runtime", response_model=GlobalRuntimeConfigResponse)
+async def get_global_runtime_config(db: AsyncSession = Depends(get_db)):
+    session = await session_service.resolve_session(db)
+    return GlobalRuntimeConfigResponse(
+        workspace_path=session.workspace_path,
+        memory_auto_extract=session.memory_auto_extract,
+        memory_threshold=session.memory_threshold,
+    )
+
+
+@router.put("/config/runtime", response_model=GlobalRuntimeConfigResponse)
+async def update_global_runtime_config(
+    payload: GlobalRuntimeConfigUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    session = await session_service.resolve_session(db)
+    changes = payload.model_dump(exclude_unset=True)
+    updated = await session_service.update(db, session.id, **changes)
+    return GlobalRuntimeConfigResponse(
+        workspace_path=updated.workspace_path,
+        memory_auto_extract=updated.memory_auto_extract,
+        memory_threshold=updated.memory_threshold,
+    )
+
+
+@router.get("/config/skills")
+async def get_global_skills(db: AsyncSession = Depends(get_db)):
+    session = await session_service.resolve_session(db)
+    return {"skills": await skill_service.list_session_skills(db, session.id)}
+
+
+@router.put("/config/skills")
+async def update_global_skills(
+    payload: SessionSkillUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    session = await session_service.resolve_session(db)
+    updated = await skill_service.update_session_skills(
+        db,
+        session.id,
+        [item.model_dump() for item in payload.skills],
+    )
+    return {"skills": updated}
 
 
 @router.get("/config", response_model=list[ConfigResponse])

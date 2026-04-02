@@ -33,8 +33,8 @@ const WebSearchConfigPanel: React.FC<WebSearchConfigPanelProps> = ({
 
   return (
     <SectionCard className="p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <span className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "var(--surface-subtle)" }}>
+      <div className="mb-4 flex items-center gap-2">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ backgroundColor: "var(--surface-subtle)" }}>
           <Globe size={16} />
         </span>
         <div>
@@ -42,16 +42,16 @@ const WebSearchConfigPanel: React.FC<WebSearchConfigPanelProps> = ({
             联网搜索配置
           </h2>
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            搜索参数实时保存，API Key 失焦保存
+            搜索参数实时保存，接口密钥失焦后保存
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="space-y-3">
           <div>
-            <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>
-              搜索提供商
+            <label className="mb-1 block text-sm" style={{ color: "var(--text-secondary)" }}>
+              搜索提供方
             </label>
             <select className="admin-select w-full px-3 py-2.5" value={config.provider} onChange={(e) => onChange("provider", e.target.value)}>
               <option value="tavily">Tavily</option>
@@ -59,17 +59,17 @@ const WebSearchConfigPanel: React.FC<WebSearchConfigPanelProps> = ({
           </div>
 
           <div>
-            <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>
-              Tavily API Key
+            <label className="mb-1 block text-sm" style={{ color: "var(--text-secondary)" }}>
+              搜索服务接口密钥
             </label>
             <div className="relative">
               <input
                 type={showTavilyKey ? "text" : "password"}
                 value={config.tavily_api_key || ""}
                 onChange={(e) => onChange("tavily_api_key", e.target.value)}
-                onBlur={handleKeyBlur}
+                onBlur={() => void handleKeyBlur()}
                 className="admin-input w-full px-3 py-2.5 pr-10"
-                placeholder={tavilyApiKeySet ? "已设置，输入可覆盖" : "输入后失焦自动保存"}
+                placeholder={tavilyApiKeySet ? "已配置，重新输入可覆盖" : "输入后失焦自动保存"}
               />
               <button
                 type="button"
@@ -88,17 +88,17 @@ const WebSearchConfigPanel: React.FC<WebSearchConfigPanelProps> = ({
               style={{ color: "var(--accent)" }}
             >
               <ExternalLink size={12} />
-              获取 Tavily API Key
+              获取搜索服务接口密钥
             </a>
           </div>
 
           <div>
-            <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>
+            <label className="mb-1 block text-sm" style={{ color: "var(--text-secondary)" }}>
               搜索深度
             </label>
             <select className="admin-select w-full px-3 py-2.5" value={config.search_depth} onChange={(e) => onChange("search_depth", e.target.value)}>
-              <option value="basic">Basic（快速）</option>
-              <option value="advanced">Advanced（更深）</option>
+              <option value="basic">标准（更快）</option>
+              <option value="advanced">深入（更全面）</option>
             </select>
           </div>
 
@@ -108,20 +108,16 @@ const WebSearchConfigPanel: React.FC<WebSearchConfigPanelProps> = ({
                 生成答案摘要
               </label>
               <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                由 Tavily 提供答案总结
+                自动生成搜索结果摘要
               </p>
             </div>
-            <Switch
-              checked={config.include_answer}
-              onChange={(checked) => onChange("include_answer", checked)}
-              ariaLabel="切换答案摘要"
-            />
+            <Switch checked={config.include_answer} onChange={(checked) => onChange("include_answer", checked)} ariaLabel="切换答案摘要" />
           </div>
         </div>
 
         <div className="space-y-3">
           <div>
-            <div className="flex items-center justify-between mb-1">
+            <div className="mb-1 flex items-center justify-between">
               <label className="text-sm" style={{ color: "var(--text-secondary)" }}>
                 结果数量
               </label>
@@ -135,13 +131,13 @@ const WebSearchConfigPanel: React.FC<WebSearchConfigPanelProps> = ({
               max="10"
               value={config.max_results}
               onChange={(e) => onChange("max_results", Number.parseInt(e.target.value, 10))}
-              className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+              className="h-2 w-full cursor-pointer appearance-none rounded-lg"
               style={{ background: sliderBackground(((config.max_results - 1) / 9) * 100) }}
             />
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1">
+            <div className="mb-1 flex items-center justify-between">
               <label className="text-sm" style={{ color: "var(--text-secondary)" }}>
                 请求超时（秒）
               </label>
@@ -156,13 +152,13 @@ const WebSearchConfigPanel: React.FC<WebSearchConfigPanelProps> = ({
               step="5"
               value={config.timeout_seconds}
               onChange={(e) => onChange("timeout_seconds", Number.parseInt(e.target.value, 10))}
-              className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+              className="h-2 w-full cursor-pointer appearance-none rounded-lg"
               style={{ background: sliderBackground(((config.timeout_seconds - 10) / 50) * 100) }}
             />
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1">
+            <div className="mb-1 flex items-center justify-between">
               <label className="text-sm" style={{ color: "var(--text-secondary)" }}>
                 缓存时长（分钟）
               </label>
@@ -176,7 +172,7 @@ const WebSearchConfigPanel: React.FC<WebSearchConfigPanelProps> = ({
               max="60"
               value={config.cache_ttl_minutes}
               onChange={(e) => onChange("cache_ttl_minutes", Number.parseInt(e.target.value, 10))}
-              className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+              className="h-2 w-full cursor-pointer appearance-none rounded-lg"
               style={{ background: sliderBackground(((config.cache_ttl_minutes - 1) / 59) * 100) }}
             />
           </div>

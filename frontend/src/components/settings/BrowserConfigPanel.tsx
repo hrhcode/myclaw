@@ -13,8 +13,8 @@ const sliderBackground = (percent: number) =>
 const BrowserConfigPanel: React.FC<BrowserConfigPanelProps> = ({ config, onChange }) => {
   return (
     <SectionCard className="p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <span className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "var(--surface-subtle)" }}>
+      <div className="mb-4 flex items-center gap-2">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ backgroundColor: "var(--surface-subtle)" }}>
           <Monitor size={16} />
         </span>
         <div>
@@ -27,10 +27,10 @@ const BrowserConfigPanel: React.FC<BrowserConfigPanelProps> = ({ config, onChang
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="space-y-3">
           <div>
-            <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>
+            <label className="mb-1 block text-sm" style={{ color: "var(--text-secondary)" }}>
               默认浏览器内核
             </label>
             <select className="admin-select w-full px-3 py-2.5" value={config.default_type} onChange={(e) => onChange("default_type", e.target.value)}>
@@ -49,16 +49,12 @@ const BrowserConfigPanel: React.FC<BrowserConfigPanelProps> = ({ config, onChang
                 优先使用本机已安装浏览器
               </p>
             </div>
-            <Switch
-              checked={config.use_system_browser}
-              onChange={(checked) => onChange("use_system_browser", checked)}
-              ariaLabel="切换系统浏览器"
-            />
+            <Switch checked={config.use_system_browser} onChange={(checked) => onChange("use_system_browser", checked)} ariaLabel="切换系统浏览器" />
           </div>
 
           {config.use_system_browser ? (
             <div>
-              <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>
+              <label className="mb-1 block text-sm" style={{ color: "var(--text-secondary)" }}>
                 浏览器通道
               </label>
               <select
@@ -66,9 +62,9 @@ const BrowserConfigPanel: React.FC<BrowserConfigPanelProps> = ({ config, onChang
                 value={config.system_browser_channel}
                 onChange={(e) => onChange("system_browser_channel", e.target.value)}
               >
-                <option value="chrome">Google Chrome</option>
-                <option value="msedge">Microsoft Edge</option>
-                <option value="firefox">Firefox</option>
+                <option value="chrome">谷歌浏览器</option>
+                <option value="msedge">微软浏览器</option>
+                <option value="firefox">火狐浏览器</option>
               </select>
             </div>
           ) : null}
@@ -82,17 +78,13 @@ const BrowserConfigPanel: React.FC<BrowserConfigPanelProps> = ({ config, onChang
                 在后台运行浏览器窗口
               </p>
             </div>
-            <Switch
-              checked={config.headless}
-              onChange={(checked) => onChange("headless", checked)}
-              ariaLabel="切换无头模式"
-            />
+            <Switch checked={config.headless} onChange={(checked) => onChange("headless", checked)} ariaLabel="切换无头模式" />
           </div>
         </div>
 
         <div className="space-y-3">
           <div>
-            <div className="flex items-center justify-between mb-1">
+            <div className="mb-1 flex items-center justify-between">
               <label className="text-sm" style={{ color: "var(--text-secondary)" }}>
                 视口宽度
               </label>
@@ -106,13 +98,13 @@ const BrowserConfigPanel: React.FC<BrowserConfigPanelProps> = ({ config, onChang
               max="1920"
               value={config.viewport_width}
               onChange={(e) => onChange("viewport_width", Number.parseInt(e.target.value, 10))}
-              className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+              className="h-2 w-full cursor-pointer appearance-none rounded-lg"
               style={{ background: sliderBackground(((config.viewport_width - 800) / 1120) * 100) }}
             />
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1">
+            <div className="mb-1 flex items-center justify-between">
               <label className="text-sm" style={{ color: "var(--text-secondary)" }}>
                 视口高度
               </label>
@@ -126,13 +118,13 @@ const BrowserConfigPanel: React.FC<BrowserConfigPanelProps> = ({ config, onChang
               max="1080"
               value={config.viewport_height}
               onChange={(e) => onChange("viewport_height", Number.parseInt(e.target.value, 10))}
-              className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+              className="h-2 w-full cursor-pointer appearance-none rounded-lg"
               style={{ background: sliderBackground(((config.viewport_height - 600) / 480) * 100) }}
             />
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1">
+            <div className="mb-1 flex items-center justify-between">
               <label className="text-sm" style={{ color: "var(--text-secondary)" }}>
                 操作超时
               </label>
@@ -147,7 +139,7 @@ const BrowserConfigPanel: React.FC<BrowserConfigPanelProps> = ({ config, onChang
               step="1000"
               value={config.timeout_ms}
               onChange={(e) => onChange("timeout_ms", Number.parseInt(e.target.value, 10))}
-              className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+              className="h-2 w-full cursor-pointer appearance-none rounded-lg"
               style={{ background: sliderBackground(((config.timeout_ms - 5000) / 55000) * 100) }}
             />
           </div>
@@ -155,7 +147,7 @@ const BrowserConfigPanel: React.FC<BrowserConfigPanelProps> = ({ config, onChang
       </div>
 
       <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--panel-border)" }}>
-        <div className="flex items-center justify-between mb-2">
+        <div className="mb-2 flex items-center justify-between">
           <div>
             <label className="text-sm" style={{ color: "var(--text-secondary)" }}>
               允许访问内网地址
@@ -166,30 +158,26 @@ const BrowserConfigPanel: React.FC<BrowserConfigPanelProps> = ({ config, onChang
           </div>
           <div className="inline-flex items-center gap-2">
             {config.ssrf_allow_private ? <AlertTriangle size={14} style={{ color: "#d97706" }} /> : null}
-            <Switch
-              checked={config.ssrf_allow_private}
-              onChange={(checked) => onChange("ssrf_allow_private", checked)}
-              ariaLabel="切换内网访问"
-            />
+            <Switch checked={config.ssrf_allow_private} onChange={(checked) => onChange("ssrf_allow_private", checked)} ariaLabel="切换内网访问" />
           </div>
         </div>
 
         <div className="mt-3">
-          <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>
+          <label className="mb-1 block text-sm" style={{ color: "var(--text-secondary)" }}>
             SSRF 白名单（逗号分隔）
           </label>
           <textarea
-            className="admin-input w-full px-3 py-2.5 resize-none"
+            className="admin-input w-full resize-none px-3 py-2.5"
             rows={3}
-            placeholder="https://example.com, https://api.example.com"
+            placeholder="请输入允许访问的地址，多个地址用逗号分隔"
             value={config.ssrf_whitelist}
             onChange={(e) => onChange("ssrf_whitelist", e.target.value)}
           />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-3">
+        <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div>
-            <div className="flex items-center justify-between mb-1">
+            <div className="mb-1 flex items-center justify-between">
               <label className="text-sm" style={{ color: "var(--text-secondary)" }}>
                 最大实例数
               </label>
@@ -203,13 +191,13 @@ const BrowserConfigPanel: React.FC<BrowserConfigPanelProps> = ({ config, onChang
               max="5"
               value={config.max_instances}
               onChange={(e) => onChange("max_instances", Number.parseInt(e.target.value, 10))}
-              className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+              className="h-2 w-full cursor-pointer appearance-none rounded-lg"
               style={{ background: sliderBackground(((config.max_instances - 1) / 4) * 100) }}
             />
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1">
+            <div className="mb-1 flex items-center justify-between">
               <label className="text-sm" style={{ color: "var(--text-secondary)" }}>
                 空闲超时
               </label>
@@ -224,7 +212,7 @@ const BrowserConfigPanel: React.FC<BrowserConfigPanelProps> = ({ config, onChang
               step="60000"
               value={config.idle_timeout_ms}
               onChange={(e) => onChange("idle_timeout_ms", Number.parseInt(e.target.value, 10))}
-              className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+              className="h-2 w-full cursor-pointer appearance-none rounded-lg"
               style={{ background: sliderBackground(((config.idle_timeout_ms - 60000) / 540000) * 100) }}
             />
           </div>

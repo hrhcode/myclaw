@@ -21,15 +21,19 @@ async def list_automations(db: AsyncSession = Depends(get_db)):
 
 @router.post("/automations", response_model=AutomationResponse)
 async def create_automation(payload: AutomationCreate, db: AsyncSession = Depends(get_db)):
-    session = await session_service.get_by_id(db, payload.session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="session not found")
-    return await automation_service.create(db, **payload.model_dump())
+    session = await session_service.resolve_session(db, payload.session_id)
+    payload_data = payload.model_dump()
+    payload_data["session_id"] = session.id
+    return await automation_service.create(db, **payload_data)
 
 
 @router.put("/automations/{automation_id}", response_model=AutomationResponse)
 async def update_automation(automation_id: int, payload: AutomationUpdate, db: AsyncSession = Depends(get_db)):
-    automation = await automation_service.update(db, automation_id, **payload.model_dump(exclude_unset=True))
+    changes = payload.model_dump(exclude_unset=True)
+    if "session_id" in changes:
+        session = await session_service.resolve_session(db, changes["session_id"])
+        changes["session_id"] = session.id
+    automation = await automation_service.update(db, automation_id, **changes)
     if not automation:
         raise HTTPException(status_code=404, detail="automation not found")
     return automation

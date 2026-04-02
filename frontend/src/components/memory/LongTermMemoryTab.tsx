@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, Plus, Search } from 'lucide-react';
 
-import { useApp } from '../../contexts/AppContext';
 import { deleteLongTermMemory, getLongTermMemories } from '../../services/api';
 import type { LongTermMemory } from '../../types';
 import { SectionCard } from '../admin';
@@ -9,14 +8,12 @@ import MemoryForm from './components/MemoryForm';
 import MemoryList from './components/MemoryList';
 
 const LongTermMemoryTab: React.FC = () => {
-  const { currentSessionId, sessions } = useApp();
   const [memories, setMemories] = useState<LongTermMemory[]>([]);
   const [filteredMemories, setFilteredMemories] = useState<LongTermMemory[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'created_at' | 'importance' | 'updated_at'>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [filterImportance, setFilterImportance] = useState<'all' | 'high' | 'medium' | 'low'>('all');
-  const [scope, setScope] = useState<'all' | 'current'>('all');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingMemory, setEditingMemory] = useState<LongTermMemory | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -25,17 +22,17 @@ const LongTermMemoryTab: React.FC = () => {
   const loadMemories = useCallback(async () => {
     try {
       setIsLoading(true);
-      const data = await getLongTermMemories(scope === 'current' ? currentSessionId || undefined : undefined);
+      const data = await getLongTermMemories();
       setMemories(data);
     } catch (error) {
       console.error('Failed to load memories:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [currentSessionId, scope]);
+  }, []);
 
   useEffect(() => {
-    loadMemories();
+    void loadMemories();
   }, [loadMemories]);
 
   useEffect(() => {
@@ -93,14 +90,9 @@ const LongTermMemoryTab: React.FC = () => {
     }
   };
 
-  const sessionLabel =
-    scope === 'current' && currentSessionId
-      ? sessions.find((session) => session.id === currentSessionId)?.name || `工作会话 ${currentSessionId}`
-      : '全部工作会话';
-
   if (isLoading) {
     return (
-      <div className="h-full flex items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <Loader2 size={36} className="text-primary animate-spin" />
       </div>
     );
@@ -121,7 +113,7 @@ const LongTermMemoryTab: React.FC = () => {
           <span>新增记忆</span>
         </button>
 
-        <div className="relative flex-1 min-w-[220px]">
+        <div className="relative min-w-[220px] flex-1">
           <Search
             size={16}
             className="absolute left-3 top-1/2 -translate-y-1/2"
@@ -129,17 +121,12 @@ const LongTermMemoryTab: React.FC = () => {
           />
           <input
             type="text"
-            className="admin-input w-full pl-9 pr-3 py-2.5"
+            className="admin-input w-full py-2.5 pl-9 pr-3"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="搜索记忆内容、标签或来源"
           />
         </div>
-
-        <select className="admin-select px-3 py-2.5" value={scope} onChange={(event) => setScope(event.target.value as 'all' | 'current')}>
-          <option value="all">全部工作会话</option>
-          <option value="current">当前工作会话</option>
-        </select>
 
         <select
           className="admin-select px-3 py-2.5"
@@ -172,14 +159,13 @@ const LongTermMemoryTab: React.FC = () => {
 
       <SectionCard className="px-3 py-2 text-sm">
         <span style={{ color: 'var(--text-muted)' }}>
-          {sessionLabel}中共有 {filteredMemories.length} 条记忆
+          当前筛选出 {filteredMemories.length} 条记忆
           {memories.length !== filteredMemories.length ? `（总计 ${memories.length} 条）` : ''}
         </span>
       </SectionCard>
 
       <MemoryList
         memories={filteredMemories}
-        sessions={sessions}
         onEdit={(memory) => {
           setEditingMemory(memory);
           setIsFormOpen(true);
@@ -190,7 +176,6 @@ const LongTermMemoryTab: React.FC = () => {
       {isFormOpen ? (
         <MemoryForm
           memory={editingMemory}
-          defaultSessionId={currentSessionId}
           onSave={handleSave}
           onClose={() => {
             setIsFormOpen(false);
@@ -200,8 +185,8 @@ const LongTermMemoryTab: React.FC = () => {
       ) : null}
 
       {deleteConfirm !== null ? (
-        <div className="fixed inset-0 bg-black/45 flex items-center justify-center z-50" onClick={() => setDeleteConfirm(null)}>
-          <SectionCard className="w-full max-w-md p-5 mx-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45" onClick={() => setDeleteConfirm(null)}>
+          <SectionCard className="mx-4 w-full max-w-md p-5">
             <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
               删除记忆
             </h3>
@@ -214,9 +199,9 @@ const LongTermMemoryTab: React.FC = () => {
               </button>
               <button
                 type="button"
-                className="px-4 py-2 rounded-xl text-sm font-semibold"
+                className="rounded-xl px-4 py-2 text-sm font-semibold"
                 style={{ backgroundColor: '#dc2626', color: '#fff' }}
-                onClick={() => handleDelete(deleteConfirm)}
+                onClick={() => void handleDelete(deleteConfirm)}
               >
                 删除
               </button>

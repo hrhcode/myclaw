@@ -17,7 +17,7 @@ interface CommandItem {
 const COMMANDS: CommandItem[] = [
   {
     command: '/new',
-    description: '创建一条新的聊天记录',
+    description: '创建一个新会话',
     icon: <PlusCircle size={15} />,
   },
 ];
@@ -34,9 +34,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const filteredCommands = message.startsWith('/')
-    ? COMMANDS.filter((cmd) =>
-        cmd.command.toLowerCase().startsWith(message.toLowerCase()),
-      )
+    ? COMMANDS.filter((cmd) => cmd.command.toLowerCase().startsWith(message.toLowerCase()))
     : [];
 
   useEffect(() => {
@@ -81,17 +79,13 @@ const MessageInput: React.FC<MessageInputProps> = ({
     if (showCommands && filteredCommands.length > 0) {
       if (event.key === 'ArrowDown') {
         event.preventDefault();
-        setSelectedCommandIndex((prev) =>
-          prev < filteredCommands.length - 1 ? prev + 1 : 0,
-        );
+        setSelectedCommandIndex((prev) => (prev < filteredCommands.length - 1 ? prev + 1 : 0));
         return;
       }
 
       if (event.key === 'ArrowUp') {
         event.preventDefault();
-        setSelectedCommandIndex((prev) =>
-          prev > 0 ? prev - 1 : filteredCommands.length - 1,
-        );
+        setSelectedCommandIndex((prev) => (prev > 0 ? prev - 1 : filteredCommands.length - 1));
         return;
       }
 
@@ -120,9 +114,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
       <form onSubmit={handleSubmit} className="chat-composer relative">
         <motion.div
           animate={{
-            borderColor: isFocused
-              ? 'var(--accent-soft)'
-              : 'var(--panel-border)',
+            borderColor: isFocused ? 'var(--accent-soft)' : 'var(--panel-border)',
             boxShadow: isFocused
               ? '0 0 0 1px var(--accent-soft), var(--shadow-md)'
               : 'var(--shadow-sm)',
@@ -137,7 +129,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
             onKeyDown={handleKeyDown}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            placeholder="给 AI 发送消息，Enter 发送，Shift + Enter 换行"
+            placeholder="给智能体发送消息，回车发送，Shift + 回车换行"
             disabled={disabled}
             rows={1}
             className="chat-composer-input"
@@ -159,18 +151,14 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 className={`chat-send-button ${canSend ? 'is-ready' : ''}`}
                 aria-label={disabled ? '正在发送消息' : '发送消息'}
               >
-                {disabled ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <SendHorizonal size={16} />
-                )}
+                {disabled ? <Loader2 size={16} className="animate-spin" /> : <SendHorizonal size={16} />}
               </motion.button>
             </div>
           </div>
         </motion.div>
 
         <AnimatePresence>
-          {showCommands && filteredCommands.length > 0 && (
+          {showCommands && filteredCommands.length > 0 ? (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -189,16 +177,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 >
                   <span className="command-panel-icon">{cmd.icon}</span>
                   <span className="command-panel-command">{cmd.command}</span>
-                  <span className="command-panel-description">
-                    {cmd.description}
-                  </span>
+                  <span className="command-panel-description">{cmd.description}</span>
                 </button>
               ))}
-              <div className="command-panel-footer">
-                上下选择，Tab 或 Enter 确认
-              </div>
+              <div className="command-panel-footer">上下选择，Tab 或 Enter 确认</div>
             </motion.div>
-          )}
+          ) : null}
         </AnimatePresence>
       </form>
     </div>
