@@ -38,6 +38,10 @@ async def ensure_runtime_schema(engine: AsyncEngine) -> None:
         await _ensure_column(conn, "conversations", "session_id", "INTEGER")
         await _ensure_column(conn, "messages", "session_id", "INTEGER")
         await _ensure_column(conn, "long_term_memory", "session_id", "INTEGER")
+        await _ensure_column(conn, "long_term_memory", "title", "VARCHAR")
+        await _ensure_column(conn, "long_term_memory", "content_type", "VARCHAR NOT NULL DEFAULT 'note'")
+        await _ensure_column(conn, "long_term_memory", "group_id", "VARCHAR")
+        await _ensure_column(conn, "long_term_memory", "origin_message_id", "INTEGER")
         await _ensure_column(conn, "tool_calls", "session_id", "INTEGER")
         await _ensure_column(conn, "agent_events", "session_id", "INTEGER")
         await conn.execute(
@@ -62,6 +66,7 @@ async def ensure_runtime_schema(engine: AsyncEngine) -> None:
                 CREATE TABLE IF NOT EXISTS automations (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name VARCHAR NOT NULL,
+                    conversation_id INTEGER,
                     session_id INTEGER NOT NULL,
                     prompt TEXT NOT NULL,
                     schedule_type VARCHAR NOT NULL,
@@ -72,6 +77,7 @@ async def ensure_runtime_schema(engine: AsyncEngine) -> None:
                     next_run_at DATETIME,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
                     FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
                 )
                 """
@@ -96,6 +102,7 @@ async def ensure_runtime_schema(engine: AsyncEngine) -> None:
                 """
             )
         )
+        await _ensure_column(conn, "automations", "conversation_id", "INTEGER")
         await _ensure_column(conn, "automations", "timezone", "VARCHAR NOT NULL DEFAULT 'UTC'")
         await _ensure_column(conn, "automation_runs", "trigger_mode", "VARCHAR NOT NULL DEFAULT 'scheduled'")
         await conn.execute(

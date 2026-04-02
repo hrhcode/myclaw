@@ -197,16 +197,20 @@ class AutomationService:
         }
 
     def _prepare_payload(self, data: dict[str, Any], *, existing: Optional[Any] = None) -> dict[str, Any]:
+        conversation_id = data.get("conversation_id", getattr(existing, "conversation_id", None))
         schedule_type = data.get("schedule_type", getattr(existing, "schedule_type", None))
         schedule_value = data.get("schedule_value", getattr(existing, "schedule_value", None))
         timezone = data.get("timezone", getattr(existing, "timezone", "UTC"))
 
+        if conversation_id is None:
+            raise ValueError("conversation_id is required")
         if not schedule_type or not schedule_value:
             raise ValueError("schedule_type and schedule_value are required")
 
         validate_schedule(schedule_type, schedule_value, timezone)
 
         payload = dict(data)
+        payload["conversation_id"] = conversation_id
         payload["timezone"] = timezone
         if payload.get("enabled", getattr(existing, "enabled", True)):
             next_run_at = compute_next_run(
@@ -244,6 +248,15 @@ class AutomationService:
     async def list_runs(self, db: AsyncSession, automation_id: int):
         return await AutomationRunDAO.list_by_automation(db, automation_id)
 
+    async def clear_runs(self, db: AsyncSession, automation_id: int) -> Optional[int]:
+        automation = await AutomationDAO.get_by_id(db, automation_id)
+        if not automation:
+            return None
+        running_count = await AutomationRunDAO.count_running_for_automation(db, automation_id)
+        if running_count > 0:
+            raise ValueError("cannot clear run history while automation is running")
+        return await AutomationRunDAO.clear_by_automation(db, automation_id)
+
     async def _execute_run(self, db: AsyncSession, automation, runner, *, trigger_mode: str) -> str:
         run = await AutomationRunDAO.create(
             db,
@@ -254,7 +267,7 @@ class AutomationService:
         )
         completed_at = _utc_now()
         try:
-            run_id = await runner(automation.session_id, automation.prompt, automation.id)
+            run_id = await runner(automation.conversation_id, automation.prompt, automation.id)
             await AutomationRunDAO.update(
                 db,
                 run,

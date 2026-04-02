@@ -79,8 +79,12 @@ class LongTermMemory(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(Integer, ForeignKey("sessions.id", ondelete="SET NULL"), nullable=True, index=True)
+    title = Column(String, nullable=True)
     key = Column(String, nullable=True)
     content = Column(String, nullable=False)
+    content_type = Column(String, nullable=False, default="note")
+    group_id = Column(String, nullable=True, index=True)
+    origin_message_id = Column(Integer, ForeignKey("messages.id", ondelete="SET NULL"), nullable=True, index=True)
     embedding = Column(LargeBinary, nullable=True)
     embedding_model = Column(String, nullable=True)
     importance = Column(Float, default=0.5)
@@ -193,6 +197,7 @@ class Automation(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=True, index=True)
     session_id = Column(Integer, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, index=True)
     prompt = Column(Text, nullable=False)
     schedule_type = Column(String, nullable=False)
@@ -205,6 +210,7 @@ class Automation(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     session = relationship("Session", back_populates="automations")
+    conversation = relationship("Conversation")
     runs = relationship("AutomationRun", back_populates="automation", cascade="all, delete-orphan")
 
 

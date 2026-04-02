@@ -10,7 +10,7 @@ import type {
   Message,
 } from "../../types";
 import { useApp } from "../../contexts/AppContext";
-import { getConfig, sendMessageStream } from "../../services/api";
+import { getConfig, saveMessageToKnowledge, sendMessageStream } from "../../services/api";
 import MainLayout from "../layout/MainLayout";
 import MessageInput from "./MessageInput";
 import MessageList from "./MessageList";
@@ -68,6 +68,7 @@ const ChatPage: React.FC = () => {
   } = useApp();
 
   const [isSending, setIsSending] = useState(false);
+  const [savingKnowledgeMessageId, setSavingKnowledgeMessageId] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const chunkBufferRef = useRef("");
   const flushTimerRef = useRef<number | null>(null);
@@ -290,6 +291,19 @@ const ChatPage: React.FC = () => {
     }
   };
 
+  const handleSaveAssistantMessage = async (message: Message) => {
+    try {
+      setSavingKnowledgeMessageId(message.id);
+      await saveMessageToKnowledge(message.id);
+      showNotice("已保存到知识库");
+    } catch (error) {
+      console.error("Failed to save assistant message to knowledge base:", error);
+      showNotice("保存到知识库失败");
+    } finally {
+      setSavingKnowledgeMessageId(null);
+    }
+  };
+
   return (
     <MainLayout
       headerTitle="对话"
@@ -349,7 +363,11 @@ const ChatPage: React.FC = () => {
           </div>
         ) : null}
 
-        <MessageList messages={messages} />
+        <MessageList
+          messages={messages}
+          onSaveAssistantMessage={handleSaveAssistantMessage}
+          savingMessageId={savingKnowledgeMessageId}
+        />
         <MessageInput
           onSendMessage={handleSendMessage}
           disabled={isSending}

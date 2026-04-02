@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from datetime import datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.models import Automation, AutomationRun
@@ -77,6 +77,17 @@ class AutomationRunDAO:
         return record
 
     @staticmethod
+    async def clear_by_automation(db: AsyncSession, automation_id: int) -> int:
+        result = await db.execute(
+            delete(AutomationRun).where(
+                AutomationRun.automation_id == automation_id,
+                AutomationRun.status != "running",
+            )
+        )
+        await db.commit()
+        return int(result.rowcount or 0)
+
+    @staticmethod
     async def update(db: AsyncSession, run: AutomationRun, **changes) -> AutomationRun:
         for key, value in changes.items():
             setattr(run, key, value)
@@ -87,6 +98,15 @@ class AutomationRunDAO:
     @staticmethod
     async def count_running(db: AsyncSession) -> int:
         result = await db.execute(select(func.count()).select_from(AutomationRun).where(AutomationRun.status == "running"))
+        return int(result.scalar_one() or 0)
+
+    @staticmethod
+    async def count_running_for_automation(db: AsyncSession, automation_id: int) -> int:
+        result = await db.execute(
+            select(func.count())
+            .select_from(AutomationRun)
+            .where(AutomationRun.automation_id == automation_id, AutomationRun.status == "running")
+        )
         return int(result.scalar_one() or 0)
 
     @staticmethod

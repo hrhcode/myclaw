@@ -30,7 +30,8 @@ const App: React.FC = () => {
               <Route path="/chat" element={<ChatPage />} />
               <Route path="/chat/:conversationId" element={<ChatPage />} />
               <Route path="/conversations" element={<ConversationsPage />} />
-              <Route path="/memory" element={<MemoryPage />} />
+              <Route path="/memory" element={<Navigate to="/knowledge" replace />} />
+              <Route path="/knowledge" element={<MemoryPage />} />
               <Route path="/automations" element={<AutomationsPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/tools" element={<ToolsPage />} />

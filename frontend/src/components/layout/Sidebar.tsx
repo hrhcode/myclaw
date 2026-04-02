@@ -58,8 +58,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
             icon: <Clock3 size={16} />,
           },
           {
-            path: "/memory",
-            label: "记忆",
+            path: "/knowledge",
+            label: "知识库",
             icon: <Brain size={16} />,
           },
         ],

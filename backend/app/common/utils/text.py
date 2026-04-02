@@ -2,6 +2,7 @@
 文本处理工具函数模块
 """
 import logging
+import re
 from typing import List, Dict
 
 logger = logging.getLogger(__name__)
@@ -109,3 +110,63 @@ def jaccard_similarity(text1: str, text2: str) -> float:
         return 0.0
     
     return intersection / union
+
+
+def chunk_markdown_text(text: str, max_chars: int = 1200, overlap_chars: int = 150) -> List[str]:
+    """Split markdown text into retrieval-friendly chunks."""
+    normalized = (text or "").replace("\r\n", "\n").strip()
+    if not normalized:
+        return []
+
+    sections = re.split(r"(?m)(?=^#{1,6}\s+)", normalized)
+    sections = [section.strip() for section in sections if section.strip()]
+    if not sections:
+        sections = [normalized]
+
+    chunks: List[str] = []
+    current = ""
+
+    def flush_current() -> None:
+        nonlocal current
+        if current.strip():
+            chunks.append(current.strip())
+        current = ""
+
+    for section in sections:
+        if len(section) <= max_chars:
+            candidate = f"{current}\n\n{section}".strip() if current else section
+            if len(candidate) <= max_chars:
+                current = candidate
+            else:
+                flush_current()
+                current = section
+            continue
+
+        flush_current()
+        paragraphs = [paragraph.strip() for paragraph in re.split(r"\n{2,}", section) if paragraph.strip()]
+        buffer = ""
+        for paragraph in paragraphs:
+            candidate = f"{buffer}\n\n{paragraph}".strip() if buffer else paragraph
+            if len(candidate) <= max_chars:
+                buffer = candidate
+                continue
+            if buffer:
+                chunks.append(buffer.strip())
+            if len(paragraph) <= max_chars:
+                buffer = paragraph
+                continue
+
+            start = 0
+            step = max(max_chars - overlap_chars, 1)
+            while start < len(paragraph):
+                piece = paragraph[start:start + max_chars].strip()
+                if piece:
+                    chunks.append(piece)
+                start += step
+            buffer = ""
+
+        if buffer:
+            chunks.append(buffer.strip())
+
+    flush_current()
+    return chunks

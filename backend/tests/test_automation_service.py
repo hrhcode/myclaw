@@ -45,6 +45,7 @@ class AutomationServiceTestCase(unittest.IsolatedAsyncioTestCase):
         db = object()
         automation = SimpleNamespace(
             id=9,
+            conversation_id=31,
             session_id=3,
             prompt="/status",
             schedule_type="interval",
@@ -62,7 +63,7 @@ class AutomationServiceTestCase(unittest.IsolatedAsyncioTestCase):
         ):
             await service.run_due_once(db, runner)
 
-        runner.assert_awaited_once_with(3, "/status", 9)
+        runner.assert_awaited_once_with(31, "/status", 9)
         self.assertEqual(update_run.await_args_list[-1].kwargs["status"], "success")
         self.assertGreaterEqual(update_automation.await_count, 1)
 
@@ -71,6 +72,7 @@ class AutomationServiceTestCase(unittest.IsolatedAsyncioTestCase):
         db = object()
         automation = SimpleNamespace(
             id=12,
+            conversation_id=42,
             session_id=4,
             prompt="/status",
             schedule_type="interval",
@@ -88,7 +90,7 @@ class AutomationServiceTestCase(unittest.IsolatedAsyncioTestCase):
         ):
             await service.run_due_once(db, runner)
 
-        runner.assert_awaited_once_with(4, "/status", 12)
+        runner.assert_awaited_once_with(42, "/status", 12)
         failure_call = update_run.await_args_list[-1]
         self.assertEqual(failure_call.kwargs["status"], "failed")
         self.assertIn("boom", failure_call.kwargs["error"])
@@ -99,6 +101,7 @@ class AutomationServiceTestCase(unittest.IsolatedAsyncioTestCase):
         db = object()
         automation = SimpleNamespace(
             id=22,
+            conversation_id=52,
             session_id=5,
             prompt="hello",
             schedule_type="once",
@@ -120,6 +123,33 @@ class AutomationServiceTestCase(unittest.IsolatedAsyncioTestCase):
         update_call = update_automation.await_args_list[-1]
         self.assertFalse(update_call.kwargs["enabled"])
         self.assertIsNone(update_call.kwargs["next_run_at"])
+
+    async def test_clear_runs_deletes_history_when_not_running(self):
+        service = AutomationService()
+        db = object()
+        automation = SimpleNamespace(id=31)
+
+        with (
+            patch("app.services.automation_service.AutomationDAO.get_by_id", new=AsyncMock(return_value=automation)),
+            patch("app.services.automation_service.AutomationRunDAO.count_running_for_automation", new=AsyncMock(return_value=0)),
+            patch("app.services.automation_service.AutomationRunDAO.clear_by_automation", new=AsyncMock(return_value=7)) as clear_runs,
+        ):
+            deleted_count = await service.clear_runs(db, 31)
+
+        self.assertEqual(deleted_count, 7)
+        clear_runs.assert_awaited_once_with(db, 31)
+
+    async def test_clear_runs_rejects_when_running(self):
+        service = AutomationService()
+        db = object()
+        automation = SimpleNamespace(id=32)
+
+        with (
+            patch("app.services.automation_service.AutomationDAO.get_by_id", new=AsyncMock(return_value=automation)),
+            patch("app.services.automation_service.AutomationRunDAO.count_running_for_automation", new=AsyncMock(return_value=1)),
+        ):
+            with self.assertRaises(ValueError):
+                await service.clear_runs(db, 32)
 
 
 if __name__ == "__main__":

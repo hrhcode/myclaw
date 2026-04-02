@@ -4,6 +4,7 @@ import { AlertCircle, CheckCircle, Cpu, Eye, EyeOff, Loader2 } from "lucide-reac
 
 import MainLayout from "../layout/MainLayout";
 import { SectionCard } from "../admin";
+import SearchConfigPanel from "../memory/components/SearchConfigPanel";
 import BrowserConfigPanel from "./BrowserConfigPanel";
 import WebSearchConfigPanel from "./WebSearchConfigPanel";
 import {
@@ -84,6 +85,34 @@ const defaultRuntimeConfig: GlobalRuntimeConfig = {
   memory_threshold: 8,
 };
 
+type MemoryRetrievalConfig = {
+  memory_top_k: string;
+  memory_min_score: string;
+  memory_use_hybrid: string;
+  memory_vector_weight: string;
+  memory_text_weight: string;
+  memory_enable_mmr: string;
+  memory_mmr_lambda: string;
+  memory_enable_temporal_decay: string;
+  memory_half_life_days: string;
+};
+
+const defaultMemoryRetrievalConfig: MemoryRetrievalConfig = {
+  memory_top_k: "5",
+  memory_min_score: "0.5",
+  memory_use_hybrid: "true",
+  memory_vector_weight: "0.7",
+  memory_text_weight: "0.3",
+  memory_enable_mmr: "true",
+  memory_mmr_lambda: "0.7",
+  memory_enable_temporal_decay: "true",
+  memory_half_life_days: "30",
+};
+
+const MEMORY_RETRIEVAL_KEYS = Object.keys(
+  defaultMemoryRetrievalConfig,
+) as Array<keyof MemoryRetrievalConfig>;
+
 const SettingsPage: React.FC = () => {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [models, setModels] = useState<Model[]>([]);
@@ -107,6 +136,9 @@ const SettingsPage: React.FC = () => {
   });
   const [browserConfig, setBrowserConfigState] = useState<BrowserConfig>(defaultBrowserConfig);
   const [runtimeConfig, setRuntimeConfig] = useState<GlobalRuntimeConfig>(defaultRuntimeConfig);
+  const [memoryRetrievalConfig, setMemoryRetrievalConfig] = useState<MemoryRetrievalConfig>(
+    defaultMemoryRetrievalConfig,
+  );
   const [availableSkills, setAvailableSkills] = useState<Skill[]>([]);
   const [enabledSkills, setEnabledSkills] = useState<SessionSkill[]>([]);
 
@@ -201,6 +233,22 @@ const SettingsPage: React.FC = () => {
         setEnabledSkills(activeSkills);
       } catch (error) {
         console.error("Failed to load global runtime settings:", error);
+      }
+
+      try {
+        const entries = await Promise.all(
+          MEMORY_RETRIEVAL_KEYS.map(async (key) => {
+            const value = await getConfig(key).catch(() => defaultMemoryRetrievalConfig[key]);
+            return [key, value] as const;
+          }),
+        );
+        const nextConfig = entries.reduce(
+          (acc, [key, value]) => ({ ...acc, [key]: value }),
+          defaultMemoryRetrievalConfig,
+        );
+        setMemoryRetrievalConfig(nextConfig);
+      } catch (error) {
+        console.error("Failed to load memory retrieval config:", error);
       }
 
       const savedProvider = await getConfig("llm_provider").catch(() => "");
@@ -366,6 +414,19 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  const handleMemoryRetrievalChange = async (
+    key: keyof MemoryRetrievalConfig,
+    value: string,
+  ) => {
+    setMemoryRetrievalConfig((prev) => ({ ...prev, [key]: value }));
+    try {
+      await setConfig(key, value);
+    } catch (error) {
+      console.error(`Failed to save ${key}:`, error);
+      showMessage("error", "记忆检索设置保存失败");
+    }
+  };
+
   const handleToggleSkill = async (skill: Skill, checked: boolean) => {
     const nextSkills = checked
       ? [
@@ -505,6 +566,19 @@ const SettingsPage: React.FC = () => {
           </div>
 
           <WebSearchConfigPanel config={webSearchConfig} onChange={handleWebSearchConfigChange} onSaveKey={handleSaveWebSearchKey} tavilyApiKeySet={existingWebSearchKeys.tavily} />
+
+          <SectionCard className="p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ backgroundColor: "var(--surface-subtle)" }}>
+                <Cpu size={16} />
+              </span>
+              <div>
+                <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>记忆与检索</h2>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>控制知识库与历史消息的 RAG 召回策略</p>
+              </div>
+            </div>
+            <SearchConfigPanel config={memoryRetrievalConfig} onChange={handleMemoryRetrievalChange} />
+          </SectionCard>
 
           <SectionCard className="p-5">
             <div className="mb-4 flex items-center gap-2">
