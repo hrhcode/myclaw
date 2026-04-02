@@ -5,7 +5,7 @@ import json
 import logging
 import os
 from datetime import datetime
-from typing import Any, AsyncIterator, Dict, List, Optional
+from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +18,7 @@ from app.dao.agent_event_dao import AgentEventDAO
 from app.dao.agent_run_dao import AgentRunDAO
 from app.dao.memory_dao import MemoryDAO
 from app.dao.tool_call_dao import ToolCallDAO
-from app.schemas.schemas import ChatRequest
+from app.schemas.schemas import ChatRequest, MemorySearchResult
 from app.services.conversation_service import ConversationService
 from app.services.llm_service import get_llm_service
 from app.services.message_service import MessageService
@@ -46,10 +46,33 @@ def build_memory_context(memory_results: List[Any]) -> str:
 
     lines = ["## Relevant Memory"]
     for result in memory_results:
-        source_label = "message" if result.source == "message" else "long_term_memory"
+        source_label = "message" if str(result.source).startswith("message") else "knowledge"
         lines.append(f"- [{source_label}] {result.content} (score {result.score:.2f})")
     lines.append("")
     return "\n".join(lines)
+
+
+def build_knowledge_hits(memory_results: List[MemorySearchResult]) -> List[Dict[str, Any]]:
+    hits: List[Dict[str, Any]] = []
+    for result in memory_results:
+        if not str(result.source).startswith("long_term_memory"):
+            continue
+
+        hits.append(
+            {
+                "memory_id": result.memory_id,
+                "title": (
+                    result.title
+                    or (f"Knowledge #{result.memory_id}" if result.memory_id else "Knowledge")
+                ),
+                "content": result.content,
+                "content_type": result.content_type or "note",
+                "score": result.score,
+                "source": result.source,
+                "created_at": result.created_at.isoformat() if result.created_at else None,
+            }
+        )
+    return hits
 
 
 class AgentLoopController:
@@ -90,7 +113,7 @@ class AgentLoopController:
         await self.message_service.save(db, session.id, conversation_id, "user", request.message)
 
         message_history = await self.message_service.get_model_history(db, conversation_id)
-        memory_context = await self._load_memory_context(db, conversation_id, request.message)
+        memory_context, memory_results = await self._load_memory_context(db, conversation_id, request.message)
         skill_context = await self.skill_service.build_session_skill_context(db, session.id)
         workspace_context = self.skill_service.build_workspace_prompt_context(session.workspace_path)
 
@@ -131,6 +154,22 @@ class AgentLoopController:
             },
             persist=False,
         )
+
+        knowledge_hits = build_knowledge_hits(memory_results)
+        if knowledge_hits:
+            yield await self._emit_event(
+                db,
+                state,
+                {
+                    "type": "knowledge_hits",
+                    "hits": knowledge_hits,
+                    "conversation_id": conversation_id,
+                    "run_id": state.run_id,
+                    "session_id": session.id,
+                },
+                persist=True,
+                event_type="knowledge_hits",
+            )
 
         llm = get_llm_service(api_key)
         loop_detector = create_loop_detector()
@@ -456,9 +495,11 @@ class AgentLoopController:
             await MemoryDAO.create(
                 db,
                 session_id=session.id,
+                title=f"Auto extract {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
                 content=self._truncate_text(combined, 2000),
                 importance=0.6,
                 source=f"session:{session.name}:auto_extract",
+                content_type="note",
             )
         except Exception:
             logger.exception("[agent_loop] automatic memory extraction failed")
@@ -468,18 +509,28 @@ class AgentLoopController:
         db: AsyncSession,
         session_id: int,
         message: str,
+        conversation_id: Optional[int] = None,
     ) -> Dict[str, Any]:
-        stream = self.run_stream(ChatRequest(session_id=session_id, message=message), db)
+        stream = self.run_stream(ChatRequest(session_id=session_id, conversation_id=conversation_id, message=message), db)
         final_event: Dict[str, Any] = {"session_id": session_id}
         async for event in stream:
             final_event = event
         return final_event
 
-    async def dispatch_message_for_automation(self, session_id: int, message: str, automation_id: Optional[int] = None) -> str:
+    async def dispatch_message_for_automation(self, conversation_id: int, message: str, automation_id: Optional[int] = None) -> str:
         from app.core.database import AsyncSessionLocal
+        from app.dao.conversation_dao import ConversationDAO
+        from app.services.session_service import SessionService
 
         async with AsyncSessionLocal() as db:
-            result = await self.dispatch_message(db, session_id, message)
+            conversation = await ConversationDAO.get_by_id(db, conversation_id)
+            if not conversation:
+                raise ValueError(f"conversation not found: {conversation_id}")
+            session_id = conversation.session_id
+            if session_id is None:
+                session = await SessionService().resolve_session(db)
+                session_id = session.id
+            result = await self.dispatch_message(db, session_id, message, conversation_id=conversation_id)
             return str(result.get("run_id") or "")
 
     async def _handle_command(
@@ -576,7 +627,7 @@ class AgentLoopController:
         db: AsyncSession,
         conversation_id: int,
         user_message: str,
-    ) -> str:
+    ) -> Tuple[str, List[MemorySearchResult]]:
         memory_top_k = await get_config_value(db, "memory_top_k")
         memory_min_score = await get_config_value(db, "memory_min_score")
         memory_use_hybrid = await get_config_value(db, "memory_use_hybrid")
@@ -603,7 +654,7 @@ class AgentLoopController:
             enable_temporal_decay=(memory_enable_temporal_decay == "true") if memory_enable_temporal_decay else True,
             half_life_days=int(memory_half_life_days) if memory_half_life_days else 30,
         )
-        return build_memory_context(memory_results)
+        return build_memory_context(memory_results), memory_results
 
     def _build_initial_messages(
         self,

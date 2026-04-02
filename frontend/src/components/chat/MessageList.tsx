@@ -1,11 +1,13 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import {
   AlertTriangle,
+  BookOpenText,
   Bot,
   CheckCircle2,
+  Database,
   Loader2,
   Search,
   Sparkles,
@@ -13,11 +15,13 @@ import {
   Wrench,
 } from "lucide-react";
 
-import type { AgentTraceEvent, Message } from "../../types";
+import type { AgentTraceEvent, KnowledgeHit, Message } from "../../types";
 import CodeBlock from "./CodeBlock";
 
 interface MessageListProps {
   messages: Message[];
+  onSaveAssistantMessage?: (message: Message) => void | Promise<void>;
+  savingMessageId?: number | null;
 }
 
 interface TraceDisplayItem {
@@ -61,10 +65,10 @@ const EmptyState: React.FC = () => (
         <Sparkles size={40} className="text-primary" />
       </motion.div>
       <h3 className="mb-2 text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
-        开始一段新的对话
+        开始一段新对话
       </h3>
       <p className="mx-auto max-w-xs text-sm" style={{ color: "var(--text-muted)" }}>
-        这里适合研究、编码、分析和多步骤推理。智能体的回复与执行轨迹会保持清晰、克制地展开。
+        这里适合研究、编码、分析和多步推理。回复与思考会以更克制的方式展开。
       </p>
     </div>
   </motion.div>
@@ -112,6 +116,10 @@ const buildTraceDisplayItems = (events: AgentTraceEvent[] = []): TraceDisplayIte
   for (let index = 0; index < events.length; index += 1) {
     const event = events[index];
 
+    if (event.type === "knowledge_hits") {
+      continue;
+    }
+
     if (event.type === "tool_result" && consumedToolResultIndexes.has(index)) {
       continue;
     }
@@ -140,6 +148,16 @@ const buildTraceDisplayItems = (events: AgentTraceEvent[] = []): TraceDisplayIte
   }
 
   return items;
+};
+
+const getKnowledgeHitsFromEvents = (events: AgentTraceEvent[] = []): KnowledgeHit[] => {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (event.type === "knowledge_hits" && event.payload.hits?.length) {
+      return event.payload.hits;
+    }
+  }
+  return [];
 };
 
 const AssistantMarkdownBody: React.FC<{ content: string }> = ({ content }) => (
@@ -318,7 +336,7 @@ const TraceEventCard: React.FC<{
 
             {(event.type === "progress_warning" || event.type === "loop_warning") ? (
               <div className="trace-event-content whitespace-pre-wrap text-sm">
-                {event.payload.message || "检测到进展停滞后，智能体已调整执行策略。"}
+                {event.payload.message || "检测到最近进展有限，智能体已经调整执行策略。"}
               </div>
             ) : null}
           </div>
@@ -332,7 +350,7 @@ const AssistantTraceTimeline: React.FC<{
   traceEvents?: AgentTraceEvent[];
   isStreaming?: boolean;
 }> = ({ traceEvents, isStreaming }) => {
-  const items = buildTraceDisplayItems(traceEvents || []);
+  const items = useMemo(() => buildTraceDisplayItems(traceEvents || []), [traceEvents]);
 
   if (items.length === 0 && !isStreaming) {
     return null;
@@ -340,7 +358,7 @@ const AssistantTraceTimeline: React.FC<{
 
   return (
     <div className="assistant-trace">
-      <div className="assistant-trace__label">执行过程</div>
+      <div className="assistant-trace__label">思考</div>
       <div className="assistant-trace__timeline">
         {items.map((item, index) => (
           <TraceEventCard key={item.event.id} item={item} index={index} />
@@ -356,14 +374,47 @@ const AssistantTraceTimeline: React.FC<{
   );
 };
 
+const summarizeKnowledgeHit = (content: string) => content.replace(/\s+/g, " ").trim().slice(0, 120);
+
+const KnowledgeHitList: React.FC<{ hits: KnowledgeHit[] }> = ({ hits }) => {
+  if (hits.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="knowledge-hit-strip">
+      <div className="knowledge-hit-strip__label">
+        <Database size={13} />
+        <span>命中知识库</span>
+      </div>
+      <div className="knowledge-hit-strip__list">
+        {hits.slice(0, 3).map((hit, index) => (
+          <div
+            key={`${hit.memory_id || "knowledge"}-${index}`}
+            className="knowledge-hit-chip"
+            title={hit.content}
+          >
+            <span className="knowledge-hit-chip__title">{hit.title || "知识片段"}</span>
+            <span className="knowledge-hit-chip__snippet">{summarizeKnowledgeHit(hit.content)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const AssistantResponseBlock: React.FC<{
-  content: string;
+  message: Message;
   isStreaming?: boolean;
-}> = ({ content, isStreaming }) => {
-  if (content === "") {
+  onSaveAssistantMessage?: (message: Message) => void | Promise<void>;
+  savingMessageId?: number | null;
+}> = ({ message, isStreaming, onSaveAssistantMessage, savingMessageId }) => {
+  const knowledgeHits = useMemo(() => getKnowledgeHitsFromEvents(message.traceEvents), [message.traceEvents]);
+  const isSaving = savingMessageId === message.id;
+
+  if (message.content === "") {
     return isStreaming ? (
       <div className="assistant-response assistant-response--pending">
-        <div className="assistant-response__label">回复</div>
         <TypingIndicator />
       </div>
     ) : null;
@@ -371,13 +422,27 @@ const AssistantResponseBlock: React.FC<{
 
   return (
     <div className="assistant-response">
-      <div className="assistant-response__label">回复</div>
-      <AssistantMarkdownBody content={content} />
+      <AssistantMarkdownBody content={message.content} />
+      <KnowledgeHitList hits={knowledgeHits} />
+      {!isStreaming ? (
+        <div className="assistant-response__footer">
+          <button
+            type="button"
+            className="assistant-action-icon"
+            onClick={() => void onSaveAssistantMessage?.(message)}
+            disabled={!onSaveAssistantMessage || isSaving}
+            title={isSaving ? "正在保存到知识库" : "保存到知识库"}
+            aria-label={isSaving ? "正在保存到知识库" : "保存到知识库"}
+          >
+            {isSaving ? <Loader2 size={14} className="animate-spin" /> : <BookOpenText size={14} />}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 };
 
-const MessageList: React.FC<MessageListProps> = ({ messages }) => {
+const MessageList: React.FC<MessageListProps> = ({ messages, onSaveAssistantMessage, savingMessageId }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
@@ -446,7 +511,12 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                 {message.role === "assistant" ? (
                   <>
                     <AssistantTraceTimeline traceEvents={message.traceEvents} isStreaming={message.isStreaming} />
-                    <AssistantResponseBlock content={message.content} isStreaming={message.isStreaming} />
+                    <AssistantResponseBlock
+                      message={message}
+                      isStreaming={message.isStreaming}
+                      onSaveAssistantMessage={onSaveAssistantMessage}
+                      savingMessageId={savingMessageId}
+                    />
                   </>
                 ) : (
                   <div className="prose prose-sm max-w-none">

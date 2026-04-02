@@ -570,11 +570,10 @@ body {
 }
 
 .assistant-trace {
-  margin-bottom: 0.85rem;
+  margin-bottom: 0.7rem;
 }
 
-.assistant-trace__label,
-.assistant-response__label {
+.assistant-trace__label {
   margin-bottom: 0.45rem;
   color: var(--text-muted);
   font-size: 0.7rem;
@@ -652,10 +651,11 @@ body {
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.3rem 0;
+  padding: 0.22rem 0;
   border: 0;
   background: transparent;
   text-align: left;
+  border-radius: 10px;
 }
 
 .trace-line__title-wrap {
@@ -728,12 +728,99 @@ body {
 }
 
 .assistant-response {
-  padding-top: 0.3rem;
-  border-top: 1px solid color-mix(in srgb, var(--panel-border) 68%, transparent);
+  padding-top: 0.1rem;
 }
 
 .assistant-response--pending {
-  padding-top: 0.4rem;
+  padding-top: 0.2rem;
+}
+
+.assistant-response__footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.65rem;
+  opacity: 0.7;
+  transition: opacity 120ms ease;
+}
+
+.message-shell.is-assistant:hover .assistant-response__footer {
+  opacity: 1;
+}
+
+.assistant-action-icon {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--panel-border) 78%, transparent);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    transform 120ms ease;
+}
+
+.assistant-action-icon:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--surface-subtle) 58%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--panel-border));
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+.assistant-action-icon:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.knowledge-hit-strip {
+  margin-top: 0.85rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--panel-border) 68%, transparent);
+  background: color-mix(in srgb, var(--surface-subtle) 42%, transparent);
+}
+
+.knowledge-hit-strip__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.knowledge-hit-strip__list {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+
+.knowledge-hit-chip {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--panel-border) 56%, transparent);
+}
+
+.knowledge-hit-chip__title {
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.knowledge-hit-chip__snippet {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
 }
 
 .callout.danger,

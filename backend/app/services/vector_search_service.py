@@ -323,7 +323,9 @@ async def hybrid_memory_search(
                 results.append(MemorySearchResult(
                     message_id=msg.id,
                     memory_id=None,
+                    title=None,
                     content=msg.content,
+                    content_type="message",
                     score=score,
                     source=f"message_{source}",
                     created_at=msg.created_at
@@ -348,7 +350,9 @@ async def hybrid_memory_search(
                 results.append(MemorySearchResult(
                     message_id=msg.id,
                     memory_id=None,
+                    title=None,
                     content=msg.content,
+                    content_type="message",
                     score=score,
                     source="message",
                     created_at=msg.created_at
@@ -367,7 +371,9 @@ async def hybrid_memory_search(
                 results.append(MemorySearchResult(
                     message_id=None,
                     memory_id=mem.id,
+                    title=mem.title,
                     content=mem.content,
+                    content_type=mem.content_type,
                     score=score,
                     source=f"long_term_memory_{source}",
                     created_at=mem.created_at
@@ -392,7 +398,9 @@ async def hybrid_memory_search(
                 results.append(MemorySearchResult(
                     message_id=None,
                     memory_id=mem.id,
+                    title=mem.title,
                     content=mem.content,
+                    content_type=mem.content_type,
                     score=score,
                     source="long_term_memory",
                     created_at=mem.created_at
@@ -408,7 +416,9 @@ async def hybrid_memory_search(
         results = [MemorySearchResult(
             message_id=r.message_id if hasattr(r, 'message_id') else None,
             memory_id=r.memory_id if hasattr(r, 'memory_id') else None,
+            title=getattr(r, 'title', None),
             content=r.content if hasattr(r, 'content') else '',
+            content_type=getattr(r, 'content_type', None),
             score=score,
             source=source,
             created_at=getattr(r, 'created_at', None)
@@ -422,7 +432,9 @@ async def hybrid_memory_search(
         results = [MemorySearchResult(
             message_id=r[0].message_id if hasattr(r[0], 'message_id') else None,
             memory_id=r[0].memory_id if hasattr(r[0], 'memory_id') else None,
+            title=getattr(r[0], 'title', None),
             content=r[0].content if hasattr(r[0], 'content') else '',
+            content_type=getattr(r[0], 'content_type', None),
             score=r[1],
             source=r[2],
             created_at=getattr(r[0], 'created_at', None)

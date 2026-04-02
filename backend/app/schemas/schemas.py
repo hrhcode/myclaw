@@ -117,7 +117,9 @@ class MemorySearchRequest(BaseModel):
 class MemorySearchResult(BaseModel):
     message_id: Optional[int] = None
     memory_id: Optional[int] = None
+    title: Optional[str] = None
     content: str
+    content_type: Optional[str] = None
     score: float
     source: str
     created_at: Optional[datetime] = None
@@ -132,8 +134,10 @@ class MemorySearchResponse(BaseModel):
 
 class LongTermMemoryBase(BaseModel):
     session_id: Optional[int] = None
+    title: Optional[str] = None
     key: Optional[str] = None
     content: str
+    content_type: str = "note"
     importance: float = 0.5
     source: Optional[str] = None
 
@@ -143,8 +147,10 @@ class LongTermMemoryCreate(LongTermMemoryBase):
 
 
 class LongTermMemoryUpdate(BaseModel):
+    title: Optional[str] = None
     key: Optional[str] = None
     content: Optional[str] = None
+    content_type: Optional[str] = None
     importance: Optional[float] = None
     source: Optional[str] = None
 
@@ -152,6 +158,8 @@ class LongTermMemoryUpdate(BaseModel):
 class LongTermMemoryResponse(LongTermMemoryBase):
     id: int
     session_id: Optional[int] = None
+    group_id: Optional[str] = None
+    origin_message_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 
@@ -180,7 +188,9 @@ class EmbeddingConfig(BaseModel):
 class MemorySearchResultExtended(BaseModel):
     message_id: Optional[int] = None
     memory_id: Optional[int] = None
+    title: Optional[str] = None
     content: str
+    content_type: Optional[str] = None
     score: float
     source: str
     created_at: Optional[datetime] = None
@@ -269,6 +279,37 @@ class WebSearchConfigResponse(BaseModel):
     include_answer: bool
     timeout_seconds: int
     cache_ttl_minutes: int
+
+
+class KnowledgeBaseItemResponse(BaseModel):
+    id: str
+    memory_id: Optional[int] = None
+    session_id: Optional[int] = None
+    title: str
+    content_type: str
+    source: Optional[str] = None
+    item_count: int
+    preview: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class KnowledgeBaseStatsResponse(BaseModel):
+    total_items: int
+    markdown_groups: int
+    assistant_replies: int
+
+
+class KnowledgeBaseListResponse(BaseModel):
+    items: List[KnowledgeBaseItemResponse]
+    stats: KnowledgeBaseStatsResponse
+
+
+class KnowledgeFromMessageCreate(BaseModel):
+    message_id: int
+    session_id: Optional[int] = None
+    title: Optional[str] = None
+    source: Optional[str] = None
 
 
 class BrowserConfig(BaseModel):
@@ -412,6 +453,7 @@ class SessionSkillUpdateRequest(BaseModel):
 
 class AutomationBase(BaseModel):
     name: str
+    conversation_id: Optional[int] = None
     session_id: Optional[int] = None
     prompt: str
     schedule_type: str
@@ -426,6 +468,7 @@ class AutomationCreate(AutomationBase):
 
 class AutomationUpdate(BaseModel):
     name: Optional[str] = None
+    conversation_id: Optional[int] = None
     session_id: Optional[int] = None
     prompt: Optional[str] = None
     schedule_type: Optional[str] = None

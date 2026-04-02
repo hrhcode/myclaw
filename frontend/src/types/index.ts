@@ -4,8 +4,19 @@ export type AgentTraceEventType =
   | 'reasoning'
   | 'tool_call'
   | 'tool_result'
+  | 'knowledge_hits'
   | 'progress_warning'
   | 'loop_warning';
+
+export interface KnowledgeHit {
+  memory_id?: number | null;
+  title?: string | null;
+  content: string;
+  content_type?: string | null;
+  score: number;
+  source: string;
+  created_at?: string | null;
+}
 
 export interface AgentTraceEventPayload {
   content?: string;
@@ -19,6 +30,7 @@ export interface AgentTraceEventPayload {
   count?: number;
   stalled_iterations?: number;
   iteration?: number;
+  hits?: KnowledgeHit[];
   conversation_id?: number;
   session_id?: number;
   run_id?: string;
@@ -100,6 +112,7 @@ export interface SessionSkill {
 export interface Automation {
   id: number;
   name: string;
+  conversation_id: number;
   session_id: number;
   prompt: string;
   schedule_type: string;
@@ -114,7 +127,7 @@ export interface Automation {
 
 export type AutomationPayload = {
   name: string;
-  session_id?: number;
+  conversation_id?: number;
   prompt: string;
   schedule_type: string;
   schedule_value: string;
@@ -191,7 +204,9 @@ export interface ConfigItem {
 export interface MemorySearchResult {
   message_id: number | null;
   memory_id: number | null;
+  title?: string | null;
   content: string;
+  content_type?: string | null;
   score: number;
   source: string;
   created_at: string | null;
@@ -200,12 +215,40 @@ export interface MemorySearchResult {
 export interface LongTermMemory {
   id: number;
   session_id?: number | null;
+  title?: string | null;
   key: string | null;
   content: string;
+  content_type?: string;
+  group_id?: string | null;
+  origin_message_id?: number | null;
   importance: number;
   source: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface KnowledgeBaseItem {
+  id: string;
+  memory_id?: number | null;
+  session_id?: number | null;
+  title: string;
+  content_type: string;
+  source?: string | null;
+  item_count: number;
+  preview: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KnowledgeBaseStats {
+  total_items: number;
+  markdown_groups: number;
+  assistant_replies: number;
+}
+
+export interface KnowledgeBaseListResponse {
+  items: KnowledgeBaseItem[];
+  stats: KnowledgeBaseStats;
 }
 
 export interface ToolInfo {

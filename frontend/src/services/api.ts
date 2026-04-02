@@ -10,6 +10,7 @@ import type {
   ConfigItem,
   Conversation,
   ConversationDetail,
+  KnowledgeBaseListResponse,
   Message,
   Model,
   Provider,
@@ -55,6 +56,7 @@ export interface StreamMessage {
     | 'reasoning'
     | 'tool_call'
     | 'tool_result'
+    | 'knowledge_hits'
     | 'progress_warning'
     | 'loop_warning'
     | 'done'
@@ -73,6 +75,7 @@ export interface StreamMessage {
   count?: number;
   stalled_iterations?: number;
   iteration?: number;
+  hits?: AgentTraceEventPayload['hits'];
   error?: string;
   status?: number;
 }
@@ -105,6 +108,7 @@ const parseEventPayload = (message: StreamMessage): AgentTraceEventPayload => ({
   count: message.count,
   stalled_iterations: message.stalled_iterations,
   iteration: message.iteration,
+  hits: message.hits,
   conversation_id: message.conversation_id,
   run_id: message.run_id,
 });
@@ -205,6 +209,7 @@ export const sendMessageStream = async (
             parsed.type === 'reasoning' ||
             parsed.type === 'tool_call' ||
             parsed.type === 'tool_result' ||
+            parsed.type === 'knowledge_hits' ||
             parsed.type === 'progress_warning' ||
             parsed.type === 'loop_warning'
           ) {
@@ -297,7 +302,9 @@ export const getAllConfigs = async (): Promise<ConfigItem[]> => {
 export interface MemorySearchResult {
   message_id: number | null;
   memory_id: number | null;
+  title?: string | null;
   content: string;
+  content_type?: string | null;
   score: number;
   source: string;
   created_at: string | null;
@@ -324,8 +331,12 @@ export const searchMemory = async (
 
 export interface LongTermMemory {
   id: number;
+  title?: string | null;
   key: string | null;
   content: string;
+  content_type?: string;
+  group_id?: string | null;
+  origin_message_id?: number | null;
   importance: number;
   source: string | null;
   created_at: string;
@@ -371,6 +382,61 @@ export const updateLongTermMemory = async (
 
 export const deleteLongTermMemory = async (id: number): Promise<void> => {
   await api.delete(`/memory/long-term/${id}`);
+};
+
+export interface KnowledgeUploadResponse {
+  message: string;
+  group_id: string;
+  title: string;
+  chunk_count: number;
+  item_ids: number[];
+}
+
+export const getKnowledgeBase = async (sessionId?: number): Promise<KnowledgeBaseListResponse> => {
+  const response = await api.get<KnowledgeBaseListResponse>('/knowledge', {
+    params: sessionId ? { session_id: sessionId } : undefined,
+  });
+  return response.data;
+};
+
+export const uploadMarkdownKnowledge = async (
+  file: File,
+  options?: { sessionId?: number; title?: string; source?: string },
+): Promise<KnowledgeUploadResponse> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (options?.sessionId) {
+    formData.append('session_id', String(options.sessionId));
+  }
+  if (options?.title) {
+    formData.append('title', options.title);
+  }
+  if (options?.source) {
+    formData.append('source', options.source);
+  }
+
+  const response = await api.post<KnowledgeUploadResponse>('/knowledge/markdown', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
+};
+
+export const saveMessageToKnowledge = async (
+  messageId: number,
+  options?: { sessionId?: number; title?: string; source?: string },
+): Promise<LongTermMemory> => {
+  const response = await api.post<LongTermMemory>('/knowledge/from-message', {
+    message_id: messageId,
+    session_id: options?.sessionId,
+    title: options?.title,
+    source: options?.source,
+  });
+  return response.data;
+};
+
+export const deleteKnowledge = async (identifier: string): Promise<{ message: string; deleted_count: number }> => {
+  const response = await api.delete<{ message: string; deleted_count: number }>(`/knowledge/${identifier}`);
+  return response.data;
 };
 
 export const indexConversation = async (conversationId: number): Promise<{
@@ -559,6 +625,13 @@ export const deleteAutomation = async (automationId: number): Promise<void> => {
 
 export const getAutomationRuns = async (automationId: number): Promise<AutomationRun[]> => {
   const response = await api.get<AutomationRun[]>(`/automations/${automationId}/runs`);
+  return response.data;
+};
+
+export const clearAutomationRuns = async (
+  automationId: number,
+): Promise<{ success: boolean; deleted_count: number }> => {
+  const response = await api.delete<{ success: boolean; deleted_count: number }>(`/automations/${automationId}/runs`);
   return response.data;
 };
 
