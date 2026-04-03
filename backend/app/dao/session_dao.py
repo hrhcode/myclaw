@@ -35,7 +35,7 @@ class SessionDAO:
         tool_profile: str = "full",
         tool_allow: Optional[str] = None,
         tool_deny: Optional[str] = None,
-        max_iterations: int = 5,
+        max_iterations: int = 30,
         context_summary: Optional[str] = None,
         memory_auto_extract: bool = False,
         memory_threshold: int = 8,

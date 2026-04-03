@@ -66,7 +66,7 @@ async def get_tool_config(db: AsyncSession = Depends(get_db)):
         profile=profile or "full",
         allow=allow_list,
         deny=deny_list,
-        max_iterations=int(max_iterations) if max_iterations else 5,
+        max_iterations=int(max_iterations) if max_iterations else 30,
         timeout_seconds=int(timeout_seconds) if timeout_seconds else 30
     )
 
@@ -88,7 +88,7 @@ async def update_tool_config(
     await set_config_value(db, "tool_profile", request.profile or "full")
     await set_config_value(db, "tool_allow", ",".join(request.allow or []))
     await set_config_value(db, "tool_deny", ",".join(request.deny or []))
-    await set_config_value(db, "tool_max_iterations", str(request.max_iterations or 5))
+    await set_config_value(db, "tool_max_iterations", str(request.max_iterations or 30))
     await set_config_value(db, "tool_timeout_seconds", str(request.timeout_seconds or 30))
     
     logger.info(f"[工具配置] 已更新配置: profile={request.profile}, allow={request.allow}, deny={request.deny}")

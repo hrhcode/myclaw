@@ -24,7 +24,7 @@ async def ensure_runtime_schema(engine: AsyncEngine) -> None:
                     tool_profile VARCHAR NOT NULL DEFAULT 'full',
                     tool_allow TEXT,
                     tool_deny TEXT,
-                    max_iterations INTEGER NOT NULL DEFAULT 5,
+                    max_iterations INTEGER NOT NULL DEFAULT 30,
                     context_summary TEXT,
                     memory_auto_extract BOOLEAN NOT NULL DEFAULT 0,
                     memory_threshold INTEGER NOT NULL DEFAULT 8,
@@ -131,6 +131,11 @@ async def ensure_default_session(db: AsyncSession) -> Session:
     result = await db.execute(text("SELECT id, name FROM sessions WHERE is_default = 1 ORDER BY id LIMIT 1"))
     row = result.first()
     if row:
+        # 迁移：已有 session 的 max_iterations 从旧默认值 5 提升到 30
+        await db.execute(
+            text("UPDATE sessions SET max_iterations = 30 WHERE max_iterations = 5"),
+        )
+        await db.commit()
         return await db.get(Session, row.id)
 
     workspace_path = os.getenv("MYCLAW_DEFAULT_WORKSPACE", str(Path.cwd()))
@@ -139,7 +144,7 @@ async def ensure_default_session(db: AsyncSession) -> Session:
         mode="personal",
         workspace_path=workspace_path,
         tool_profile="full",
-        max_iterations=5,
+        max_iterations=30,
         is_default=True,
     )
     db.add(session)

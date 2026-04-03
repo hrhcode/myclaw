@@ -40,7 +40,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
         items: [
           {
             path: "/chat",
-            label: "对话",
+            label: "聊天",
             icon: <MessageSquare size={16} />,
             pattern: "/chat/*",
           },

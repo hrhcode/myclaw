@@ -16,7 +16,7 @@ class Session(Base):
     tool_profile = Column(String, nullable=False, default="full")
     tool_allow = Column(Text, nullable=True)
     tool_deny = Column(Text, nullable=True)
-    max_iterations = Column(Integer, nullable=False, default=5)
+    max_iterations = Column(Integer, nullable=False, default=30)
     context_summary = Column(Text, nullable=True)
     memory_auto_extract = Column(Boolean, nullable=False, default=False)
     memory_threshold = Column(Integer, nullable=False, default=8)

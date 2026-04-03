@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { AlertTriangle, History, Plus, RefreshCw } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
 import type {
@@ -306,37 +306,7 @@ const ChatPage: React.FC = () => {
 
   return (
     <MainLayout
-      headerTitle="对话"
-      headerSubtitle="围绕当前会话持续推进任务，并实时查看执行轨迹。"
       contentClassName="content--chat"
-      headerActions={
-        <div className="chat-controls">
-          <button
-            className="btn btn--icon"
-            onClick={() => void loadConversations()}
-            title="刷新会话列表"
-            aria-label="刷新会话列表"
-          >
-            <RefreshCw size={16} />
-          </button>
-          <Link
-            className="btn btn--icon"
-            to="/conversations"
-            title="查看会话列表"
-            aria-label="查看会话列表"
-          >
-            <History size={16} />
-          </Link>
-          <button
-            className="btn btn--icon"
-            onClick={() => void handleCreateNewChat()}
-            title="新建会话"
-            aria-label="新建会话"
-          >
-            <Plus size={16} />
-          </button>
-        </div>
-      }
     >
       <section className="card chat">
         <AnimatePresence>

@@ -254,7 +254,7 @@ class ToolConfigRequest(BaseModel):
     profile: Optional[str] = "full"
     allow: Optional[List[str]] = None
     deny: Optional[List[str]] = None
-    max_iterations: Optional[int] = 5
+    max_iterations: Optional[int] = 30
     timeout_seconds: Optional[int] = 30
 
 
@@ -366,7 +366,7 @@ class SessionBase(BaseModel):
     tool_profile: str = "full"
     tool_allow: List[str] = []
     tool_deny: List[str] = []
-    max_iterations: int = 5
+    max_iterations: int = 30
     context_summary: str = ""
     memory_auto_extract: bool = False
     memory_threshold: int = 8

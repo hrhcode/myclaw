@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 @dataclass
 class LoopRuntimeConfig:
     use_tools: bool = True
-    max_iterations: int = 5
+    max_iterations: int = 30
     timeout_seconds: int = 30
     profile: str = "full"
     allow: List[str] = field(default_factory=list)

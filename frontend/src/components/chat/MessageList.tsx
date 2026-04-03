@@ -27,6 +27,7 @@ interface MessageListProps {
 interface TraceDisplayItem {
   event: AgentTraceEvent;
   linkedToolResultContent?: string;
+  knowledgeHits?: KnowledgeHit[];
 }
 
 const MessageAvatar = React.memo(({ role }: { role: "user" | "assistant" }) => (
@@ -68,7 +69,7 @@ const EmptyState: React.FC = () => (
         开始一段新对话
       </h3>
       <p className="mx-auto max-w-xs text-sm" style={{ color: "var(--text-muted)" }}>
-        这里适合研究、编码、分析和多步推理。回复与思考会以更克制的方式展开。
+        这里适合研究、编码、分析和多步推理。
       </p>
     </div>
   </motion.div>
@@ -117,6 +118,7 @@ const buildTraceDisplayItems = (events: AgentTraceEvent[] = []): TraceDisplayIte
     const event = events[index];
 
     if (event.type === "knowledge_hits") {
+      items.push({ event, knowledgeHits: event.payload.hits });
       continue;
     }
 
@@ -148,16 +150,6 @@ const buildTraceDisplayItems = (events: AgentTraceEvent[] = []): TraceDisplayIte
   }
 
   return items;
-};
-
-const getKnowledgeHitsFromEvents = (events: AgentTraceEvent[] = []): KnowledgeHit[] => {
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index];
-    if (event.type === "knowledge_hits" && event.payload.hits?.length) {
-      return event.payload.hits;
-    }
-  }
-  return [];
 };
 
 const AssistantMarkdownBody: React.FC<{ content: string }> = ({ content }) => (
@@ -208,6 +200,11 @@ const getTraceSummary = (item: TraceDisplayItem) => {
     return "等待工具输出";
   }
 
+  if (event.type === "knowledge_hits") {
+    const count = item.knowledgeHits?.length || 0;
+    return count > 0 ? `${count} 条相关记录` : "未命中记录";
+  }
+
   return event.payload.message || event.payload.content || "执行活动";
 };
 
@@ -218,7 +215,7 @@ const getTraceMeta = (item: TraceDisplayItem) => {
   if (event.type === "reasoning") {
     return {
       icon: <Search size={14} className="text-primary" />,
-      title: isPostToolReflection(event) ? "下一步" : "思考",
+      title: isPostToolReflection(event) ? "thinking" : "推理",
       tone: isPostToolReflection(event) ? "next" : "thinking",
     };
   }
@@ -243,6 +240,14 @@ const getTraceMeta = (item: TraceDisplayItem) => {
     };
   }
 
+  if (event.type === "knowledge_hits") {
+    return {
+      icon: <Database size={14} className="text-primary" />,
+      title: "命中知识库",
+      tone: "knowledge" as const,
+    };
+  }
+
   return {
     icon: <AlertTriangle size={14} className="text-amber-500" />,
     title: event.type === "progress_warning" ? "进度提醒" : "循环提醒",
@@ -253,6 +258,9 @@ const getTraceMeta = (item: TraceDisplayItem) => {
 const shouldExpandTraceEventByDefault = (item: TraceDisplayItem) => {
   const { event } = item;
   if (event.type === "reasoning") {
+    return true;
+  }
+  if (event.type === "knowledge_hits") {
     return true;
   }
   if (event.type === "tool_call") {
@@ -284,30 +292,42 @@ const TraceEventCard: React.FC<{
       </div>
 
       <div className="trace-line__body">
-        <button
-          type="button"
-          onClick={() => setExpanded((value) => !value)}
-          className="trace-line__header"
-        >
-          <div className="trace-line__title-wrap">
-            <span className="trace-line__icon">{meta.icon}</span>
-            <div className="trace-line__copy">
-              <div className="trace-line__title">{meta.title}</div>
-              <div className="trace-line__summary">{summary}</div>
+        {isPostToolReflection(event) ? (
+          <div className="trace-line__header">
+            <div className="trace-line__title-wrap">
+              <span className="trace-line__icon">{meta.icon}</span>
+              <div className="trace-line__copy">
+                <div className="trace-line__title">{meta.title}</div>
+                <div className="trace-line__summary">{summary}</div>
+              </div>
             </div>
           </div>
-          <span className="trace-line__toggle">{expanded ? "收起" : "展开"}</span>
-        </button>
-
-        {expanded ? (
-          <div className="trace-line__detail">
-            {event.type === "reasoning" ? (
-              <div className="trace-event-content trace-event-reasoning">
-                {reasoningContent || "当前没有可展示的思考内容。"}
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => setExpanded((value) => !value)}
+              className="trace-line__header"
+            >
+              <div className="trace-line__title-wrap">
+                <span className="trace-line__icon">{meta.icon}</span>
+                <div className="trace-line__copy">
+                  <div className="trace-line__title">{meta.title}</div>
+                  <div className="trace-line__summary">{summary}</div>
+                </div>
               </div>
-            ) : null}
+              <span className="trace-line__toggle">{expanded ? "收起" : "展开"}</span>
+            </button>
 
-            {event.type === "tool_call" ? (
+            {expanded ? (
+              <div className="trace-line__detail">
+                {event.type === "reasoning" ? (
+                  <div className="trace-event-content trace-event-reasoning">
+                    {reasoningContent || "当前没有可展示的思考内容。"}
+                  </div>
+                ) : null}
+
+                {event.type === "tool_call" ? (
               <>
                 <pre className="trace-event-content overflow-x-auto text-xs">
                   {tryFormatJson(event.payload.arguments || "{}")}
@@ -339,8 +359,21 @@ const TraceEventCard: React.FC<{
                 {event.payload.message || "检测到最近进展有限，智能体已经调整执行策略。"}
               </div>
             ) : null}
-          </div>
-        ) : null}
+
+            {event.type === "knowledge_hits" ? (
+              <div className="trace-event-content">
+                {item.knowledgeHits?.map((hit, i) => (
+                  <div key={`${hit.memory_id || "knowledge"}-${i}`} className="trace-event-knowledge">
+                    <div className="trace-event-knowledge__title">{hit.title || "知识片段"}</div>
+                    <div className="trace-event-knowledge__snippet">{summarizeKnowledgeHit(hit.content)}</div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
     </div>
   );
@@ -358,17 +391,11 @@ const AssistantTraceTimeline: React.FC<{
 
   return (
     <div className="assistant-trace">
-      <div className="assistant-trace__label">思考</div>
       <div className="assistant-trace__timeline">
         {items.map((item, index) => (
           <TraceEventCard key={item.event.id} item={item} index={index} />
         ))}
-        {isStreaming && items.length === 0 ? (
-          <div className="trace-inline-pending">
-            <Loader2 size={14} className="animate-spin" />
-            <span>智能体正在准备执行步骤…</span>
-          </div>
-        ) : null}
+        {isStreaming && items.length === 0 ? null : null}
       </div>
     </div>
   );
@@ -376,40 +403,12 @@ const AssistantTraceTimeline: React.FC<{
 
 const summarizeKnowledgeHit = (content: string) => content.replace(/\s+/g, " ").trim().slice(0, 120);
 
-const KnowledgeHitList: React.FC<{ hits: KnowledgeHit[] }> = ({ hits }) => {
-  if (hits.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="knowledge-hit-strip">
-      <div className="knowledge-hit-strip__label">
-        <Database size={13} />
-        <span>命中知识库</span>
-      </div>
-      <div className="knowledge-hit-strip__list">
-        {hits.slice(0, 3).map((hit, index) => (
-          <div
-            key={`${hit.memory_id || "knowledge"}-${index}`}
-            className="knowledge-hit-chip"
-            title={hit.content}
-          >
-            <span className="knowledge-hit-chip__title">{hit.title || "知识片段"}</span>
-            <span className="knowledge-hit-chip__snippet">{summarizeKnowledgeHit(hit.content)}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
 const AssistantResponseBlock: React.FC<{
   message: Message;
   isStreaming?: boolean;
   onSaveAssistantMessage?: (message: Message) => void | Promise<void>;
   savingMessageId?: number | null;
 }> = ({ message, isStreaming, onSaveAssistantMessage, savingMessageId }) => {
-  const knowledgeHits = useMemo(() => getKnowledgeHitsFromEvents(message.traceEvents), [message.traceEvents]);
   const isSaving = savingMessageId === message.id;
 
   if (message.content === "") {
@@ -423,7 +422,6 @@ const AssistantResponseBlock: React.FC<{
   return (
     <div className="assistant-response">
       <AssistantMarkdownBody content={message.content} />
-      <KnowledgeHitList hits={knowledgeHits} />
       {!isStreaming ? (
         <div className="assistant-response__footer">
           <button

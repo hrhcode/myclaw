@@ -233,18 +233,13 @@ class AgentLoopController:
                 ):
                     current_content += content
                     state.final_answer += content
-                    yield await self._emit_event(
-                        db,
-                        state,
-                        {
-                            "type": "content",
-                            "content": content,
-                            "conversation_id": conversation_id,
-                            "run_id": state.run_id,
-                            "session_id": runtime_context.id,
-                        },
-                        persist=False,
-                    )
+                    yield {
+                        "type": "content",
+                        "content": content,
+                        "conversation_id": conversation_id,
+                        "run_id": state.run_id,
+                        "session_id": runtime_context.id,
+                    }
                 if current_reasoning.strip():
                     await self._persist_trace_event(
                         db,
@@ -269,37 +264,21 @@ class AgentLoopController:
                     content = chunk.get("content", "")
                     if content:
                         current_content += content
-                        state.final_answer += content
-                        yield await self._emit_event(
-                            db,
-                            state,
-                            {
-                                "type": "content",
-                                "content": content,
-                                "conversation_id": conversation_id,
-                                "run_id": state.run_id,
-                                "session_id": runtime_context.id,
-                            },
-                            persist=False,
-                        )
+                        # 不 yield 中间 content，只累积用于构建消息历史
+                        # 最终轮（无 tool_calls）的 content 会在迭代结束后 yield
                 elif chunk_type == "reasoning":
                     reasoning = chunk.get("content", "")
                     if reasoning:
                         reasoning_emitted = True
                         current_reasoning += reasoning
-                        yield await self._emit_event(
-                            db,
-                            state,
-                            {
-                                "type": "reasoning",
-                                "content": reasoning,
-                                "conversation_id": conversation_id,
-                                "run_id": state.run_id,
-                                "iteration": state.iteration,
-                                "session_id": runtime_context.id,
-                            },
-                            persist=False,
-                        )
+                        yield {
+                            "type": "reasoning",
+                            "content": reasoning,
+                            "conversation_id": conversation_id,
+                            "run_id": state.run_id,
+                            "iteration": state.iteration,
+                            "session_id": runtime_context.id,
+                        }
                 elif chunk_type == "tool_calls":
                     current_tool_calls = chunk.get("tool_calls", [])
                     if current_tool_calls:
@@ -350,6 +329,16 @@ class AgentLoopController:
                 )
 
             if not saw_tool_calls or not current_tool_calls:
+                # 最终轮：yield 当前轮的 content 作为最终回复
+                if current_content:
+                    state.final_answer = current_content
+                    yield {
+                        "type": "content",
+                        "content": current_content,
+                        "conversation_id": conversation_id,
+                        "run_id": state.run_id,
+                        "session_id": runtime_context.id,
+                    }
                 state.stop_reason = "final_answer"
                 break
 
@@ -654,7 +643,7 @@ class AgentLoopController:
 
         return LoopRuntimeConfig(
             use_tools=tool_enabled == "true" if tool_enabled else True,
-            max_iterations=session.max_iterations or (int(tool_max_iterations) if tool_max_iterations else 5),
+            max_iterations=session.max_iterations or (int(tool_max_iterations) if tool_max_iterations else 30),
             timeout_seconds=int(tool_timeout) if tool_timeout else 30,
             profile=session.tool_profile or tool_profile or "full",
             allow=[item.strip() for item in (session.tool_allow or "").split(",") if item.strip()] or allow_list,
@@ -1141,19 +1130,19 @@ class AgentLoopController:
         latest = state.tool_history[-1]
         tool_result_preview = self._truncate_text(latest.sanitized_content, 420)
         prompt = (
-            f"User goal: {self._truncate_text(state.user_message, 180)}\\n"
-            f"Latest tool: {latest.tool_name}\\n"
-            f"Success: {'yes' if latest.success else 'no'}\\n"
-            f"Tool output: {tool_result_preview}\\n"
-            "Write a short internal reflection with: "
-            "1) the key signal learned from this tool call, and "
-            "2) the next best step. "
-            "Do not give the final answer. Do not use markdown. Keep it under 120 words."
+            f"用户目标：{self._truncate_text(state.user_message, 180)}\n"
+            f"最新工具：{latest.tool_name}\n"
+            f"执行结果：{'成功' if latest.success else '失败'}\n"
+            f"工具输出：{tool_result_preview}\n"
+            "请用中文写一段简短的内部反思，包含："
+            "1）从这次工具调用中获得的关键信息，以及"
+            "2）下一步最佳操作。"
+            "不要给出最终答案，不要使用 Markdown，控制在 100 字以内。"
         )
         messages = [
             {
                 "role": "system",
-                "content": "You are an internal reasoning assistant for a multi-step agent. Output brief plain text only.",
+                "content": "你是一个多步骤智能体的内部推理助手。请始终使用中文输出简短的纯文本。",
             },
             {"role": "user", "content": prompt},
         ]
