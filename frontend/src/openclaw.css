@@ -552,6 +552,29 @@ body {
   background: var(--bg-secondary);
 }
 
+.toast-notice {
+  align-self: center;
+  position: sticky;
+  top: 0.75rem;
+  z-index: 50;
+  padding: 0.45rem 1rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.toast-notice--success {
+  background: rgba(80, 200, 120, 0.12);
+  color: rgba(80, 200, 120, 0.95);
+}
+
+.toast-notice--error {
+  background: rgba(255, 100, 100, 0.1);
+  color: rgba(255, 130, 130, 0.95);
+}
+
 .assistant-prose {
   max-width: 78ch;
   font-size: 0.96rem;
@@ -709,9 +732,7 @@ body {
 }
 
 .trace-line__toggle {
-  flex-shrink: 0;
-  color: var(--text-muted);
-  font-size: 0.72rem;
+  display: none;
 }
 
 .trace-line__detail {
@@ -783,6 +804,7 @@ body {
 .assistant-response__footer {
   display: flex;
   justify-content: flex-start;
+  gap: 0.35rem;
   margin-top: 0.65rem;
   opacity: 0.7;
   transition: opacity 120ms ease;
@@ -793,33 +815,129 @@ body {
 }
 
 .assistant-action-icon {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--panel-border) 78%, transparent);
+  border-radius: 0.35rem;
+  border: none;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
   transition:
     background 120ms ease,
-    border-color 120ms ease,
-    color 120ms ease,
-    transform 120ms ease;
+    color 120ms ease;
 }
 
 .assistant-action-icon:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-subtle) 58%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 28%, var(--panel-border));
+  background: color-mix(in srgb, var(--surface-subtle) 50%, transparent);
   color: var(--text-primary);
-  transform: translateY(-1px);
 }
 
 .assistant-action-icon:disabled {
   cursor: default;
-  opacity: 0.72;
+  opacity: 0.45;
+}
+
+/* 用户消息回滚按钮 */
+.message-shell.is-user {
+  width: fit-content;
+  max-width: min(640px, 100%);
+  margin-left: auto;
+}
+
+.message-bubble.message-user {
+  position: relative;
+}
+
+.rollback-button {
+  position: absolute;
+  left: -30px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.rollback-button:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.message-row.is-user:hover .rollback-button {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 回滚确认对话框 */
+.rollback-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+}
+
+.rollback-dialog {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  min-width: 320px;
+  max-width: 420px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.rollback-dialog p {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  margin: 0 0 1rem;
+  line-height: 1.5;
+}
+
+.rollback-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.rollback-dialog-actions button {
+  padding: 0.35rem 0.85rem;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.82rem;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.rollback-dialog-actions button:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.rollback-dialog-actions button.is-confirm {
+  color: rgba(255, 130, 130, 0.95);
+}
+
+.rollback-dialog-actions button.is-confirm:hover {
+  background: rgba(255, 100, 100, 0.1);
 }
 
 .callout.danger,

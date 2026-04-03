@@ -7,8 +7,10 @@ import {
   BookOpenText,
   Bot,
   CheckCircle2,
+  Copy,
   Database,
   Loader2,
+  RotateCcw,
   Search,
   Sparkles,
   User,
@@ -20,8 +22,11 @@ import CodeBlock from "./CodeBlock";
 
 interface MessageListProps {
   messages: Message[];
+  onCopyMessage?: (message: Message) => void | Promise<void>;
+  onRegenerateMessage?: (message: Message) => void;
   onSaveAssistantMessage?: (message: Message) => void | Promise<void>;
   savingMessageId?: number | null;
+  onRollbackMessage?: (message: Message) => void;
 }
 
 interface TraceDisplayItem {
@@ -316,7 +321,7 @@ const TraceEventCard: React.FC<{
                   <div className="trace-line__summary">{summary}</div>
                 </div>
               </div>
-              <span className="trace-line__toggle">{expanded ? "收起" : "展开"}</span>
+              <span className="trace-line__toggle" />
             </button>
 
             {expanded ? (
@@ -406,9 +411,12 @@ const summarizeKnowledgeHit = (content: string) => content.replace(/\s+/g, " ").
 const AssistantResponseBlock: React.FC<{
   message: Message;
   isStreaming?: boolean;
+  isLastAssistant?: boolean;
+  onCopy?: (message: Message) => void | Promise<void>;
+  onRegenerate?: (message: Message) => void;
   onSaveAssistantMessage?: (message: Message) => void | Promise<void>;
   savingMessageId?: number | null;
-}> = ({ message, isStreaming, onSaveAssistantMessage, savingMessageId }) => {
+}> = ({ message, isStreaming, isLastAssistant, onCopy, onRegenerate, onSaveAssistantMessage, savingMessageId }) => {
   const isSaving = savingMessageId === message.id;
 
   if (message.content === "") {
@@ -427,6 +435,28 @@ const AssistantResponseBlock: React.FC<{
           <button
             type="button"
             className="assistant-action-icon"
+            onClick={() => void onCopy?.(message)}
+            disabled={!onCopy}
+            title="复制"
+            aria-label="复制"
+          >
+            <Copy size={14} />
+          </button>
+          {isLastAssistant ? (
+            <button
+              type="button"
+              className="assistant-action-icon"
+              onClick={() => onRegenerate?.(message)}
+              disabled={!onRegenerate}
+              title="重新执行"
+              aria-label="重新执行"
+            >
+              <RotateCcw size={14} />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="assistant-action-icon"
             onClick={() => void onSaveAssistantMessage?.(message)}
             disabled={!onSaveAssistantMessage || isSaving}
             title={isSaving ? "正在保存到知识库" : "保存到知识库"}
@@ -440,11 +470,18 @@ const AssistantResponseBlock: React.FC<{
   );
 };
 
-const MessageList: React.FC<MessageListProps> = ({ messages, onSaveAssistantMessage, savingMessageId }) => {
+const MessageList: React.FC<MessageListProps> = ({ messages, onCopyMessage, onRegenerateMessage, onSaveAssistantMessage, savingMessageId, onRollbackMessage }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const isInitialLoad = useRef(true);
+
+  const lastAssistantId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].role === "assistant") return messages[i].id;
+    }
+    return null;
+  }, [messages]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -489,8 +526,8 @@ const MessageList: React.FC<MessageListProps> = ({ messages, onSaveAssistantMess
             transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
             className={`message-row ${message.role === "user" ? "is-user" : "is-assistant"}`}
           >
-            <div className={`message-shell ${message.role === "user" ? "is-user" : "is-assistant"}`}>
-              {message.role === "user" ? (
+            {message.role === "user" ? (
+              <div className="message-shell is-user">
                 <div className="message-meta">
                   <div className="message-meta-main">
                     <MessageAvatar role="user" />
@@ -503,26 +540,37 @@ const MessageList: React.FC<MessageListProps> = ({ messages, onSaveAssistantMess
                     })}
                   </span>
                 </div>
-              ) : null}
-
-              <div className={`message-bubble ${message.role === "user" ? "message-user" : "message-ai"}`}>
-                {message.role === "assistant" ? (
-                  <>
-                    <AssistantTraceTimeline traceEvents={message.traceEvents} isStreaming={message.isStreaming} />
-                    <AssistantResponseBlock
-                      message={message}
-                      isStreaming={message.isStreaming}
-                      onSaveAssistantMessage={onSaveAssistantMessage}
-                      savingMessageId={savingMessageId}
-                    />
-                  </>
-                ) : (
+                <div className="message-bubble message-user">
+                  <button
+                    type="button"
+                    className="rollback-button"
+                    onClick={() => onRollbackMessage?.(message)}
+                    title="回滚到此消息之前"
+                    aria-label="回滚到此消息之前"
+                  >
+                    <RotateCcw size={14} />
+                  </button>
                   <div className="prose prose-sm max-w-none">
                     <ReactMarkdown>{message.content}</ReactMarkdown>
                   </div>
-                )}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="message-shell is-assistant">
+                <div className="message-bubble message-ai">
+                  <AssistantTraceTimeline traceEvents={message.traceEvents} isStreaming={message.isStreaming} />
+                  <AssistantResponseBlock
+                    message={message}
+                    isStreaming={message.isStreaming}
+                    isLastAssistant={message.id === lastAssistantId}
+                    onCopy={onCopyMessage}
+                    onRegenerate={onRegenerateMessage}
+                    onSaveAssistantMessage={onSaveAssistantMessage}
+                    savingMessageId={savingMessageId}
+                  />
+                </div>
+              </div>
+            )}
           </motion.div>
         ))
       )}

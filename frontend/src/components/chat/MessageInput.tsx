@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUp, Loader2, PlusCircle } from "lucide-react";
 
@@ -6,6 +6,11 @@ interface MessageInputProps {
   onSendMessage: (message: string) => void;
   disabled?: boolean;
   onCreateNewChat?: () => void;
+}
+
+export interface MessageInputHandle {
+  setMessage: (value: string) => void;
+  isEmpty: () => boolean;
 }
 
 interface CommandItem {
@@ -22,15 +27,20 @@ const COMMANDS: CommandItem[] = [
   },
 ];
 
-const MessageInput: React.FC<MessageInputProps> = ({
+const MessageInput = React.forwardRef<MessageInputHandle, MessageInputProps>(({
   onSendMessage,
   disabled = false,
   onCreateNewChat: _onCreateNewChat,
-}) => {
+}, ref) => {
   const [message, setMessage] = useState("");
   const [showCommands, setShowCommands] = useState(false);
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  React.useImperativeHandle(ref, () => ({
+    setMessage: (value: string) => setMessage(value),
+    isEmpty: () => message === "",
+  }), [message]);
 
   const filteredCommands = message.startsWith("/")
     ? COMMANDS.filter((cmd) =>
@@ -181,6 +191,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
       </form>
     </div>
   );
-};
+});
 
 export default MessageInput;
