@@ -57,16 +57,25 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         </div>
       </header>
 
-      <Sidebar isCollapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
+      <Sidebar
+        isCollapsed={sidebarCollapsed}
+        onToggleCollapse={toggleSidebar}
+      />
 
       <main className={`content ${contentClassName}`.trim()}>
         {headerTitle || headerActions ? (
           <section className="content-header">
             <div>
-              {headerTitle ? <div className="page-title">{headerTitle}</div> : null}
-              {headerSubtitle ? <div className="page-sub">{headerSubtitle}</div> : null}
+              {headerTitle ? (
+                <div className="page-title">{headerTitle}</div>
+              ) : null}
+              {headerSubtitle ? (
+                <div className="page-sub">{headerSubtitle}</div>
+              ) : null}
             </div>
-            {headerActions ? <div className="page-meta">{headerActions}</div> : null}
+            {headerActions ? (
+              <div className="page-meta">{headerActions}</div>
+            ) : null}
           </section>
         ) : null}
 

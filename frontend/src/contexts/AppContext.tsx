@@ -1,5 +1,11 @@
-import { createContext, useContext, useEffect, useCallback, useState } from 'react';
-import type { ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useCallback,
+  useState,
+} from "react";
+import type { ReactNode } from "react";
 
 import type {
   AgentEventFromDB,
@@ -8,14 +14,14 @@ import type {
   AgentTraceEventType,
   Conversation,
   Message,
-} from '../types';
+} from "../types";
 import {
   createConversation,
   deleteConversation,
   getConversations,
   getMessages,
   renameConversation,
-} from '../services/api';
+} from "../services/api";
 
 interface AppContextType {
   conversations: Conversation[];
@@ -53,13 +59,17 @@ const mapAgentEvents = (events?: AgentEventFromDB[]): AgentTraceEvent[] =>
     payload: parseAgentPayload(event.payload),
   }));
 
-export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const AppProvider: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
+  const [currentConversationId, setCurrentConversationId] = useState<
+    number | null
+  >(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
-    () => localStorage.getItem('sidebar_collapsed') === 'true',
+    () => localStorage.getItem("sidebar_collapsed") === "true",
   );
 
   const loadConversations = useCallback(async () => {
@@ -73,7 +83,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return data[0]?.id ?? null;
       });
     } catch (error) {
-      console.error('Failed to load conversations:', error);
+      console.error("Failed to load conversations:", error);
     }
   }, []);
 
@@ -88,7 +98,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         })),
       );
     } catch (error) {
-      console.error('Failed to load messages:', error);
+      console.error("Failed to load messages:", error);
     }
   }, []);
 
@@ -96,46 +106,63 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setCurrentConversationId(id);
   }, []);
 
-  const createNewConversation = useCallback(async (title = '新会话'): Promise<Conversation | null> => {
-    try {
-      const conversation = await createConversation(title);
-      setConversations((prev) => [conversation, ...prev]);
-      setCurrentConversationId(conversation.id);
-      return conversation;
-    } catch (error) {
-      console.error('Failed to create conversation:', error);
-      return null;
-    }
-  }, []);
+  const createNewConversation = useCallback(
+    async (title = "新会话"): Promise<Conversation | null> => {
+      try {
+        const conversation = await createConversation(title);
+        setConversations((prev) => [conversation, ...prev]);
+        setCurrentConversationId(conversation.id);
+        return conversation;
+      } catch (error) {
+        console.error("Failed to create conversation:", error);
+        return null;
+      }
+    },
+    [],
+  );
 
-  const removeConversation = useCallback(async (id: number) => {
-    await deleteConversation(id);
-    setConversations((prev) => prev.filter((conversation) => conversation.id !== id));
-    if (currentConversationId === id) {
-      setCurrentConversationId(null);
-      setMessages([]);
-    }
-  }, [currentConversationId]);
+  const removeConversation = useCallback(
+    async (id: number) => {
+      await deleteConversation(id);
+      setConversations((prev) =>
+        prev.filter((conversation) => conversation.id !== id),
+      );
+      if (currentConversationId === id) {
+        setCurrentConversationId(null);
+        setMessages([]);
+      }
+    },
+    [currentConversationId],
+  );
 
-  const renameConversationById = useCallback(async (id: number, title: string) => {
-    const updated = await renameConversation(id, title);
-    setConversations((prev) =>
-      prev.map((conversation) =>
-        conversation.id === id ? { ...conversation, title: updated.title, updated_at: updated.updated_at } : conversation,
-      ),
-    );
-  }, []);
+  const renameConversationById = useCallback(
+    async (id: number, title: string) => {
+      const updated = await renameConversation(id, title);
+      setConversations((prev) =>
+        prev.map((conversation) =>
+          conversation.id === id
+            ? {
+                ...conversation,
+                title: updated.title,
+                updated_at: updated.updated_at,
+              }
+            : conversation,
+        ),
+      );
+    },
+    [],
+  );
 
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((prev) => {
       const next = !prev;
-      localStorage.setItem('sidebar_collapsed', String(next));
+      localStorage.setItem("sidebar_collapsed", String(next));
       return next;
     });
   }, []);
 
   const setSidebarCollapsedWithStorage = useCallback((collapsed: boolean) => {
-    localStorage.setItem('sidebar_collapsed', String(collapsed));
+    localStorage.setItem("sidebar_collapsed", String(collapsed));
     setSidebarCollapsed(collapsed);
   }, []);
 
@@ -179,7 +206,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 export const useApp = (): AppContextType => {
   const context = useContext(AppContext);
   if (!context) {
-    throw new Error('useApp must be used within an AppProvider');
+    throw new Error("useApp must be used within an AppProvider");
   }
   return context;
 };
