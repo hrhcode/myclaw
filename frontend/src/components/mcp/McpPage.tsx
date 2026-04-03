@@ -329,7 +329,7 @@ const McpPage: React.FC = () => {
       }
     >
       <div className="admin-page">
-        <div className="admin-frame max-w-[1460px]">
+        <div className="admin-frame max-w-[1400px]">
           <section className="admin-summary">
             <SummaryCard label="MCP 服务" value={stats.total} hint="统一纳入左侧控制台管理" />
             <SummaryCard label="已启用" value={stats.enabled} hint="启用后可执行探测与资源发现" />
@@ -343,8 +343,8 @@ const McpPage: React.FC = () => {
             </div>
           ) : null}
 
-          <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
-            <aside className="admin-card flex min-h-[780px] flex-col overflow-hidden">
+          <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+            <aside className="admin-card flex min-h-0 flex-col overflow-hidden">
               <div className="border-b p-4" style={{ borderColor: "var(--panel-border)" }}>
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -442,7 +442,7 @@ const McpPage: React.FC = () => {
                     </StatusBadge>
                   }
                 >
-                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
                     <SectionCard className="p-5">
                       <div className="grid gap-4 md:grid-cols-2">
                         <InfoTile icon={<Server size={16} />} label="传输方式" value={TRANSPORT_LABEL[draft.transport]} />

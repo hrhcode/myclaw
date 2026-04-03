@@ -52,7 +52,7 @@ const ThemeToggle: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 5 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 top-full mt-2 px-3 py-1.5 rounded-lg text-xs whitespace-nowrap z-50"
+            className="absolute right-0 top-full mt-2 px-3 py-1.5 rounded-lg text-xs whitespace-nowrap z-20"
             style={{
               backgroundColor: 'var(--surface-elevated)',
               border: '1px solid var(--panel-border)',

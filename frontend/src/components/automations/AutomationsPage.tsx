@@ -547,8 +547,8 @@ const AutomationsPage: React.FC = () => {
             </div>
           ) : null}
 
-          <section className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)] 2xl:grid-cols-[300px_minmax(0,1fr)]">
-            <aside className="admin-card flex min-h-[720px] flex-col overflow-hidden">
+          <section className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
+            <aside className="admin-card flex min-h-0 flex-col overflow-hidden">
               <div className="border-b px-4 py-4" style={{ borderColor: 'var(--panel-border)' }}>
                 <div className="admin-toolbar">
                   <input
@@ -623,8 +623,8 @@ const AutomationsPage: React.FC = () => {
               </div>
             </aside>
 
-            <section className="grid gap-4 lg:grid-cols-[minmax(0,760px)_300px] 2xl:grid-cols-[minmax(0,820px)_320px] 2xl:justify-center">
-              <div className="admin-card flex min-h-[720px] flex-col overflow-hidden">
+            <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+              <div className="admin-card flex min-h-0 flex-col overflow-hidden">
                 <div
                   className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3"
                   style={{ borderColor: 'var(--panel-border)' }}
@@ -800,7 +800,7 @@ const AutomationsPage: React.FC = () => {
                           value={draft.prompt}
                           onChange={(event) => setDraftValue({ prompt: event.target.value })}
                           rows={12}
-                          className="admin-input min-h-[260px] resize-y px-3 py-3"
+                          className="admin-input min-h-[180px] sm:min-h-[260px] resize-y px-3 py-3"
                           placeholder="描述自动化执行时要让 AI 完成的任务。"
                         />
                       </label>

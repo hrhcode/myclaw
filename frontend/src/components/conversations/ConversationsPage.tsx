@@ -50,7 +50,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ title, message, onConfirm
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
-      className="fixed inset-0 z-[9999] flex items-center justify-center"
+      className="fixed inset-0 z-50 flex items-center justify-center"
       onClick={onCancel}
     >
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
@@ -112,7 +112,7 @@ const RenameDialog: React.FC<RenameDialogProps> = ({ currentTitle, onConfirm, on
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
-      className="fixed inset-0 z-[9999] flex items-center justify-center"
+      className="fixed inset-0 z-50 flex items-center justify-center"
       onClick={onCancel}
     >
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
@@ -344,7 +344,7 @@ const ConversationsPage: React.FC = () => {
               className="hidden overflow-hidden rounded-2xl glass-card lg:block"
               style={{ border: '1px solid var(--glass-border)' }}
             >
-              <div className="grid gap-0" style={{ gridTemplateColumns: '1fr 100px 140px 120px' }}>
+              <div className="conversations-table">
                 <div className="px-5 py-3.5 text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--glass-border)' }}>
                   会话标题
                 </div>
@@ -367,9 +367,8 @@ const ConversationsPage: React.FC = () => {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }}
                     transition={{ delay: index * 0.03 }}
-                    className="group grid cursor-pointer transition-colors hover:bg-[var(--glass-bg)]"
+                    className="group conversations-table cursor-pointer transition-colors hover:bg-[var(--glass-bg)]"
                     style={{
-                      gridTemplateColumns: '1fr 100px 140px 120px',
                       borderBottom: index < filteredConversations.length - 1 ? '1px solid var(--glass-border)' : 'none',
                     }}
                     onClick={() => goToChat(conversation.id)}
