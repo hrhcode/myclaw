@@ -36,6 +36,7 @@ BROWSER_SYSTEM_BROWSER_CHANNEL_KEY = "browser_system_browser_channel"
 
 # 工具启用状态配置键
 TOOL_ENABLED_PREFIX = "tool_enabled_"
+MCP_SERVERS_CONFIG_KEY = "mcp_servers"
 
 # LLM提供商配置
 PROVIDERS = {

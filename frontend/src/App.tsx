@@ -19,6 +19,7 @@ const HistoryLogsPage = lazy(() =>
 );
 const ToolsPage = lazy(() => import("./components/tools/ToolsPage"));
 const AutomationsPage = lazy(() => import("./components/automations/AutomationsPage"));
+const McpPage = lazy(() => import("./components/mcp/McpPage"));
 
 const App: React.FC = () => {
   return (
@@ -34,6 +35,7 @@ const App: React.FC = () => {
               <Route path="/rules" element={<RulesPage />} />
               <Route path="/memory" element={<Navigate to="/knowledge" replace />} />
               <Route path="/knowledge" element={<MemoryPage />} />
+              <Route path="/mcp" element={<McpPage />} />
               <Route path="/automations" element={<AutomationsPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/tools" element={<ToolsPage />} />

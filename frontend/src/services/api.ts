@@ -18,6 +18,9 @@ import type {
   Provider,
   SessionSkill,
   Skill,
+  McpServer,
+  McpServerPayload,
+  McpStats,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
@@ -654,5 +657,40 @@ export const runAutomationNow = async (
   const response = await api.post<{ success: boolean; automation_id: number; trigger_mode: string; run_id?: string | null }>(
     `/automations/${automationId}/run`,
   );
+  return response.data;
+};
+
+export const getMcpServers = async (): Promise<McpServer[]> => {
+  const response = await api.get<McpServer[]>('/mcp/servers');
+  return response.data;
+};
+
+export const getMcpStats = async (): Promise<McpStats> => {
+  const response = await api.get<McpStats>('/mcp/stats');
+  return response.data;
+};
+
+export const createMcpServer = async (payload: McpServerPayload): Promise<McpServer> => {
+  const response = await api.post<McpServer>('/mcp/servers', payload);
+  return response.data;
+};
+
+export const updateMcpServer = async (serverId: string, payload: Partial<McpServerPayload>): Promise<McpServer> => {
+  const response = await api.put<McpServer>(`/mcp/servers/${serverId}`, payload);
+  return response.data;
+};
+
+export const deleteMcpServer = async (serverId: string): Promise<{ success: boolean }> => {
+  const response = await api.delete<{ success: boolean }>(`/mcp/servers/${serverId}`);
+  return response.data;
+};
+
+export const probeMcpServer = async (serverId: string): Promise<McpServer> => {
+  const response = await api.post<McpServer>(`/mcp/servers/${serverId}/probe`);
+  return response.data;
+};
+
+export const probeAllMcpServers = async (): Promise<McpServer[]> => {
+  const response = await api.post<McpServer[]>('/mcp/probe-all');
   return response.data;
 };

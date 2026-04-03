@@ -7,6 +7,7 @@ import {
   Clock3,
   Logs,
   MessageSquare,
+  PlugZap,
   ScrollText,
   Settings,
   Wrench,
@@ -62,6 +63,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
             path: "/knowledge",
             label: "知识库",
             icon: <Brain size={16} />,
+          },
+          {
+            path: "/mcp",
+            label: "MCP",
+            icon: <PlugZap size={16} />,
           },
           {
             path: "/automations",

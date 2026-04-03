@@ -253,3 +253,61 @@ export interface ToolConfig {
   max_iterations: number;
   timeout_seconds: number;
 }
+
+export interface McpServerEvent {
+  id: string;
+  level: 'info' | 'warning' | 'success';
+  message: string;
+  time: string;
+}
+
+export interface McpServer {
+  id: string;
+  name: string;
+  description: string;
+  transport: 'stdio' | 'http' | 'sse';
+  command?: string | null;
+  args: string[];
+  endpoint?: string | null;
+  enabled: boolean;
+  tags: string[];
+  workspaces: string[];
+  env: Record<string, string>;
+  headers: Record<string, string>;
+  timeout_seconds: number;
+  status: 'connected' | 'degraded' | 'disabled';
+  resources: number;
+  tools: number;
+  prompts: number;
+  alerts: number;
+  capabilities: string[];
+  tool_names: string[];
+  resource_names: string[];
+  prompt_names: string[];
+  status_reason?: string | null;
+  last_probe_at?: string | null;
+  updated_at?: string | null;
+  events: McpServerEvent[];
+}
+
+export interface McpServerPayload {
+  name: string;
+  description: string;
+  transport: 'stdio' | 'http' | 'sse';
+  command?: string | null;
+  args: string[];
+  endpoint?: string | null;
+  enabled: boolean;
+  tags: string[];
+  workspaces: string[];
+  env: Record<string, string>;
+  headers: Record<string, string>;
+  timeout_seconds: number;
+}
+
+export interface McpStats {
+  total: number;
+  enabled: number;
+  resources: number;
+  alerts: number;
+}

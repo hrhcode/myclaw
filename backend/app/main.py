@@ -7,7 +7,7 @@ import sys
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import automations, chat, config, history, logs, memory, rules, skills, tools
+from app.api import automations, chat, config, history, logs, mcp, memory, rules, skills, tools
 from app.common.logging_config import get_logger, setup_logging
 from app.common.security import require_api_auth
 from app.core.bootstrap import ensure_default_session, ensure_runtime_schema
@@ -52,6 +52,7 @@ app.include_router(logs.router, prefix="/api", tags=["logs"], dependencies=prote
 app.include_router(tools.router, prefix="/api", tags=["tools"], dependencies=protected)
 app.include_router(skills.router, prefix="/api", tags=["skills"], dependencies=protected)
 app.include_router(automations.router, prefix="/api", tags=["automations"], dependencies=protected)
+app.include_router(mcp.router, prefix="/api", tags=["mcp"], dependencies=protected)
 
 
 async def ensure_default_conversation() -> None:
@@ -79,6 +80,7 @@ async def startup_event() -> None:
 
     async with AsyncSessionLocal() as db:
         await register_all_builtin_tools(tool_registry, db)
+        await mcp.mcp_service.sync_runtime_tools(db)
 
     await automations.automation_service.start(
         AsyncSessionLocal,

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel
 
@@ -536,3 +536,68 @@ class AutomationStatsResponse(BaseModel):
     failed_recently: int
     next_run_at: Optional[datetime] = None
     last_run_at: Optional[datetime] = None
+
+
+class McpServerBase(BaseModel):
+    name: str
+    description: str = ""
+    transport: Literal["stdio", "http", "sse"] = "stdio"
+    command: Optional[str] = None
+    args: List[str] = []
+    endpoint: Optional[str] = None
+    enabled: bool = True
+    tags: List[str] = []
+    workspaces: List[str] = []
+    env: Dict[str, str] = {}
+    headers: Dict[str, str] = {}
+    timeout_seconds: int = 8
+
+
+class McpServerCreate(McpServerBase):
+    pass
+
+
+class McpServerUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    transport: Optional[Literal["stdio", "http", "sse"]] = None
+    command: Optional[str] = None
+    args: Optional[List[str]] = None
+    endpoint: Optional[str] = None
+    enabled: Optional[bool] = None
+    tags: Optional[List[str]] = None
+    workspaces: Optional[List[str]] = None
+    env: Optional[Dict[str, str]] = None
+    headers: Optional[Dict[str, str]] = None
+    timeout_seconds: Optional[int] = None
+
+
+class McpServerEventResponse(BaseModel):
+    id: str
+    level: Literal["info", "warning", "success"] = "info"
+    message: str
+    time: str
+
+
+class McpServerResponse(McpServerBase):
+    id: str
+    status: Literal["connected", "degraded", "disabled"] = "disabled"
+    resources: int = 0
+    tools: int = 0
+    prompts: int = 0
+    alerts: int = 0
+    capabilities: List[str] = []
+    tool_names: List[str] = []
+    resource_names: List[str] = []
+    prompt_names: List[str] = []
+    status_reason: Optional[str] = None
+    last_probe_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    events: List[McpServerEventResponse] = []
+
+
+class McpStatsResponse(BaseModel):
+    total: int
+    enabled: int
+    resources: int
+    alerts: int
