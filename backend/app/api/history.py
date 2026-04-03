@@ -24,26 +24,29 @@ from app.schemas.schemas import (
 router = APIRouter()
 
 
+def _to_conversation_response(conversation) -> ConversationResponse:
+    return ConversationResponse(
+        id=conversation.id,
+        title=conversation.title,
+        rule=conversation.rule or "",
+        created_at=conversation.created_at,
+        updated_at=conversation.updated_at,
+    )
+
+
 @router.get("/conversations", response_model=list[ConversationResponse])
 async def get_conversations(
-    session_id: int | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    if session_id is not None:
-        return await ConversationDAO.list_by_session(db, session_id)
-    return await ConversationDAO.list_all(db)
+    conversations = await ConversationDAO.list_all(db)
+    return [_to_conversation_response(item) for item in conversations]
 
 
 @router.get("/conversations/stats")
 async def get_conversation_stats(
-    session_id: int | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    conversations = (
-        await ConversationDAO.list_by_session(db, session_id)
-        if session_id is not None
-        else await ConversationDAO.list_all(db)
-    )
+    conversations = await ConversationDAO.list_all(db)
     conversation_ids = [item.id for item in conversations]
     if not conversation_ids:
         return []
@@ -80,10 +83,16 @@ async def create_conversation(
     conversation: ConversationCreate,
     db: AsyncSession = Depends(get_db),
 ):
-    return await ConversationDAO.create(
+    created = await ConversationDAO.create(
         db,
         conversation.title,
-        session_id=conversation.session_id,
+    )
+    return ConversationResponse(
+        id=created.id,
+        title=created.title,
+        rule=created.rule or "",
+        created_at=created.created_at,
+        updated_at=created.updated_at,
     )
 
 
@@ -96,7 +105,13 @@ async def rename_conversation(
     conversation = await ConversationDAO.update_title(db, conversation_id, data.title)
     if not conversation:
         raise HTTPException(status_code=404, detail="conversation not found")
-    return conversation
+    return ConversationResponse(
+        id=conversation.id,
+        title=conversation.title,
+        rule=conversation.rule or "",
+        created_at=conversation.created_at,
+        updated_at=conversation.updated_at,
+    )
 
 
 @router.delete("/conversations/{conversation_id}")
@@ -174,7 +189,6 @@ async def get_conversation_messages(
         response_messages.append(
             MessageResponse(
                 id=message.id,
-                session_id=message.session_id,
                 conversation_id=message.conversation_id,
                 role=message.role,
                 content=message.content,

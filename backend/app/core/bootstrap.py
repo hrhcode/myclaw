@@ -36,6 +36,7 @@ async def ensure_runtime_schema(engine: AsyncEngine) -> None:
             )
         )
         await _ensure_column(conn, "conversations", "session_id", "INTEGER")
+        await _ensure_column(conn, "conversations", "rule", "TEXT")
         await _ensure_column(conn, "messages", "session_id", "INTEGER")
         await _ensure_column(conn, "long_term_memory", "session_id", "INTEGER")
         await _ensure_column(conn, "long_term_memory", "title", "VARCHAR")

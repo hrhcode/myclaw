@@ -63,7 +63,7 @@ const MemoryCard: React.FC<MemoryCardProps> = ({ memory, onEdit, onDelete }) => 
   const shouldTruncate = memory.content.length > 220 && !expanded;
   const tone = getImportanceTone(memory.importance);
   const score = Math.round(memory.importance * 10);
-  const scopeLabel = memory.session_id ? `隔离会话 ${memory.session_id}` : '全局';
+  const scopeLabel = '全局知识';
 
   return (
     <SectionCard className="p-4">

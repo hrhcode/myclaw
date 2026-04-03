@@ -32,7 +32,6 @@ export interface AgentTraceEventPayload {
   iteration?: number;
   hits?: KnowledgeHit[];
   conversation_id?: number;
-  session_id?: number;
   run_id?: string;
 }
 
@@ -45,7 +44,6 @@ export interface AgentTraceEvent {
 
 export interface ToolCallFromDB {
   id: number;
-  session_id?: number | null;
   tool_name: string;
   tool_call_id: string;
   arguments: string;
@@ -68,7 +66,6 @@ export interface AgentEventFromDB {
 
 export interface Message {
   id: number;
-  session_id?: number | null;
   conversation_id: number;
   role: MessageRole;
   content: string;
@@ -82,8 +79,8 @@ export interface Message {
 
 export interface Conversation {
   id: number;
-  session_id?: number | null;
   title: string;
+  rule?: string;
   created_at: string;
   updated_at: string;
 }
@@ -95,6 +92,16 @@ export interface ConversationDetail extends Conversation {
     role: MessageRole;
     created_at: string;
   };
+}
+
+export interface GlobalRuleResponse {
+  rule: string;
+}
+
+export interface ConversationRuleResponse {
+  conversation_id: number;
+  title: string;
+  rule: string;
 }
 
 export interface Skill {
@@ -113,7 +120,6 @@ export interface Automation {
   id: number;
   name: string;
   conversation_id: number;
-  session_id: number;
   prompt: string;
   schedule_type: string;
   schedule_value: string;
@@ -138,7 +144,6 @@ export type AutomationPayload = {
 export interface AutomationRun {
   id: number;
   automation_id: number;
-  session_id: number;
   status: string;
   trigger_mode: string;
   triggered_at: string;
@@ -158,27 +163,7 @@ export interface AutomationStats {
   last_run_at?: string | null;
 }
 
-export interface Session {
-  id: number;
-  name: string;
-  mode: string;
-  workspace_path?: string | null;
-  model?: string | null;
-  provider?: string | null;
-  tool_profile: string;
-  tool_allow: string[];
-  tool_deny: string[];
-  max_iterations: number;
-  context_summary: string;
-  memory_auto_extract: boolean;
-  memory_threshold: number;
-  is_default: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface ChatRequest {
-  session_id?: number;
   conversation_id?: number;
   message: string;
 }
@@ -214,7 +199,6 @@ export interface MemorySearchResult {
 
 export interface LongTermMemory {
   id: number;
-  session_id?: number | null;
   title?: string | null;
   key: string | null;
   content: string;
@@ -230,7 +214,6 @@ export interface LongTermMemory {
 export interface KnowledgeBaseItem {
   id: string;
   memory_id?: number | null;
-  session_id?: number | null;
   title: string;
   content_type: string;
   source?: string | null;

@@ -7,7 +7,7 @@ import sys
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import automations, chat, config, history, logs, memory, sessions, skills, tools
+from app.api import automations, chat, config, history, logs, memory, rules, skills, tools
 from app.common.logging_config import get_logger, setup_logging
 from app.common.security import require_api_auth
 from app.core.bootstrap import ensure_default_session, ensure_runtime_schema
@@ -16,7 +16,6 @@ from app.dao.conversation_dao import ConversationDAO
 from app.services.log_service import cleanup_log_handlers, setup_log_handlers
 from app.tools import tool_registry
 from app.tools.builtin import register_all_builtin_tools
-from app.tools.builtin.session_tools import configure_session_tools
 
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
@@ -48,9 +47,9 @@ app.include_router(chat.router, prefix="/api", tags=["chat"], dependencies=prote
 app.include_router(history.router, prefix="/api", tags=["history"], dependencies=protected)
 app.include_router(config.router, prefix="/api", tags=["config"], dependencies=protected)
 app.include_router(memory.router, prefix="/api", tags=["memory"], dependencies=protected)
+app.include_router(rules.router, prefix="/api", tags=["rules"], dependencies=protected)
 app.include_router(logs.router, prefix="/api", tags=["logs"], dependencies=protected)
 app.include_router(tools.router, prefix="/api", tags=["tools"], dependencies=protected)
-app.include_router(sessions.router, prefix="/api", tags=["sessions"], dependencies=protected)
 app.include_router(skills.router, prefix="/api", tags=["skills"], dependencies=protected)
 app.include_router(automations.router, prefix="/api", tags=["automations"], dependencies=protected)
 
@@ -77,11 +76,6 @@ async def startup_event() -> None:
     await ensure_runtime_schema(engine)
     await setup_log_handlers()
     await ensure_default_conversation()
-
-    configure_session_tools(
-        AsyncSessionLocal,
-        chat.agent_loop_controller.dispatch_message_for_automation,
-    )
 
     async with AsyncSessionLocal() as db:
         await register_all_builtin_tools(tool_registry, db)

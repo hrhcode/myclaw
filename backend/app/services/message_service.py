@@ -190,9 +190,6 @@ class MessageService:
                 arguments["_config"] = config
                 logger.info(f"[MessageService]   ✓ 已获取浏览器配置注入")
 
-            if tool_name in {"sessions_list", "sessions_history", "sessions_send", "session_status"}:
-                arguments["_db"] = db
-
             safe_args = {}
             for k, v in arguments.items():
                 if k.startswith("_"):

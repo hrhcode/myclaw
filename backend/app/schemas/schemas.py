@@ -9,16 +9,34 @@ class ConversationBase(BaseModel):
 
 
 class ConversationCreate(ConversationBase):
-    session_id: Optional[int] = None
+    pass
 
 
 class ConversationUpdate(BaseModel):
     title: str
 
 
+class ConversationRuleResponse(BaseModel):
+    conversation_id: int
+    title: str
+    rule: str = ""
+
+
+class ConversationRuleUpdate(BaseModel):
+    rule: str = ""
+
+
+class GlobalRuleResponse(BaseModel):
+    rule: str = ""
+
+
+class GlobalRuleUpdate(BaseModel):
+    rule: str = ""
+
+
 class ConversationResponse(ConversationBase):
     id: int
-    session_id: Optional[int] = None
+    rule: str = ""
     created_at: datetime
     updated_at: datetime
 
@@ -61,7 +79,6 @@ class AgentEventInMessage(BaseModel):
 
 class MessageResponse(MessageBase):
     id: int
-    session_id: Optional[int] = None
     conversation_id: int
     created_at: datetime
     tool_calls: List[ToolCallInMessage] = []

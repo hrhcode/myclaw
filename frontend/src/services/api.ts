@@ -8,14 +8,15 @@ import type {
   AutomationStats,
   ChatRequest,
   ConfigItem,
+  ConversationRuleResponse,
   Conversation,
   ConversationDetail,
+  GlobalRuleResponse,
   KnowledgeBaseListResponse,
   Message,
   Model,
   Provider,
   SessionSkill,
-  Session,
   Skill,
 } from '../types';
 
@@ -67,7 +68,6 @@ export interface StreamMessage {
   arguments?: string;
   phase?: string;
   conversation_id?: number;
-  session_id?: number;
   run_id?: string;
   severity?: string;
   message?: string;
@@ -259,6 +259,29 @@ export const getConversationDetail = async (id: number): Promise<ConversationDet
   return response.data;
 };
 
+export const getGlobalRule = async (): Promise<GlobalRuleResponse> => {
+  const response = await api.get<GlobalRuleResponse>('/rules/global');
+  return response.data;
+};
+
+export const updateGlobalRule = async (rule: string): Promise<GlobalRuleResponse> => {
+  const response = await api.put<GlobalRuleResponse>('/rules/global', { rule });
+  return response.data;
+};
+
+export const getConversationRule = async (conversationId: number): Promise<ConversationRuleResponse> => {
+  const response = await api.get<ConversationRuleResponse>(`/rules/conversations/${conversationId}`);
+  return response.data;
+};
+
+export const updateConversationRule = async (
+  conversationId: number,
+  rule: string,
+): Promise<ConversationRuleResponse> => {
+  const response = await api.put<ConversationRuleResponse>(`/rules/conversations/${conversationId}`, { rule });
+  return response.data;
+};
+
 export const getMessages = async (conversationId: number): Promise<Message[]> => {
   const response = await api.get<Message[]>(`/conversations/${conversationId}/messages`);
   return response.data;
@@ -343,10 +366,8 @@ export interface LongTermMemory {
   updated_at: string;
 }
 
-export const getLongTermMemories = async (sessionId?: number): Promise<LongTermMemory[]> => {
-  const response = await api.get<LongTermMemory[]>('/memory/long-term', {
-    params: sessionId ? { session_id: sessionId } : undefined,
-  });
+export const getLongTermMemories = async (): Promise<LongTermMemory[]> => {
+  const response = await api.get<LongTermMemory[]>('/memory/long-term');
   return response.data;
 };
 
@@ -355,14 +376,12 @@ export const createLongTermMemory = async (
   key?: string,
   importance: number = 0.5,
   source?: string,
-  sessionId?: number,
 ): Promise<LongTermMemory> => {
   const response = await api.post<LongTermMemory>('/memory/long-term', {
     content,
     key,
     importance,
     source,
-    session_id: sessionId,
   });
   return response.data;
 };
@@ -392,22 +411,17 @@ export interface KnowledgeUploadResponse {
   item_ids: number[];
 }
 
-export const getKnowledgeBase = async (sessionId?: number): Promise<KnowledgeBaseListResponse> => {
-  const response = await api.get<KnowledgeBaseListResponse>('/knowledge', {
-    params: sessionId ? { session_id: sessionId } : undefined,
-  });
+export const getKnowledgeBase = async (): Promise<KnowledgeBaseListResponse> => {
+  const response = await api.get<KnowledgeBaseListResponse>('/knowledge');
   return response.data;
 };
 
 export const uploadMarkdownKnowledge = async (
   file: File,
-  options?: { sessionId?: number; title?: string; source?: string },
+  options?: { title?: string; source?: string },
 ): Promise<KnowledgeUploadResponse> => {
   const formData = new FormData();
   formData.append('file', file);
-  if (options?.sessionId) {
-    formData.append('session_id', String(options.sessionId));
-  }
   if (options?.title) {
     formData.append('title', options.title);
   }
@@ -423,11 +437,10 @@ export const uploadMarkdownKnowledge = async (
 
 export const saveMessageToKnowledge = async (
   messageId: number,
-  options?: { sessionId?: number; title?: string; source?: string },
+  options?: { title?: string; source?: string },
 ): Promise<LongTermMemory> => {
   const response = await api.post<LongTermMemory>('/knowledge/from-message', {
     message_id: messageId,
-    session_id: options?.sessionId,
     title: options?.title,
     source: options?.source,
   });
@@ -641,10 +654,5 @@ export const runAutomationNow = async (
   const response = await api.post<{ success: boolean; automation_id: number; trigger_mode: string; run_id?: string | null }>(
     `/automations/${automationId}/run`,
   );
-  return response.data;
-};
-
-export const getSessions = async (): Promise<Session[]> => {
-  const response = await api.get<Session[]>('/sessions');
   return response.data;
 };

@@ -14,12 +14,14 @@ from app.schemas.schemas import (
 )
 from app.services.automation_service import AutomationService
 from app.services.conversation_service import ConversationService
+from app.services.session_service import SessionService
 from app.api.chat import agent_loop_controller
 
 router = APIRouter()
 
 automation_service = AutomationService()
 conversation_service = ConversationService()
+session_service = SessionService()
 
 
 async def _resolve_automation_conversation(db: AsyncSession, conversation_id: int | None):
@@ -47,9 +49,10 @@ async def get_automation_stats(db: AsyncSession = Depends(get_db)):
 @router.post("/automations", response_model=AutomationResponse)
 async def create_automation(payload: AutomationCreate, db: AsyncSession = Depends(get_db)):
     conversation = await _resolve_automation_conversation(db, payload.conversation_id)
+    runtime_session = await session_service.resolve_session(db, conversation.session_id)
     payload_data = payload.model_dump()
     payload_data["conversation_id"] = conversation.id
-    payload_data["session_id"] = conversation.session_id
+    payload_data["session_id"] = runtime_session.id
     try:
         return await automation_service.create(db, **payload_data)
     except ValueError as exc:
@@ -61,8 +64,9 @@ async def update_automation(automation_id: int, payload: AutomationUpdate, db: A
     changes = payload.model_dump(exclude_unset=True)
     if "conversation_id" in changes:
         conversation = await _resolve_automation_conversation(db, changes["conversation_id"])
+        runtime_session = await session_service.resolve_session(db, conversation.session_id)
         changes["conversation_id"] = conversation.id
-        changes["session_id"] = conversation.session_id
+        changes["session_id"] = runtime_session.id
     try:
         automation = await automation_service.update(db, automation_id, **changes)
     except ValueError as exc:

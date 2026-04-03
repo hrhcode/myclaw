@@ -10,6 +10,7 @@ const ChatPage = lazy(() => import("./components/chat/ChatPage"));
 const ConversationsPage = lazy(() => import("./components/conversations/ConversationsPage"));
 const SettingsPage = lazy(() => import("./components/settings/SettingsPage"));
 const MemoryPage = lazy(() => import("./components/memory"));
+const RulesPage = lazy(() => import("./components/rules/RulesPage"));
 const LogsPage = lazy(() =>
   import("./components/logs").then((module) => ({ default: module.LogsPage })),
 );
@@ -30,6 +31,7 @@ const App: React.FC = () => {
               <Route path="/chat" element={<ChatPage />} />
               <Route path="/chat/:conversationId" element={<ChatPage />} />
               <Route path="/conversations" element={<ConversationsPage />} />
+              <Route path="/rules" element={<RulesPage />} />
               <Route path="/memory" element={<Navigate to="/knowledge" replace />} />
               <Route path="/knowledge" element={<MemoryPage />} />
               <Route path="/automations" element={<AutomationsPage />} />

@@ -1,4 +1,4 @@
-from . import automations, chat, config, history, logs, memory, sessions, skills, tools
+from . import automations, chat, config, history, logs, memory, rules, skills, tools
 
 __all__ = [
     "automations",
@@ -7,7 +7,7 @@ __all__ = [
     "history",
     "logs",
     "memory",
-    "sessions",
+    "rules",
     "skills",
     "tools",
 ]

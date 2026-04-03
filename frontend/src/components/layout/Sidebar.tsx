@@ -7,6 +7,7 @@ import {
   Clock3,
   Logs,
   MessageSquare,
+  ScrollText,
   Settings,
   Wrench,
 } from "lucide-react";
@@ -53,14 +54,19 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
             icon: <BookText size={16} />,
           },
           {
-            path: "/automations",
-            label: "自动化",
-            icon: <Clock3 size={16} />,
+            path: "/rules",
+            label: "规则",
+            icon: <ScrollText size={16} />,
           },
           {
             path: "/knowledge",
             label: "知识库",
             icon: <Brain size={16} />,
+          },
+          {
+            path: "/automations",
+            label: "自动化",
+            icon: <Clock3 size={16} />,
           },
         ],
       },

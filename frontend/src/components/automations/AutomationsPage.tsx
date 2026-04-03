@@ -27,7 +27,7 @@ type AutomationDraft = AutomationPayload &
   Partial<
     Pick<
       Automation,
-      'id' | 'session_id' | 'last_run_at' | 'next_run_at' | 'created_at' | 'updated_at'
+      'id' | 'last_run_at' | 'next_run_at' | 'created_at' | 'updated_at'
     >
   >;
 

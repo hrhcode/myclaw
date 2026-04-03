@@ -38,6 +38,7 @@ MAX_MODEL_TEXT_PREVIEW = 1200
 MAX_CONTEXT_MESSAGES = 18
 MAX_CONTEXT_CHARS = 22000
 MAX_SUMMARY_LINES = 12
+GLOBAL_RULE_KEY = "global_rule"
 
 
 def build_memory_context(memory_results: List[Any]) -> str:
@@ -50,6 +51,36 @@ def build_memory_context(memory_results: List[Any]) -> str:
         lines.append(f"- [{source_label}] {result.content} (score {result.score:.2f})")
     lines.append("")
     return "\n".join(lines)
+
+
+def build_rule_messages(global_rule: str, conversation_rule: str) -> List[Dict[str, str]]:
+    messages: List[Dict[str, str]] = []
+
+    if global_rule.strip():
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "## Global Rules\n"
+                    "The following user-defined rules are mandatory and must always be followed.\n"
+                    f"{global_rule.strip()}"
+                ),
+            }
+        )
+
+    if conversation_rule.strip():
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "## Conversation Rules\n"
+                    "The following rules apply to this current conversation and must be followed strictly.\n"
+                    f"{conversation_rule.strip()}"
+                ),
+            }
+        )
+
+    return messages
 
 
 def build_knowledge_hits(memory_results: List[MemorySearchResult]) -> List[Dict[str, Any]]:
@@ -91,52 +122,60 @@ class AgentLoopController:
         request: ChatRequest,
         db: AsyncSession,
     ) -> AsyncIterator[Dict[str, Any]]:
-        session = await self.session_service.resolve_session(db, request.session_id)
+        default_runtime = await self.session_service.resolve_session(db, request.session_id)
 
-        command_response = await self._handle_command(db, session.id, request)
+        command_response = await self._handle_command(db, default_runtime.id, request)
         if command_response is not None:
             yield command_response
-            yield {"type": "done", "conversation_id": command_response["conversation_id"], "run_id": command_response["run_id"], "session_id": session.id}
+            yield {"type": "done", "conversation_id": command_response["conversation_id"], "run_id": command_response["run_id"], "session_id": default_runtime.id}
             return
 
         api_key = await get_config_value(db, API_KEY_KEY)
         if not api_key:
             raise RuntimeError("Zhipu API key is not configured")
 
-        model = session.model or await get_config_value(db, LLM_MODEL_KEY)
-        runtime_config = await self._load_runtime_config(db, session)
+        conversation_id, _conversation = await self.conversation_service.get_or_create(
+            db, request.message, request.conversation_id, session_id=default_runtime.id
+        )
+        runtime_context = await self.session_service.resolve_session(
+            db,
+            _conversation.session_id or request.session_id,
+        )
+        model = runtime_context.model or await get_config_value(db, LLM_MODEL_KEY)
+        runtime_config = await self._load_runtime_config(db, runtime_context)
         tool_executor.timeout_seconds = runtime_config.timeout_seconds
 
-        conversation_id, _conversation = await self.conversation_service.get_or_create(
-            db, request.message, request.conversation_id, session_id=session.id
-        )
-        await self.message_service.save(db, session.id, conversation_id, "user", request.message)
+        await self.message_service.save(db, runtime_context.id, conversation_id, "user", request.message)
 
         message_history = await self.message_service.get_model_history(db, conversation_id)
         memory_context, memory_results = await self._load_memory_context(db, conversation_id, request.message)
-        skill_context = await self.skill_service.build_session_skill_context(db, session.id)
-        workspace_context = self.skill_service.build_workspace_prompt_context(session.workspace_path)
+        global_rule = await get_config_value(db, GLOBAL_RULE_KEY) or ""
+        conversation_rule = (_conversation.rule or "").strip()
+        skill_context = await self.skill_service.build_session_skill_context(db, runtime_context.id)
+        workspace_context = self.skill_service.build_workspace_prompt_context(runtime_context.workspace_path)
 
         state = AgentRunState(
             run_id=str(uuid4()),
             conversation_id=conversation_id,
-            session_id=session.id,
+            session_id=runtime_context.id,
             user_message=request.message,
             messages=self._build_initial_messages(
                 message_history,
                 memory_context,
                 runtime_config,
-                workspace_dir=session.workspace_path or os.getcwd(),
+                workspace_dir=runtime_context.workspace_path or os.getcwd(),
+                global_rule=global_rule,
+                conversation_rule=conversation_rule,
                 skill_context=skill_context,
                 workspace_context=workspace_context,
-                context_summary=session.context_summary or "",
+                context_summary=runtime_context.context_summary or "",
             ),
             memory_context=memory_context,
         )
         await AgentRunDAO.create(
             db,
             run_id=state.run_id,
-            session_id=session.id,
+            session_id=runtime_context.id,
             conversation_id=conversation_id,
             user_message=request.message,
             stop_reason=None,
@@ -150,7 +189,7 @@ class AgentLoopController:
                 "type": "conversation",
                 "conversation_id": conversation_id,
                 "run_id": state.run_id,
-                "session_id": session.id,
+                "session_id": runtime_context.id,
             },
             persist=False,
         )
@@ -165,7 +204,7 @@ class AgentLoopController:
                     "hits": knowledge_hits,
                     "conversation_id": conversation_id,
                     "run_id": state.run_id,
-                    "session_id": session.id,
+                    "session_id": runtime_context.id,
                 },
                 persist=True,
                 event_type="knowledge_hits",
@@ -202,7 +241,7 @@ class AgentLoopController:
                             "content": content,
                             "conversation_id": conversation_id,
                             "run_id": state.run_id,
-                            "session_id": session.id,
+                            "session_id": runtime_context.id,
                         },
                         persist=False,
                     )
@@ -239,7 +278,7 @@ class AgentLoopController:
                                 "content": content,
                                 "conversation_id": conversation_id,
                                 "run_id": state.run_id,
-                                "session_id": session.id,
+                                "session_id": runtime_context.id,
                             },
                             persist=False,
                         )
@@ -257,7 +296,7 @@ class AgentLoopController:
                                 "conversation_id": conversation_id,
                                 "run_id": state.run_id,
                                 "iteration": state.iteration,
-                                "session_id": session.id,
+                                "session_id": runtime_context.id,
                             },
                             persist=False,
                         )
@@ -291,7 +330,7 @@ class AgentLoopController:
                                     "conversation_id": conversation_id,
                                     "run_id": state.run_id,
                                     "iteration": state.iteration,
-                                    "session_id": session.id,
+                                    "session_id": runtime_context.id,
                                 },
                                 persist=True,
                                 event_type="tool_call",
@@ -325,7 +364,7 @@ class AgentLoopController:
 
             tool_results = await self.message_service.process_tool_calls(
                 db=db,
-                session_id=session.id,
+                session_id=runtime_context.id,
                 conversation_id=conversation_id,
                 message_id=None,
                 tool_calls=current_tool_calls,
@@ -367,7 +406,7 @@ class AgentLoopController:
                         "conversation_id": conversation_id,
                         "run_id": state.run_id,
                         "iteration": state.iteration,
-                        "session_id": session.id,
+                        "session_id": runtime_context.id,
                     },
                     persist=True,
                     event_type="tool_result",
@@ -398,7 +437,7 @@ class AgentLoopController:
                             "run_id": state.run_id,
                             "iteration": state.iteration,
                             "phase": "post_tool_reflection",
-                            "session_id": session.id,
+                            "session_id": runtime_context.id,
                         },
                         persist=True,
                         event_type="reasoning",
@@ -413,7 +452,7 @@ class AgentLoopController:
                         **progress_hint,
                         "conversation_id": conversation_id,
                         "run_id": state.run_id,
-                        "session_id": session.id,
+                        "session_id": runtime_context.id,
                     },
                     persist=True,
                     event_type="progress_warning",
@@ -432,7 +471,7 @@ class AgentLoopController:
                         "count": detection.count,
                         "conversation_id": conversation_id,
                         "run_id": state.run_id,
-                        "session_id": session.id,
+                        "session_id": runtime_context.id,
                     },
                     persist=True,
                     event_type="loop_warning",
@@ -453,9 +492,9 @@ class AgentLoopController:
             final_text = "I do not have enough new information to continue safely."
 
         assistant_message = await self.message_service.save(
-            db, session.id, conversation_id, "assistant", final_text
+            db, runtime_context.id, conversation_id, "assistant", final_text
         )
-        await self._maybe_extract_memory(db, session, request.message, final_text)
+        await self._maybe_extract_memory(db, runtime_context, request.message, final_text)
         if state.tool_calls_info:
             for tool_call in state.tool_calls_info:
                 tool_call_id = tool_call.get("id", "")
@@ -480,7 +519,7 @@ class AgentLoopController:
                 "type": "done",
                 "conversation_id": conversation_id,
                 "run_id": state.run_id,
-                "session_id": session.id,
+                "session_id": runtime_context.id,
             },
             persist=False,
         )
@@ -498,7 +537,7 @@ class AgentLoopController:
                 title=f"Auto extract {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
                 content=self._truncate_text(combined, 2000),
                 importance=0.6,
-                source=f"session:{session.name}:auto_extract",
+                source=f"workspace:{session.name}:auto_extract",
                 content_type="note",
             )
         except Exception:
@@ -552,13 +591,13 @@ class AgentLoopController:
                 new_conversation, _ = await self.conversation_service.get_or_create(
                     db, "New Chat", None, session_id=session_id
                 )
-                content = f"Created a new conversation in session {session_id}."
+                content = "Created a new conversation."
                 conversation_id = new_conversation
             else:
                 session = await self.session_service.get_by_id(db, session_id)
                 if session:
                     await self.session_service.update(db, session_id, context_summary="")
-                content = "Session context summary has been reset."
+                content = "Conversation workspace summary has been reset."
         elif command == "/compact":
             messages = await self.message_service.get_recent_messages(db, conversation_id, limit=8)
             summary_lines = ["## Manual Compact"]
@@ -663,6 +702,8 @@ class AgentLoopController:
         runtime_config: LoopRuntimeConfig,
         *,
         workspace_dir: str,
+        global_rule: str = "",
+        conversation_rule: str = "",
         skill_context: str = "",
         workspace_context: str = "",
         context_summary: str = "",
@@ -679,14 +720,15 @@ class AgentLoopController:
                 ),
             }
         ]
+        messages.extend(build_rule_messages(global_rule, conversation_rule))
         if context_summary:
             messages.append(
                 {
                     "role": "system",
                     "content": (
-                        "## Session Context Summary\n"
+                        "## Workspace Context Summary\n"
                         f"{context_summary}\n\n"
-                        "Use this as prior working context for the current session."
+                        "Use this as prior working context for the current conversation workspace."
                     ),
                 }
             )
