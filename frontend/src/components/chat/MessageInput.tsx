@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Command, Loader2, PlusCircle, SendHorizonal } from "lucide-react";
+import { ArrowUp, Loader2, PlusCircle } from "lucide-react";
 
 interface MessageInputProps {
   onSendMessage: (message: string) => void;
@@ -28,7 +28,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
   onCreateNewChat: _onCreateNewChat,
 }) => {
   const [message, setMessage] = useState("");
-  const [isFocused, setIsFocused] = useState(false);
   const [showCommands, setShowCommands] = useState(false);
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -118,56 +117,35 @@ const MessageInput: React.FC<MessageInputProps> = ({
   return (
     <div className="chat-composer-wrap">
       <form onSubmit={handleSubmit} className="chat-composer relative">
-        <motion.div
-          animate={{
-            borderColor: isFocused
-              ? "var(--accent-soft)"
-              : "var(--panel-border)",
-            boxShadow: isFocused
-              ? "0 0 0 1px var(--accent-soft), var(--shadow-md)"
-              : "var(--shadow-sm)",
-          }}
-          transition={{ duration: 0.18 }}
-          className="chat-composer-shell"
-        >
+        <div className="chat-composer-shell">
           <textarea
             ref={textareaRef}
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             onKeyDown={handleKeyDown}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            placeholder="给智能体发送消息，回车发送，Shift + 回车换行"
+            placeholder="您正在与myclaw聊天，输入'/'获得更多能力"
             disabled={disabled}
             rows={1}
             className="chat-composer-input"
           />
 
           <div className="chat-composer-footer">
-            <div className="chat-composer-hint">
-              <Command size={14} />
-              <span>输入 `/` 查看快捷命令</span>
-            </div>
-
-            <div className="chat-composer-actions">
-              <span className="chat-composer-count">{message.length}</span>
-              <motion.button
-                type="submit"
-                disabled={!canSend}
-                whileHover={canSend ? { scale: 1.03 } : {}}
-                whileTap={canSend ? { scale: 0.97 } : {}}
-                className={`chat-send-button ${canSend ? "is-ready" : ""}`}
-                aria-label={disabled ? "正在发送消息" : "发送消息"}
-              >
-                {disabled ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <SendHorizonal size={16} />
-                )}
-              </motion.button>
-            </div>
+            <motion.button
+              type="submit"
+              disabled={!canSend}
+              whileHover={canSend ? { scale: 1.05 } : {}}
+              whileTap={canSend ? { scale: 0.95 } : {}}
+              className={`chat-send-button ${canSend ? "is-ready" : ""}`}
+              aria-label={disabled ? "正在发送消息" : "发送消息"}
+            >
+              {disabled ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <ArrowUp size={16} />
+              )}
+            </motion.button>
           </div>
-        </motion.div>
+        </div>
 
         <AnimatePresence>
           {showCommands && filteredCommands.length > 0 ? (

@@ -492,20 +492,20 @@ const MessageList: React.FC<MessageListProps> = ({ messages, onSaveAssistantMess
             className={`message-row ${message.role === "user" ? "is-user" : "is-assistant"}`}
           >
             <div className={`message-shell ${message.role === "user" ? "is-user" : "is-assistant"}`}>
-              <div className="message-meta">
-                <div className="message-meta-main">
-                  <MessageAvatar role={message.role} />
-                  <span className="message-role-label">
-                    {message.role === "user" ? "你" : "智能体"}
+              {message.role === "user" ? (
+                <div className="message-meta">
+                  <div className="message-meta-main">
+                    <MessageAvatar role="user" />
+                    <span className="message-role-label">你</span>
+                  </div>
+                  <span className="message-time">
+                    {new Date(message.created_at).toLocaleTimeString("zh-CN", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </span>
                 </div>
-                <span className="message-time">
-                  {new Date(message.created_at).toLocaleTimeString("zh-CN", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-              </div>
+              ) : null}
 
               <div className={`message-bubble ${message.role === "user" ? "message-user" : "message-ai"}`}>
                 {message.role === "assistant" ? (
