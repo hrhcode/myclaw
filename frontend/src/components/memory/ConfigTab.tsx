@@ -116,7 +116,7 @@ const ConfigTab: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 size={36} className="text-primary animate-spin" />
+        <Loader2 size={45} className="text-primary animate-spin" />
       </div>
     );
   }
@@ -127,17 +127,17 @@ const ConfigTab: React.FC = () => {
         <div className="flex items-center gap-2 text-sm">
           {isAutoSaving ? (
             <>
-              <Loader2 size={15} className="animate-spin" style={{ color: 'var(--accent)' }} />
+              <Loader2 size={19} className="animate-spin" style={{ color: 'var(--accent)' }} />
               <span style={{ color: 'var(--text-secondary)' }}>检测到配置变更，正在自动保存...</span>
             </>
           ) : saveState === 'saved' ? (
             <>
-              <CheckCircle size={15} style={{ color: '#16a34a' }} />
+              <CheckCircle size={19} style={{ color: '#16a34a' }} />
               <span style={{ color: '#16a34a' }}>已自动保存</span>
             </>
           ) : saveState === 'error' ? (
             <>
-              <AlertCircle size={15} style={{ color: '#dc2626' }} />
+              <AlertCircle size={19} style={{ color: '#dc2626' }} />
               <span style={{ color: '#dc2626' }}>{saveErrorText || '保存失败'}</span>
             </>
           ) : (

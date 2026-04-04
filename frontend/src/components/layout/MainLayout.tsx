@@ -25,16 +25,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   return (
     <div className={`shell ${sidebarCollapsed ? "shell--nav-collapsed" : ""}`}>
       <header className="topbar">
-        <div className="topbar-left">
-          <button
-            className="nav-collapse-toggle"
-            onClick={toggleSidebar}
-            aria-label={sidebarCollapsed ? "展开导航" : "收起导航"}
-            title={sidebarCollapsed ? "展开导航" : "收起导航"}
-          >
-            <span className="nav-collapse-toggle__icon">≡</span>
-          </button>
-        </div>
+        <div className="topbar-left"></div>
 
         <div className="topbar-status">
           <div className="pill">
@@ -57,6 +48,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({
             <div>
               {headerTitle ? (
                 <div className="page-title">{headerTitle}</div>
+              ) : null}
+              {headerSubtitle ? (
+                <div className="page-sub">{headerSubtitle}</div>
               ) : null}
             </div>
             {headerActions ? (

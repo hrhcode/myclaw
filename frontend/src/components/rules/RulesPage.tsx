@@ -128,7 +128,7 @@ const RulesPage: React.FC = () => {
         headerSubtitle="用强约束规则统一限制模型输出和行为"
       >
         <div className="flex h-full items-center justify-center py-16">
-          <Loader2 size={32} className="animate-spin text-primary" />
+          <Loader2 size={40} className="animate-spin text-primary" />
         </div>
       </MainLayout>
     );
@@ -174,9 +174,9 @@ const RulesPage: React.FC = () => {
                   disabled={isSavingGlobal}
                 >
                   {isSavingGlobal ? (
-                    <Loader2 size={16} className="animate-spin" />
+                    <Loader2 size={20} className="animate-spin" />
                   ) : (
-                    <Save size={16} />
+                    <Save size={20} />
                   )}
                   <span>保存全局规则</span>
                 </button>
@@ -229,9 +229,9 @@ const RulesPage: React.FC = () => {
                   disabled={!selectedConversation || isSavingConversation}
                 >
                   {isSavingConversation ? (
-                    <Loader2 size={16} className="animate-spin" />
+                    <Loader2 size={20} className="animate-spin" />
                   ) : (
-                    <Save size={16} />
+                    <Save size={20} />
                   )}
                   <span>保存会话规则</span>
                 </button>

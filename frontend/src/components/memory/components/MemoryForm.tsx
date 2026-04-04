@@ -97,7 +97,7 @@ const MemoryForm: React.FC<MemoryFormProps> = ({ memory, onSave, onClose }) => {
               {memory ? '编辑记忆' : '新增记忆'}
             </h2>
             <button type="button" className="rounded-lg p-2" style={{ color: 'var(--text-secondary)' }} onClick={onClose}>
-              <X size={18} />
+              <X size={23} />
             </button>
           </div>
 
@@ -189,7 +189,7 @@ const MemoryForm: React.FC<MemoryFormProps> = ({ memory, onSave, onClose }) => {
                 取消
               </button>
               <button type="submit" className="btn-primary inline-flex items-center gap-2" disabled={isSaving}>
-                {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Star size={14} />}
+                {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Star size={18} />}
                 <span>{isSaving ? '保存中...' : memory ? '更新记忆' : '创建记忆'}</span>
               </button>
             </div>

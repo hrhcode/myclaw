@@ -104,7 +104,12 @@ const EMPTY_DRAFT: DraftServer = {
 
 const McpPage: React.FC = () => {
   const [servers, setServers] = useState<McpServer[]>([]);
-  const [stats, setStats] = useState<McpStats>({ total: 0, enabled: 0, resources: 0, alerts: 0 });
+  const [stats, setStats] = useState<McpStats>({
+    total: 0,
+    enabled: 0,
+    resources: 0,
+    alerts: 0,
+  });
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
   const [selectedId, setSelectedId] = useState<string>("");
@@ -134,7 +139,8 @@ const McpPage: React.FC = () => {
       const matchesFilter =
         filter === "all" ||
         (filter === "connected" && server.status === "connected") ||
-        (filter === "attention" && (server.status === "degraded" || server.alerts > 0)) ||
+        (filter === "attention" &&
+          (server.status === "degraded" || server.alerts > 0)) ||
         (filter === "disabled" && !server.enabled);
 
       return matchesQuery && matchesFilter;
@@ -142,14 +148,18 @@ const McpPage: React.FC = () => {
   }, [filter, query, servers]);
 
   const loadPage = async (preferredId?: string) => {
-    const [serverData, statsData] = await Promise.all([getMcpServers(), getMcpStats()]);
+    const [serverData, statsData] = await Promise.all([
+      getMcpServers(),
+      getMcpStats(),
+    ]);
     setServers(serverData);
     setStats(statsData);
 
     const nextId = preferredId ?? selectedId ?? serverData[0]?.id ?? "";
     setSelectedId(nextId);
     if (nextId && nextId !== "__new__") {
-      const selected = serverData.find((item) => item.id === nextId) ?? serverData[0] ?? null;
+      const selected =
+        serverData.find((item) => item.id === nextId) ?? serverData[0] ?? null;
       setDraft(selected ? { ...selected } : null);
     } else if (!draft || preferredId !== "__new__") {
       setDraft(serverData[0] ? { ...serverData[0] } : null);
@@ -162,7 +172,9 @@ const McpPage: React.FC = () => {
         setLoading(true);
         await loadPage();
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : "加载 MCP 服务失败");
+        setError(
+          loadError instanceof Error ? loadError.message : "加载 MCP 服务失败",
+        );
       } finally {
         setLoading(false);
       }
@@ -175,7 +187,10 @@ const McpPage: React.FC = () => {
     setDraft(selected ? { ...selected } : null);
   }, [selectedId, servers]);
 
-  const setDraftValue = <K extends keyof DraftServer>(key: K, value: DraftServer[K]) => {
+  const setDraftValue = <K extends keyof DraftServer>(
+    key: K,
+    value: DraftServer[K],
+  ) => {
     setDraft((current) => (current ? { ...current, [key]: value } : current));
   };
 
@@ -196,7 +211,11 @@ const McpPage: React.FC = () => {
         : await createMcpServer(payload);
       await loadPage(saved.id);
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : "保存 MCP 服务失败");
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : "保存 MCP 服务失败",
+      );
     } finally {
       setBusy(false);
     }
@@ -213,7 +232,11 @@ const McpPage: React.FC = () => {
       const nextId = servers.find((item) => item.id !== draft.id)?.id;
       await loadPage(nextId);
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : "删除 MCP 服务失败");
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : "删除 MCP 服务失败",
+      );
     } finally {
       setBusy(false);
     }
@@ -224,10 +247,16 @@ const McpPage: React.FC = () => {
     try {
       setBusy(true);
       setError(null);
-      const updated = await updateMcpServer(draft.id, { enabled: !draft.enabled });
+      const updated = await updateMcpServer(draft.id, {
+        enabled: !draft.enabled,
+      });
       await loadPage(updated.id);
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : "切换 MCP 服务状态失败");
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : "切换 MCP 服务状态失败",
+      );
     } finally {
       setBusy(false);
     }
@@ -241,7 +270,11 @@ const McpPage: React.FC = () => {
       const probed = await probeMcpServer(draft.id);
       await loadPage(probed.id);
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : "探测 MCP 服务失败");
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : "探测 MCP 服务失败",
+      );
     } finally {
       setBusy(false);
     }
@@ -259,11 +292,19 @@ const McpPage: React.FC = () => {
           const matched = result.find((item) => item.id === current.id);
           return matched ? { ...matched } : result[0] ? { ...result[0] } : null;
         }
-        return current?.id === "__new__" ? current : result[0] ? { ...result[0] } : null;
+        return current?.id === "__new__"
+          ? current
+          : result[0]
+            ? { ...result[0] }
+            : null;
       });
       setStats(await getMcpStats());
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : "批量探测 MCP 服务失败");
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : "批量探测 MCP 服务失败",
+      );
     } finally {
       setBusy(false);
     }
@@ -271,9 +312,9 @@ const McpPage: React.FC = () => {
 
   const canSave = Boolean(
     draft &&
-      draft.name.trim() &&
-      ((draft.transport === "stdio" && draft.command?.trim()) ||
-        (draft.transport !== "stdio" && draft.endpoint?.trim())),
+    draft.name.trim() &&
+    ((draft.transport === "stdio" && draft.command?.trim()) ||
+      (draft.transport !== "stdio" && draft.endpoint?.trim())),
   );
 
   if (loading) {
@@ -282,7 +323,10 @@ const McpPage: React.FC = () => {
         <div className="admin-page">
           <div className="admin-frame">
             <SectionCard className="p-6">
-              <div className="text-sm" style={{ color: "var(--text-secondary)" }}>
+              <div
+                className="text-sm"
+                style={{ color: "var(--text-secondary)" }}
+              >
                 正在加载 MCP 服务...
               </div>
             </SectionCard>
@@ -299,11 +343,13 @@ const McpPage: React.FC = () => {
           <div className="admin-toolbar mb-4">
             <button
               type="button"
-              onClick={() => void loadPage(selectedId === "__new__" ? undefined : selectedId)}
+              onClick={() =>
+                void loadPage(selectedId === "__new__" ? undefined : selectedId)
+              }
               className="btn-secondary inline-flex items-center gap-2"
               disabled={busy}
             >
-              <RefreshCw size={16} />
+              <RefreshCw size={20} />
               刷新
             </button>
             <button
@@ -312,7 +358,11 @@ const McpPage: React.FC = () => {
               className="btn-secondary inline-flex items-center gap-2"
               disabled={busy || servers.length === 0}
             >
-              {busy ? <Loader2 size={16} className="animate-spin" /> : <Activity size={16} />}
+              {busy ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                <Activity size={20} />
+              )}
               全量探测
             </button>
             <button
@@ -321,40 +371,72 @@ const McpPage: React.FC = () => {
               className="btn-primary inline-flex items-center gap-2"
               disabled={busy}
             >
-              <Plus size={16} />
+              <Plus size={20} />
               新建服务
             </button>
           </div>
 
           <section className="admin-summary">
-            <SummaryCard label="MCP 服务" value={stats.total} hint="统一纳入左侧控制台管理" />
-            <SummaryCard label="已启用" value={stats.enabled} hint="启用后可执行探测与资源发现" />
-            <SummaryCard label="可用资源" value={stats.resources} hint="资源总量来自最近一次探测结果" />
-            <SummaryCard label="待处理告警" value={stats.alerts} hint="探测失败或状态异常会累积到这里" />
+            <SummaryCard
+              label="MCP 服务"
+              value={stats.total}
+              hint="统一纳入左侧控制台管理"
+            />
+            <SummaryCard
+              label="已启用"
+              value={stats.enabled}
+              hint="启用后可执行探测与资源发现"
+            />
+            <SummaryCard
+              label="可用资源"
+              value={stats.resources}
+              hint="资源总量来自最近一次探测结果"
+            />
+            <SummaryCard
+              label="待处理告警"
+              value={stats.alerts}
+              hint="探测失败或状态异常会累积到这里"
+            />
           </section>
 
           {error ? (
-            <div className="warning-banner px-4 py-3 text-sm" style={{ color: "#b45309" }}>
+            <div
+              className="warning-banner px-4 py-3 text-sm"
+              style={{ color: "#b45309" }}
+            >
               {error}
             </div>
           ) : null}
 
           <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
             <aside className="admin-card flex min-h-0 flex-col overflow-hidden">
-              <div className="border-b p-4" style={{ borderColor: "var(--panel-border)" }}>
+              <div
+                className="border-b p-4"
+                style={{ borderColor: "var(--panel-border)" }}
+              >
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>服务器列表</div>
-                    <div className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                    <div
+                      className="text-sm font-semibold"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      服务器列表
+                    </div>
+                    <div
+                      className="mt-1 text-xs"
+                      style={{ color: "var(--text-muted)" }}
+                    >
                       点击左侧服务可编辑配置并执行单点探测。
                     </div>
                   </div>
-                  <StatusBadge tone="info">{visibleServers.length} 个</StatusBadge>
+                  <StatusBadge tone="info">
+                    {visibleServers.length} 个
+                  </StatusBadge>
                 </div>
 
                 <div className="relative mt-4">
                   <Search
-                    size={16}
+                    size={20}
                     className="absolute left-3 top-1/2 -translate-y-1/2"
                     style={{ color: "var(--text-muted)" }}
                   />
@@ -368,7 +450,13 @@ const McpPage: React.FC = () => {
                 </div>
 
                 <div className="mt-4">
-                  <SegmentedTabs tabs={FILTER_TABS} activeKey={filter} onChange={(key) => setFilter(key as FilterKey)} compact equalWidth />
+                  <SegmentedTabs
+                    tabs={FILTER_TABS}
+                    activeKey={filter}
+                    onChange={(key) => setFilter(key as FilterKey)}
+                    compact
+                    equalWidth
+                  />
                 </div>
               </div>
 
@@ -395,17 +483,29 @@ const McpPage: React.FC = () => {
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                            <div
+                              className="truncate text-sm font-semibold"
+                              style={{ color: "var(--text-primary)" }}
+                            >
                               {server.name}
                             </div>
-                            <div className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
-                              {server.transport.toUpperCase()} · {server.tools} tools · {server.resources} resources
+                            <div
+                              className="mt-1 text-xs"
+                              style={{ color: "var(--text-muted)" }}
+                            >
+                              {server.transport.toUpperCase()} · {server.tools}{" "}
+                              tools · {server.resources} resources
                             </div>
                           </div>
-                          <StatusBadge tone={statusMeta.tone}>{statusMeta.label}</StatusBadge>
+                          <StatusBadge tone={statusMeta.tone}>
+                            {statusMeta.label}
+                          </StatusBadge>
                         </div>
 
-                        <p className="mt-3 text-xs leading-6" style={{ color: "var(--text-secondary)" }}>
+                        <p
+                          className="mt-3 text-xs leading-6"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
                           {server.description || "暂无描述"}
                         </p>
 
@@ -414,7 +514,10 @@ const McpPage: React.FC = () => {
                             <span
                               key={tag}
                               className="rounded-full px-2.5 py-1 text-[11px]"
-                              style={{ background: "var(--surface-subtle)", color: "var(--text-secondary)" }}
+                              style={{
+                                background: "var(--surface-subtle)",
+                                color: "var(--text-secondary)",
+                              }}
                             >
                               {tag}
                             </span>
@@ -431,9 +534,14 @@ const McpPage: React.FC = () => {
               <div className="grid gap-4">
                 <PageSection
                   title={draft.name || "新 MCP 服务"}
-                  description={draft.description || "这里可以编辑 MCP 服务配置，并直接发起真实探测。"}
+                  description={
+                    draft.description ||
+                    "这里可以编辑 MCP 服务配置，并直接发起真实探测。"
+                  }
                   actions={
-                    <StatusBadge tone={STATUS_META[draft.status || "disabled"].tone}>
+                    <StatusBadge
+                      tone={STATUS_META[draft.status || "disabled"].tone}
+                    >
                       {STATUS_META[draft.status || "disabled"].label}
                     </StatusBadge>
                   }
@@ -441,10 +549,26 @@ const McpPage: React.FC = () => {
                   <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
                     <SectionCard className="p-5">
                       <div className="grid gap-4 md:grid-cols-2">
-                        <InfoTile icon={<Server size={16} />} label="传输方式" value={TRANSPORT_LABEL[draft.transport]} />
-                        <InfoTile icon={<Activity size={16} />} label="最近探测" value={formatTime(draft.last_probe_at)} />
-                        <InfoTile icon={<Database size={16} />} label="资源总量" value={`${draft.resources || 0} resources`} />
-                        <InfoTile icon={<Wrench size={16} />} label="工具总量" value={`${draft.tools || 0} tools`} />
+                        <InfoTile
+                          icon={<Server size={20} />}
+                          label="传输方式"
+                          value={TRANSPORT_LABEL[draft.transport]}
+                        />
+                        <InfoTile
+                          icon={<Activity size={20} />}
+                          label="最近探测"
+                          value={formatTime(draft.last_probe_at)}
+                        />
+                        <InfoTile
+                          icon={<Database size={20} />}
+                          label="资源总量"
+                          value={`${draft.resources || 0} resources`}
+                        />
+                        <InfoTile
+                          icon={<Wrench size={20} />}
+                          label="工具总量"
+                          value={`${draft.tools || 0} tools`}
+                        />
                       </div>
 
                       <div className="mt-5 grid gap-4">
@@ -452,7 +576,9 @@ const McpPage: React.FC = () => {
                           <input
                             type="text"
                             value={draft.name}
-                            onChange={(event) => setDraftValue("name", event.target.value)}
+                            onChange={(event) =>
+                              setDraftValue("name", event.target.value)
+                            }
                             className="admin-input h-11 px-3"
                           />
                         </Field>
@@ -460,7 +586,9 @@ const McpPage: React.FC = () => {
                         <Field label="描述">
                           <textarea
                             value={draft.description}
-                            onChange={(event) => setDraftValue("description", event.target.value)}
+                            onChange={(event) =>
+                              setDraftValue("description", event.target.value)
+                            }
                             rows={3}
                             className="admin-input resize-y px-3 py-3"
                           />
@@ -470,7 +598,13 @@ const McpPage: React.FC = () => {
                           <Field label="传输方式">
                             <select
                               value={draft.transport}
-                              onChange={(event) => setDraftValue("transport", event.target.value as DraftServer["transport"])}
+                              onChange={(event) =>
+                                setDraftValue(
+                                  "transport",
+                                  event.target
+                                    .value as DraftServer["transport"],
+                                )
+                              }
                               className="admin-select h-11 px-3"
                             >
                               <option value="stdio">STDIO</option>
@@ -482,7 +616,12 @@ const McpPage: React.FC = () => {
                           <Field label="启用状态">
                             <select
                               value={draft.enabled ? "enabled" : "disabled"}
-                              onChange={(event) => setDraftValue("enabled", event.target.value === "enabled")}
+                              onChange={(event) =>
+                                setDraftValue(
+                                  "enabled",
+                                  event.target.value === "enabled",
+                                )
+                              }
                               className="admin-select h-11 px-3"
                             >
                               <option value="enabled">启用</option>
@@ -495,7 +634,12 @@ const McpPage: React.FC = () => {
                               type="number"
                               min="1"
                               value={draft.timeout_seconds}
-                              onChange={(event) => setDraftValue("timeout_seconds", Number(event.target.value) || 8)}
+                              onChange={(event) =>
+                                setDraftValue(
+                                  "timeout_seconds",
+                                  Number(event.target.value) || 8,
+                                )
+                              }
                               className="admin-input h-11 px-3"
                             />
                           </Field>
@@ -507,7 +651,9 @@ const McpPage: React.FC = () => {
                               <input
                                 type="text"
                                 value={draft.command || ""}
-                                onChange={(event) => setDraftValue("command", event.target.value)}
+                                onChange={(event) =>
+                                  setDraftValue("command", event.target.value)
+                                }
                                 className="admin-input h-11 px-3"
                                 placeholder="例如：npx"
                               />
@@ -515,18 +661,31 @@ const McpPage: React.FC = () => {
                             <Field label="参数（JSON 数组）">
                               <textarea
                                 value={JSON.stringify(draft.args, null, 2)}
-                                onChange={(event) => setDraftValue("args", parseJsonArray(event.target.value))}
+                                onChange={(event) =>
+                                  setDraftValue(
+                                    "args",
+                                    parseJsonArray(event.target.value),
+                                  )
+                                }
                                 rows={4}
                                 className="admin-input font-mono resize-y px-3 py-3"
                               />
                             </Field>
                           </>
                         ) : (
-                          <Field label={draft.transport === "http" ? "MCP Endpoint" : "SSE Endpoint"}>
+                          <Field
+                            label={
+                              draft.transport === "http"
+                                ? "MCP Endpoint"
+                                : "SSE Endpoint"
+                            }
+                          >
                             <input
                               type="text"
                               value={draft.endpoint || ""}
-                              onChange={(event) => setDraftValue("endpoint", event.target.value)}
+                              onChange={(event) =>
+                                setDraftValue("endpoint", event.target.value)
+                              }
                               className="admin-input h-11 px-3"
                               placeholder="http://localhost:8811/mcp"
                             />
@@ -538,7 +697,12 @@ const McpPage: React.FC = () => {
                             <input
                               type="text"
                               value={draft.tags.join(", ")}
-                              onChange={(event) => setDraftValue("tags", splitCsv(event.target.value))}
+                              onChange={(event) =>
+                                setDraftValue(
+                                  "tags",
+                                  splitCsv(event.target.value),
+                                )
+                              }
                               className="admin-input h-11 px-3"
                             />
                           </Field>
@@ -546,7 +710,12 @@ const McpPage: React.FC = () => {
                           <Field label="工作区（换行分隔）">
                             <textarea
                               value={draft.workspaces.join("\n")}
-                              onChange={(event) => setDraftValue("workspaces", splitLines(event.target.value))}
+                              onChange={(event) =>
+                                setDraftValue(
+                                  "workspaces",
+                                  splitLines(event.target.value),
+                                )
+                              }
                               rows={3}
                               className="admin-input resize-y px-3 py-3"
                             />
@@ -557,7 +726,12 @@ const McpPage: React.FC = () => {
                           <Field label="环境变量（JSON 对象）">
                             <textarea
                               value={JSON.stringify(draft.env, null, 2)}
-                              onChange={(event) => setDraftValue("env", parseJsonObject(event.target.value))}
+                              onChange={(event) =>
+                                setDraftValue(
+                                  "env",
+                                  parseJsonObject(event.target.value),
+                                )
+                              }
                               rows={6}
                               className="admin-input font-mono resize-y px-3 py-3"
                             />
@@ -566,7 +740,12 @@ const McpPage: React.FC = () => {
                           <Field label="请求头（JSON 对象）">
                             <textarea
                               value={JSON.stringify(draft.headers, null, 2)}
-                              onChange={(event) => setDraftValue("headers", parseJsonObject(event.target.value))}
+                              onChange={(event) =>
+                                setDraftValue(
+                                  "headers",
+                                  parseJsonObject(event.target.value),
+                                )
+                              }
                               rows={6}
                               className="admin-input font-mono resize-y px-3 py-3"
                             />
@@ -576,28 +755,40 @@ const McpPage: React.FC = () => {
                     </SectionCard>
 
                     <SectionCard className="p-5">
-                      <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-                        <BellRing size={16} />
+                      <div
+                        className="flex items-center gap-2 text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        <BellRing size={20} />
                         健康概览
                       </div>
                       <div className="mt-4 grid gap-3">
                         <HealthRow
-                          icon={<PlugZap size={16} />}
+                          icon={<PlugZap size={20} />}
                           label="运行时接入"
-                          value={draft.status === "connected" && (draft.tool_names?.length || 0) > 0 ? `已注册 ${draft.tool_names?.length || 0} 个工具` : "需先探测成功"}
+                          value={
+                            draft.status === "connected" &&
+                            (draft.tool_names?.length || 0) > 0
+                              ? `已注册 ${draft.tool_names?.length || 0} 个工具`
+                              : "需先探测成功"
+                          }
                         />
                         <HealthRow
-                          icon={<CheckCircle2 size={16} />}
+                          icon={<CheckCircle2 size={20} />}
                           label="状态说明"
                           value={draft.status_reason || "暂无说明"}
                         />
                         <HealthRow
-                          icon={<ShieldAlert size={16} />}
+                          icon={<ShieldAlert size={20} />}
                           label="告警数量"
-                          value={draft.alerts ? `${draft.alerts} 项待处理` : "暂无告警"}
+                          value={
+                            draft.alerts
+                              ? `${draft.alerts} 项待处理`
+                              : "暂无告警"
+                          }
                         />
                         <HealthRow
-                          icon={<Blocks size={16} />}
+                          icon={<Blocks size={20} />}
                           label="Prompts"
                           value={`${draft.prompts || 0} 个`}
                         />
@@ -610,7 +801,11 @@ const McpPage: React.FC = () => {
                           className="btn-secondary inline-flex items-center justify-center gap-2"
                           disabled={busy || !draft.id}
                         >
-                          {busy ? <Loader2 size={16} className="animate-spin" /> : <PlugZap size={16} />}
+                          {busy ? (
+                            <Loader2 size={20} className="animate-spin" />
+                          ) : (
+                            <PlugZap size={20} />
+                          )}
                           探测当前服务
                         </button>
                         <button
@@ -619,7 +814,7 @@ const McpPage: React.FC = () => {
                           className="btn-primary inline-flex items-center justify-center gap-2"
                           disabled={busy || !canSave}
                         >
-                          <Save size={16} />
+                          <Save size={20} />
                           保存配置
                         </button>
                         <button
@@ -628,7 +823,7 @@ const McpPage: React.FC = () => {
                           className="btn-secondary inline-flex items-center justify-center gap-2"
                           disabled={busy || !draft.id}
                         >
-                          <PlugZap size={16} />
+                          <PlugZap size={20} />
                           {draft.enabled ? "暂停服务" : "启用服务"}
                         </button>
                         <button
@@ -637,7 +832,7 @@ const McpPage: React.FC = () => {
                           className="btn-secondary inline-flex items-center justify-center gap-2"
                           disabled={busy || !draft.id}
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={20} />
                           删除服务
                         </button>
                       </div>
@@ -652,19 +847,19 @@ const McpPage: React.FC = () => {
                   >
                     <div className="grid gap-4 lg:grid-cols-3">
                       <CapabilityCard
-                        icon={<FolderKanban size={16} />}
+                        icon={<FolderKanban size={20} />}
                         title="Resources"
                         items={draft.resource_names || []}
                         emptyText="当前未发现 resources"
                       />
                       <CapabilityCard
-                        icon={<TerminalSquare size={16} />}
+                        icon={<TerminalSquare size={20} />}
                         title="Tools"
                         items={draft.tool_names || []}
                         emptyText="当前未发现 tools"
                       />
                       <CapabilityCard
-                        icon={<Globe size={16} />}
+                        icon={<Globe size={20} />}
                         title="Prompts"
                         items={draft.prompt_names || []}
                         emptyText="当前未发现 prompts"
@@ -682,22 +877,43 @@ const McpPage: React.FC = () => {
                           <SectionCard key={event.id} className="p-4">
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                                <div
+                                  className="text-sm font-medium"
+                                  style={{ color: "var(--text-primary)" }}
+                                >
                                   {event.message}
                                 </div>
-                                <div className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                                <div
+                                  className="mt-2 text-xs"
+                                  style={{ color: "var(--text-muted)" }}
+                                >
                                   {event.time}
                                 </div>
                               </div>
-                              <StatusBadge tone={event.level === "success" ? "success" : event.level === "warning" ? "warning" : "info"}>
-                                {event.level === "success" ? "成功" : event.level === "warning" ? "提示" : "信息"}
+                              <StatusBadge
+                                tone={
+                                  event.level === "success"
+                                    ? "success"
+                                    : event.level === "warning"
+                                      ? "warning"
+                                      : "info"
+                                }
+                              >
+                                {event.level === "success"
+                                  ? "成功"
+                                  : event.level === "warning"
+                                    ? "提示"
+                                    : "信息"}
                               </StatusBadge>
                             </div>
                           </SectionCard>
                         ))
                       ) : (
                         <SectionCard className="p-4">
-                          <div className="text-sm" style={{ color: "var(--text-muted)" }}>
+                          <div
+                            className="text-sm"
+                            style={{ color: "var(--text-muted)" }}
+                          >
                             暂无事件记录。
                           </div>
                         </SectionCard>
@@ -720,38 +936,87 @@ const McpPage: React.FC = () => {
   );
 };
 
-const SummaryCard: React.FC<{ label: string; value: number; hint: string }> = ({ label, value, hint }) => (
+const SummaryCard: React.FC<{ label: string; value: number; hint: string }> = ({
+  label,
+  value,
+  hint,
+}) => (
   <SectionCard className="p-5">
-    <div className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</div>
-    <div className="mt-2 text-2xl font-semibold" style={{ color: "var(--text-primary)" }}>{value}</div>
-    <div className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>{hint}</div>
+    <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+      {label}
+    </div>
+    <div
+      className="mt-2 text-2xl font-semibold"
+      style={{ color: "var(--text-primary)" }}
+    >
+      {value}
+    </div>
+    <div className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+      {hint}
+    </div>
   </SectionCard>
 );
 
-const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+const Field: React.FC<{ label: string; children: React.ReactNode }> = ({
+  label,
+  children,
+}) => (
   <label className="grid gap-2">
-    <span className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>{label}</span>
+    <span
+      className="text-xs font-medium"
+      style={{ color: "var(--text-muted)" }}
+    >
+      {label}
+    </span>
     {children}
   </label>
 );
 
-const InfoTile: React.FC<{ icon: React.ReactNode; label: string; value: string }> = ({ icon, label, value }) => (
-  <div className="rounded-2xl border p-4" style={{ borderColor: "var(--panel-border)" }}>
-    <div className="flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
+const InfoTile: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}> = ({ icon, label, value }) => (
+  <div
+    className="rounded-2xl border p-4"
+    style={{ borderColor: "var(--panel-border)" }}
+  >
+    <div
+      className="flex items-center gap-2 text-xs"
+      style={{ color: "var(--text-muted)" }}
+    >
       {icon}
       {label}
     </div>
-    <div className="mt-2 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{value}</div>
+    <div
+      className="mt-2 text-sm font-semibold"
+      style={{ color: "var(--text-primary)" }}
+    >
+      {value}
+    </div>
   </div>
 );
 
-const HealthRow: React.FC<{ icon: React.ReactNode; label: string; value: string }> = ({ icon, label, value }) => (
-  <div className="flex items-center justify-between gap-3 rounded-2xl border px-4 py-3" style={{ borderColor: "var(--panel-border)" }}>
-    <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+const HealthRow: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}> = ({ icon, label, value }) => (
+  <div
+    className="flex items-center justify-between gap-3 rounded-2xl border px-4 py-3"
+    style={{ borderColor: "var(--panel-border)" }}
+  >
+    <div
+      className="flex items-center gap-2 text-sm"
+      style={{ color: "var(--text-secondary)" }}
+    >
       {icon}
       {label}
     </div>
-    <div className="max-w-[160px] text-right text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+    <div
+      className="max-w-[160px] text-right text-sm font-medium"
+      style={{ color: "var(--text-primary)" }}
+    >
       {value}
     </div>
   </div>
@@ -764,19 +1029,35 @@ const CapabilityCard: React.FC<{
   emptyText: string;
 }> = ({ icon, title, items, emptyText }) => (
   <SectionCard className="p-5">
-    <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+    <div
+      className="flex items-center gap-2 text-sm font-semibold"
+      style={{ color: "var(--text-primary)" }}
+    >
       {icon}
       {title}
     </div>
     <div className="mt-4 grid gap-2">
       {items.length > 0 ? (
         items.map((item) => (
-          <div key={item} className="rounded-xl border px-3 py-2 text-sm" style={{ borderColor: "var(--panel-border)", color: "var(--text-secondary)" }}>
+          <div
+            key={item}
+            className="rounded-xl border px-3 py-2 text-sm"
+            style={{
+              borderColor: "var(--panel-border)",
+              color: "var(--text-secondary)",
+            }}
+          >
             {item}
           </div>
         ))
       ) : (
-        <div className="rounded-xl border border-dashed px-3 py-4 text-sm" style={{ borderColor: "var(--panel-border)", color: "var(--text-muted)" }}>
+        <div
+          className="rounded-xl border border-dashed px-3 py-4 text-sm"
+          style={{
+            borderColor: "var(--panel-border)",
+            color: "var(--text-muted)",
+          }}
+        >
           {emptyText}
         </div>
       )}

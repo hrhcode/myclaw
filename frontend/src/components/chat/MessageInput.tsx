@@ -23,7 +23,7 @@ const COMMANDS: CommandItem[] = [
   {
     command: "/new",
     description: "创建一个新会话",
-    icon: <PlusCircle size={15} />,
+    icon: <PlusCircle size={19} />,
   },
 ];
 
@@ -149,9 +149,9 @@ const MessageInput = React.forwardRef<MessageInputHandle, MessageInputProps>(({
               aria-label={disabled ? "正在发送消息" : "发送消息"}
             >
               {disabled ? (
-                <Loader2 size={16} className="animate-spin" />
+                <Loader2 size={20} className="animate-spin" />
               ) : (
-                <ArrowUp size={16} />
+                <ArrowUp size={20} />
               )}
             </motion.button>
           </div>

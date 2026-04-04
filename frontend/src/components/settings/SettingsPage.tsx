@@ -41,9 +41,9 @@ const Toast: React.FC<{
             }}
           >
             {message.type === "success" ? (
-              <CheckCircle size={16} />
+              <CheckCircle size={20} />
             ) : (
-              <AlertCircle size={16} />
+              <AlertCircle size={20} />
             )}
             <span>{message.text}</span>
           </div>
@@ -301,7 +301,7 @@ const SettingsPage: React.FC = () => {
     return (
       <MainLayout headerTitle="配置" headerSubtitle="统一管理模型、工具与检索">
         <div className="flex h-full items-center justify-center">
-          <Loader2 size={40} className="animate-spin text-primary" />
+          <Loader2 size={50} className="animate-spin text-primary" />
         </div>
       </MainLayout>
     );
@@ -389,7 +389,7 @@ const SettingsPage: React.FC = () => {
                         onClick={() => setShowApiKey((prev) => !prev)}
                         style={{ color: "var(--text-muted)" }}
                       >
-                        {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                        {showApiKey ? <EyeOff size={20} /> : <Eye size={20} />}
                       </button>
                     </div>
                   </div>
@@ -469,9 +469,9 @@ const SettingsPage: React.FC = () => {
                         style={{ color: "var(--text-muted)" }}
                       >
                         {showOpenrouterKey ? (
-                          <EyeOff size={16} />
+                          <EyeOff size={20} />
                         ) : (
-                          <Eye size={16} />
+                          <Eye size={20} />
                         )}
                       </button>
                     </div>

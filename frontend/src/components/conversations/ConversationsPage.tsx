@@ -65,7 +65,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ title, message, onConfirm
       >
         <div className="mb-4 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/20">
-            <AlertTriangle size={20} className="text-red-500" />
+            <AlertTriangle size={25} className="text-red-500" />
           </div>
           <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
             {title}
@@ -136,7 +136,7 @@ const RenameDialog: React.FC<RenameDialogProps> = ({ currentTitle, onConfirm, on
             className="rounded-lg p-1.5 transition-colors"
             style={{ color: 'var(--text-muted)' }}
           >
-            <X size={18} />
+            <X size={23} />
           </motion.button>
         </div>
         <input
@@ -173,7 +173,7 @@ const RenameDialog: React.FC<RenameDialogProps> = ({ currentTitle, onConfirm, on
             disabled={!title.trim()}
             className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Check size={16} />
+            <Check size={20} />
             确认
           </motion.button>
         </div>
@@ -304,7 +304,7 @@ const ConversationsPage: React.FC = () => {
         <div className="mb-6">
           <div className="relative">
             <Search
-              size={18}
+              size={23}
               className="absolute left-4 top-1/2 -translate-y-1/2"
               style={{ color: 'var(--text-muted)' }}
             />
@@ -323,13 +323,13 @@ const ConversationsPage: React.FC = () => {
           {isLoading ? (
             <div className="flex h-64 items-center justify-center">
               <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>
-                <Loader2 size={32} className="text-primary" />
+                <Loader2 size={40} className="text-primary" />
               </motion.div>
             </div>
           ) : filteredConversations.length === 0 ? (
             <div className="flex h-64 flex-col items-center justify-center">
               <MessageSquare
-                size={48}
+                size={60}
                 strokeWidth={1}
                 className="mb-4 opacity-50"
                 style={{ color: 'var(--text-muted)' }}
@@ -375,7 +375,7 @@ const ConversationsPage: React.FC = () => {
                   >
                     <div className="flex items-center gap-3 px-5 py-4">
                       <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: 'var(--primary-alpha)' }}>
-                        <MessageSquare size={18} className="text-primary" />
+                        <MessageSquare size={23} className="text-primary" />
                       </div>
                       <div className="min-w-0">
                         <h3 className="truncate text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
@@ -396,7 +396,7 @@ const ConversationsPage: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-2 px-4 py-4">
-                      <Clock size={14} style={{ color: 'var(--text-muted)' }} />
+                      <Clock size={18} style={{ color: 'var(--text-muted)' }} />
                       <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
                         {formatDate(conversation.updated_at)}
                       </span>
@@ -414,7 +414,7 @@ const ConversationsPage: React.FC = () => {
                         style={{ color: 'var(--text-muted)' }}
                         title="重命名"
                       >
-                        <Edit3 size={16} />
+                        <Edit3 size={20} />
                       </motion.button>
                       <motion.button
                         whileHover={{ scale: 1.05 }}
@@ -427,7 +427,7 @@ const ConversationsPage: React.FC = () => {
                         style={{ color: 'var(--text-muted)' }}
                         title="删除"
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={20} />
                       </motion.button>
                       <motion.button
                         whileHover={{ scale: 1.05 }}
@@ -436,7 +436,7 @@ const ConversationsPage: React.FC = () => {
                         style={{ color: 'var(--text-muted)' }}
                         title="进入会话"
                       >
-                        <ArrowRight size={16} />
+                        <ArrowRight size={20} />
                       </motion.button>
                     </div>
                   </motion.div>
@@ -461,7 +461,7 @@ const ConversationsPage: React.FC = () => {
                   >
                     <div className="mb-2 flex items-center gap-3">
                       <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: 'var(--primary-alpha)' }}>
-                        <MessageSquare size={16} className="text-primary" />
+                        <MessageSquare size={20} className="text-primary" />
                       </div>
                       <h3 className="flex-1 truncate text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
                         {normalizeConversationTitle(conversation.title)}
@@ -491,7 +491,7 @@ const ConversationsPage: React.FC = () => {
                           style={{ color: 'var(--text-muted)' }}
                           title="重命名"
                         >
-                          <Edit3 size={14} />
+                          <Edit3 size={18} />
                         </motion.button>
                         <motion.button
                           whileHover={{ scale: 1.05 }}
@@ -504,7 +504,7 @@ const ConversationsPage: React.FC = () => {
                           style={{ color: 'var(--text-muted)' }}
                           title="删除"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={18} />
                         </motion.button>
                       </div>
                     </div>

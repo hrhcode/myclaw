@@ -58,24 +58,24 @@ const ToolCallCard: React.FC<{
         style={{ background: 'var(--glass-bg)' }}
       >
         <div className="flex items-center gap-2">
-          <Wrench size={14} className="text-primary" />
+          <Wrench size={18} className="text-primary" />
           <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
             {call.toolName}
           </span>
           {result ? (
             isSuccess ? (
-              <CheckCircle size={14} className="text-green-500" />
+              <CheckCircle size={18} className="text-green-500" />
             ) : (
-              <XCircle size={14} className="text-red-500" />
+              <XCircle size={18} className="text-red-500" />
             )
           ) : (
-            <Loader2 size={14} className="animate-spin text-primary" />
+            <Loader2 size={18} className="animate-spin text-primary" />
           )}
         </div>
         {expanded ? (
-          <ChevronUp size={14} style={{ color: 'var(--text-muted)' }} />
+          <ChevronUp size={18} style={{ color: 'var(--text-muted)' }} />
         ) : (
-          <ChevronDown size={14} style={{ color: 'var(--text-muted)' }} />
+          <ChevronDown size={18} style={{ color: 'var(--text-muted)' }} />
         )}
       </div>
 

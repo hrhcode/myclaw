@@ -29,7 +29,7 @@ const ThemeToggle: React.FC = () => {
               exit={{ rotate: 90, opacity: 0 }}
               transition={{ duration: 0.18 }}
             >
-              <Moon size={18} />
+              <Moon size={23} />
             </motion.div>
           ) : (
             <motion.div
@@ -39,7 +39,7 @@ const ThemeToggle: React.FC = () => {
               exit={{ rotate: -90, opacity: 0 }}
               transition={{ duration: 0.18 }}
             >
-              <Sun size={18} />
+              <Sun size={23} />
             </motion.div>
           )}
         </AnimatePresence>

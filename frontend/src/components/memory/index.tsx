@@ -159,9 +159,9 @@ const KnowledgeBasePage: React.FC = () => {
               disabled={isUploading}
             >
               {isUploading ? (
-                <Loader2 size={16} className="animate-spin" />
+                <Loader2 size={20} className="animate-spin" />
               ) : (
-                <FileUp size={16} />
+                <FileUp size={20} />
               )}
               <span>{isUploading ? "上传中..." : "上传 Markdown"}</span>
             </button>
@@ -172,13 +172,13 @@ const KnowledgeBasePage: React.FC = () => {
               onClick={() => void loadKnowledgeBase()}
               disabled={isLoading}
             >
-              <RefreshCw size={16} />
+              <RefreshCw size={20} />
               <span>刷新</span>
             </button>
 
             <div className="relative min-w-[220px] flex-1">
               <Search
-                size={16}
+                size={20}
                 className="absolute left-3 top-1/2 -translate-y-1/2"
                 style={{ color: "var(--text-muted)" }}
               />
@@ -213,12 +213,12 @@ const KnowledgeBasePage: React.FC = () => {
 
           {isLoading ? (
             <div className="flex h-full items-center justify-center py-16">
-              <Loader2 size={36} className="text-primary animate-spin" />
+              <Loader2 size={45} className="text-primary animate-spin" />
             </div>
           ) : filteredItems.length === 0 ? (
             <SectionCard className="py-12 text-center">
               <BookOpenText
-                size={40}
+                size={50}
                 className="mx-auto mb-3"
                 style={{ color: "var(--text-muted)" }}
               />
@@ -319,9 +319,9 @@ const KnowledgeRow: React.FC<{
           title="删除知识"
         >
           {deleting ? (
-            <Loader2 size={16} className="animate-spin" />
+            <Loader2 size={20} className="animate-spin" />
           ) : (
-            <Trash2 size={16} />
+            <Trash2 size={20} />
           )}
         </button>
       </div>

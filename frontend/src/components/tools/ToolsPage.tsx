@@ -96,7 +96,7 @@ const ToolsPage: React.FC = () => {
       <MainLayout headerTitle="工具">
         <div className="flex h-full items-center justify-center">
           <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
-            <Loader2 size={40} className="text-primary" />
+            <Loader2 size={50} className="text-primary" />
           </motion.div>
         </div>
       </MainLayout>
@@ -133,7 +133,7 @@ const ToolsPage: React.FC = () => {
             description="按需开关工具能力，不影响现有接口行为。"
             actions={
               <div className="inline-flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                <Wrench size={14} />
+                <Wrench size={18} />
                 <span>{tools.length} 项</span>
               </div>
             }

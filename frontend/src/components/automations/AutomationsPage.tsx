@@ -1,9 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Clock3, Copy, Play, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from "react";
+import {
+  Clock3,
+  Copy,
+  Play,
+  Plus,
+  RefreshCw,
+  Save,
+  Trash2,
+} from "lucide-react";
 
-import MainLayout from '../layout/MainLayout';
-import StatusBadge from '../admin/StatusBadge';
-import Switch from '../admin/Switch';
+import MainLayout from "../layout/MainLayout";
+import StatusBadge from "../admin/StatusBadge";
+import Switch from "../admin/Switch";
 import {
   clearAutomationRuns,
   createAutomation,
@@ -14,77 +22,91 @@ import {
   getConversations,
   runAutomationNow,
   updateAutomation,
-} from '../../services/api';
+} from "../../services/api";
 import type {
   Automation,
   AutomationPayload,
   AutomationRun,
   AutomationStats,
   Conversation,
-} from '../../types';
+} from "../../types";
 
 type AutomationDraft = AutomationPayload &
   Partial<
     Pick<
       Automation,
-      'id' | 'last_run_at' | 'next_run_at' | 'created_at' | 'updated_at'
+      "id" | "last_run_at" | "next_run_at" | "created_at" | "updated_at"
     >
   >;
 
 const WEEKDAY_OPTIONS = [
-  { value: '0', label: '周一' },
-  { value: '1', label: '周二' },
-  { value: '2', label: '周三' },
-  { value: '3', label: '周四' },
-  { value: '4', label: '周五' },
-  { value: '5', label: '周六' },
-  { value: '6', label: '周日' },
+  { value: "0", label: "周一" },
+  { value: "1", label: "周二" },
+  { value: "2", label: "周三" },
+  { value: "3", label: "周四" },
+  { value: "4", label: "周五" },
+  { value: "5", label: "周六" },
+  { value: "6", label: "周日" },
 ];
 
-const TIMEZONE_SUGGESTIONS = ['Asia/Shanghai', 'UTC', 'Asia/Tokyo', 'America/Los_Angeles', 'Europe/London'];
+const TIMEZONE_SUGGESTIONS = [
+  "Asia/Shanghai",
+  "UTC",
+  "Asia/Tokyo",
+  "America/Los_Angeles",
+  "Europe/London",
+];
 
 const guessTimezone = () => {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai';
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai";
   } catch {
-    return 'Asia/Shanghai';
+    return "Asia/Shanghai";
   }
 };
 
 const normalizeConversationTitle = (title: string) => {
-  if (!title || title === 'New Chat') return '新会话';
+  if (!title || title === "New Chat") return "新会话";
   return title;
 };
 
-const getDefaultAutomationPayload = (conversationId?: number): AutomationPayload => ({
-  name: '新自动化任务',
+const getDefaultAutomationPayload = (
+  conversationId?: number,
+): AutomationPayload => ({
+  name: "新自动化任务",
   conversation_id: conversationId,
-  prompt: '总结最近进展，并给出当前最值得执行的下一步建议。',
-  schedule_type: 'interval',
-  schedule_value: '60',
+  prompt: "总结最近进展，并给出当前最值得执行的下一步建议。",
+  schedule_type: "interval",
+  schedule_value: "60",
   timezone: guessTimezone(),
   enabled: true,
 });
 
 const formatDateTime = (value?: string | null) => {
-  if (!value) return '未设置';
+  if (!value) return "未设置";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat('zh-CN', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
+  return new Intl.DateTimeFormat("zh-CN", {
+    dateStyle: "medium",
+    timeStyle: "short",
   }).format(date);
 };
 
 const formatRelative = (value?: string | null) => {
-  if (!value) return '暂无';
+  if (!value) return "暂无";
   const timestamp = new Date(value).getTime();
   if (Number.isNaN(timestamp)) return value;
   const deltaMinutes = Math.round((timestamp - Date.now()) / 60000);
-  if (Math.abs(deltaMinutes) < 1) return '刚刚';
-  if (Math.abs(deltaMinutes) < 60) return deltaMinutes > 0 ? `${deltaMinutes} 分钟后` : `${Math.abs(deltaMinutes)} 分钟前`;
+  if (Math.abs(deltaMinutes) < 1) return "刚刚";
+  if (Math.abs(deltaMinutes) < 60)
+    return deltaMinutes > 0
+      ? `${deltaMinutes} 分钟后`
+      : `${Math.abs(deltaMinutes)} 分钟前`;
   const deltaHours = Math.round(deltaMinutes / 60);
-  if (Math.abs(deltaHours) < 24) return deltaHours > 0 ? `${deltaHours} 小时后` : `${Math.abs(deltaHours)} 小时前`;
+  if (Math.abs(deltaHours) < 24)
+    return deltaHours > 0
+      ? `${deltaHours} 小时后`
+      : `${Math.abs(deltaHours)} 小时前`;
   const deltaDays = Math.round(deltaHours / 24);
   return deltaDays > 0 ? `${deltaDays} 天后` : `${Math.abs(deltaDays)} 天前`;
 };
@@ -92,78 +114,106 @@ const formatRelative = (value?: string | null) => {
 const getIntervalParts = (scheduleValue: string) => {
   const minutes = Number.parseInt(scheduleValue, 10);
   if (!Number.isFinite(minutes) || minutes <= 0) {
-    return { amount: '60', unit: 'minutes' as const };
+    return { amount: "60", unit: "minutes" as const };
   }
   if (minutes % 1440 === 0) {
-    return { amount: String(minutes / 1440), unit: 'days' as const };
+    return { amount: String(minutes / 1440), unit: "days" as const };
   }
   if (minutes % 60 === 0) {
-    return { amount: String(minutes / 60), unit: 'hours' as const };
+    return { amount: String(minutes / 60), unit: "hours" as const };
   }
-  return { amount: String(minutes), unit: 'minutes' as const };
+  return { amount: String(minutes), unit: "minutes" as const };
 };
 
 const buildIntervalValue = (amountText: string, unit: string) => {
-  const amount = Math.max(Number.parseInt(amountText || '0', 10) || 0, 1);
-  if (unit === 'days') return String(amount * 1440);
-  if (unit === 'hours') return String(amount * 60);
+  const amount = Math.max(Number.parseInt(amountText || "0", 10) || 0, 1);
+  if (unit === "days") return String(amount * 1440);
+  if (unit === "hours") return String(amount * 60);
   return String(amount);
 };
 
 const getWeeklyParts = (scheduleValue: string) => {
-  const [weekday = '0', time = '09:00'] = scheduleValue.split('|');
+  const [weekday = "0", time = "09:00"] = scheduleValue.split("|");
   return { weekday, time };
 };
 
 const getOnceInputValue = (scheduleValue: string) => {
   const date = new Date(scheduleValue);
-  if (Number.isNaN(date.getTime())) return '';
+  if (Number.isNaN(date.getTime())) return "";
   const offset = date.getTimezoneOffset();
   const local = new Date(date.getTime() - offset * 60000);
   return local.toISOString().slice(0, 16);
 };
 
 const buildOnceValue = (localValue: string, timezone: string) => {
-  if (!localValue) return '';
-  if (timezone === 'UTC') return `${localValue}:00Z`;
+  if (!localValue) return "";
+  if (timezone === "UTC") return `${localValue}:00Z`;
   return localValue;
 };
 
-const formatSchedule = (automation: Pick<AutomationDraft, 'schedule_type' | 'schedule_value'>) => {
-  if (automation.schedule_type === 'once') return `单次 · ${formatDateTime(automation.schedule_value)}`;
-  if (automation.schedule_type === 'interval') {
+const formatSchedule = (
+  automation: Pick<AutomationDraft, "schedule_type" | "schedule_value">,
+) => {
+  if (automation.schedule_type === "once")
+    return `单次 · ${formatDateTime(automation.schedule_value)}`;
+  if (automation.schedule_type === "interval") {
     const { amount, unit } = getIntervalParts(automation.schedule_value);
-    const unitLabel = unit === 'days' ? '天' : unit === 'hours' ? '小时' : '分钟';
+    const unitLabel =
+      unit === "days" ? "天" : unit === "hours" ? "小时" : "分钟";
     return `每 ${amount} ${unitLabel}`;
   }
-  if (automation.schedule_type === 'daily') return `每天 ${automation.schedule_value}`;
-  if (automation.schedule_type === 'weekly') {
+  if (automation.schedule_type === "daily")
+    return `每天 ${automation.schedule_value}`;
+  if (automation.schedule_type === "weekly") {
     const { weekday, time } = getWeeklyParts(automation.schedule_value);
-    const weekdayLabel = WEEKDAY_OPTIONS.find((item) => item.value === weekday)?.label ?? weekday;
+    const weekdayLabel =
+      WEEKDAY_OPTIONS.find((item) => item.value === weekday)?.label ?? weekday;
     return `${weekdayLabel} ${time}`;
   }
   return `Cron · ${automation.schedule_value}`;
 };
 
 const formatRunStatus = (status: string) => {
-  if (status === 'success') return '成功';
-  if (status === 'failed') return '失败';
-  if (status === 'running') return '执行中';
+  if (status === "success") return "成功";
+  if (status === "failed") return "失败";
+  if (status === "running") return "执行中";
   return status;
 };
 
-const getRunTone = (status: string): 'success' | 'danger' | 'warning' | 'neutral' => {
-  if (status === 'success') return 'success';
-  if (status === 'failed') return 'danger';
-  if (status === 'running') return 'warning';
-  return 'neutral';
+const getRunTone = (
+  status: string,
+): "success" | "danger" | "warning" | "neutral" => {
+  if (status === "success") return "success";
+  if (status === "failed") return "danger";
+  if (status === "running") return "warning";
+  return "neutral";
 };
 
 const summaryCards = (stats: AutomationStats) => [
-  { label: '总任务数', value: stats.total, hint: `${stats.enabled} 启用 / ${stats.disabled} 停用` },
-  { label: '执行中', value: stats.running, hint: stats.due_now > 0 ? `${stats.due_now} 个任务到点` : '暂无待执行任务' },
-  { label: '最近失败', value: stats.failed_recently, hint: stats.last_run_at ? `最近执行 ${formatRelative(stats.last_run_at)}` : '暂无运行记录' },
-  { label: '下一次调度', value: stats.next_run_at ? formatRelative(stats.next_run_at) : '暂无', hint: stats.next_run_at ? formatDateTime(stats.next_run_at) : '没有未来任务' },
+  {
+    label: "总任务数",
+    value: stats.total,
+    hint: `${stats.enabled} 启用 / ${stats.disabled} 停用`,
+  },
+  {
+    label: "执行中",
+    value: stats.running,
+    hint: stats.due_now > 0 ? `${stats.due_now} 个任务到点` : "暂无待执行任务",
+  },
+  {
+    label: "最近失败",
+    value: stats.failed_recently,
+    hint: stats.last_run_at
+      ? `最近执行 ${formatRelative(stats.last_run_at)}`
+      : "暂无运行记录",
+  },
+  {
+    label: "下一次调度",
+    value: stats.next_run_at ? formatRelative(stats.next_run_at) : "暂无",
+    hint: stats.next_run_at
+      ? formatDateTime(stats.next_run_at)
+      : "没有未来任务",
+  },
 ];
 
 const AutomationsPage: React.FC = () => {
@@ -179,22 +229,32 @@ const AutomationsPage: React.FC = () => {
     last_run_at: null,
   });
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [selectedAutomationId, setSelectedAutomationId] = useState<number | null>(null);
+  const [selectedAutomationId, setSelectedAutomationId] = useState<
+    number | null
+  >(null);
   const [draft, setDraft] = useState<AutomationDraft | null>(null);
   const [runs, setRuns] = useState<AutomationRun[]>([]);
-  const [query, setQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'enabled' | 'disabled'>('all');
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "enabled" | "disabled"
+  >("all");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const selectedAutomation = automations.find((item) => item.id === selectedAutomationId) || null;
-  const activeConversation = draft ? conversations.find((item) => item.id === draft.conversation_id) || null : null;
+  const selectedAutomation =
+    automations.find((item) => item.id === selectedAutomationId) || null;
+  const activeConversation = draft
+    ? conversations.find((item) => item.id === draft.conversation_id) || null
+    : null;
 
   const visibleAutomations = useMemo(
     () =>
       automations.filter((item) => {
-        const conversationTitle = conversations.find((conversation) => conversation.id === item.conversation_id)?.title || '';
+        const conversationTitle =
+          conversations.find(
+            (conversation) => conversation.id === item.conversation_id,
+          )?.title || "";
         const normalizedQuery = query.trim().toLowerCase();
         const matchesQuery =
           normalizedQuery.length === 0 ||
@@ -202,7 +262,8 @@ const AutomationsPage: React.FC = () => {
           item.prompt.toLowerCase().includes(normalizedQuery) ||
           conversationTitle.toLowerCase().includes(normalizedQuery);
         const matchesStatus =
-          statusFilter === 'all' || (statusFilter === 'enabled' ? item.enabled : !item.enabled);
+          statusFilter === "all" ||
+          (statusFilter === "enabled" ? item.enabled : !item.enabled);
         return matchesQuery && matchesStatus;
       }),
     [automations, conversations, query, statusFilter],
@@ -219,7 +280,8 @@ const AutomationsPage: React.FC = () => {
     setConversations(conversationData);
     setSelectedAutomationId((previousId) => {
       const nextId = preferredAutomationId ?? previousId;
-      if (nextId && automationData.some((item) => item.id === nextId)) return nextId;
+      if (nextId && automationData.some((item) => item.id === nextId))
+        return nextId;
       return automationData[0]?.id ?? null;
     });
   };
@@ -229,8 +291,10 @@ const AutomationsPage: React.FC = () => {
       try {
         await refreshPage();
       } catch (loadError) {
-        console.error('Failed to load automations', loadError);
-        setError(loadError instanceof Error ? loadError.message : '加载自动化失败');
+        console.error("Failed to load automations", loadError);
+        setError(
+          loadError instanceof Error ? loadError.message : "加载自动化失败",
+        );
       } finally {
         setLoading(false);
       }
@@ -249,8 +313,10 @@ const AutomationsPage: React.FC = () => {
     void getAutomationRuns(selectedAutomationId)
       .then(setRuns)
       .catch((loadError) => {
-        console.error('Failed to load automation runs', loadError);
-        setError(loadError instanceof Error ? loadError.message : '加载运行记录失败');
+        console.error("Failed to load automation runs", loadError);
+        setError(
+          loadError instanceof Error ? loadError.message : "加载运行记录失败",
+        );
       });
   }, [selectedAutomationId]);
 
@@ -263,12 +329,17 @@ const AutomationsPage: React.FC = () => {
       setBusy(true);
       setError(null);
       const baseConversationId = draft?.conversation_id ?? conversations[0]?.id;
-      if (!baseConversationId) throw new Error('请先创建至少一个会话，再创建自动化任务。');
-      const created = await createAutomation(getDefaultAutomationPayload(baseConversationId));
+      if (!baseConversationId)
+        throw new Error("请先创建至少一个会话，再创建自动化任务。");
+      const created = await createAutomation(
+        getDefaultAutomationPayload(baseConversationId),
+      );
       await refreshPage(created.id);
     } catch (actionError) {
-      console.error('Failed to create automation', actionError);
-      setError(actionError instanceof Error ? actionError.message : '创建自动化失败');
+      console.error("Failed to create automation", actionError);
+      setError(
+        actionError instanceof Error ? actionError.message : "创建自动化失败",
+      );
     } finally {
       setBusy(false);
     }
@@ -290,8 +361,10 @@ const AutomationsPage: React.FC = () => {
       });
       await refreshPage(cloned.id);
     } catch (actionError) {
-      console.error('Failed to clone automation', actionError);
-      setError(actionError instanceof Error ? actionError.message : '复制自动化失败');
+      console.error("Failed to clone automation", actionError);
+      setError(
+        actionError instanceof Error ? actionError.message : "复制自动化失败",
+      );
     } finally {
       setBusy(false);
     }
@@ -313,8 +386,10 @@ const AutomationsPage: React.FC = () => {
       });
       await refreshPage(draft.id);
     } catch (actionError) {
-      console.error('Failed to save automation', actionError);
-      setError(actionError instanceof Error ? actionError.message : '保存自动化失败');
+      console.error("Failed to save automation", actionError);
+      setError(
+        actionError instanceof Error ? actionError.message : "保存自动化失败",
+      );
     } finally {
       setBusy(false);
     }
@@ -329,8 +404,10 @@ const AutomationsPage: React.FC = () => {
       await refreshPage(draft.id);
       setRuns(await getAutomationRuns(draft.id));
     } catch (actionError) {
-      console.error('Failed to run automation', actionError);
-      setError(actionError instanceof Error ? actionError.message : '立即执行失败');
+      console.error("Failed to run automation", actionError);
+      setError(
+        actionError instanceof Error ? actionError.message : "立即执行失败",
+      );
     } finally {
       setBusy(false);
     }
@@ -347,8 +424,10 @@ const AutomationsPage: React.FC = () => {
       await updateAutomation(draft.id, { enabled: nextEnabled });
       await refreshPage(draft.id);
     } catch (actionError) {
-      console.error('Failed to toggle automation', actionError);
-      setError(actionError instanceof Error ? actionError.message : '切换启用状态失败');
+      console.error("Failed to toggle automation", actionError);
+      setError(
+        actionError instanceof Error ? actionError.message : "切换启用状态失败",
+      );
       setDraftValue({ enabled: previousEnabled });
     } finally {
       setBusy(false);
@@ -367,8 +446,10 @@ const AutomationsPage: React.FC = () => {
       setRuns([]);
       await refreshPage(currentId);
     } catch (actionError) {
-      console.error('Failed to delete automation', actionError);
-      setError(actionError instanceof Error ? actionError.message : '删除自动化失败');
+      console.error("Failed to delete automation", actionError);
+      setError(
+        actionError instanceof Error ? actionError.message : "删除自动化失败",
+      );
     } finally {
       setBusy(false);
     }
@@ -376,7 +457,9 @@ const AutomationsPage: React.FC = () => {
 
   const handleClearRuns = async () => {
     if (!draft?.id) return;
-    const confirmed = window.confirm('确认清空这条自动化任务的历史运行记录吗？');
+    const confirmed = window.confirm(
+      "确认清空这条自动化任务的历史运行记录吗？",
+    );
     if (!confirmed) return;
     try {
       setBusy(true);
@@ -385,8 +468,10 @@ const AutomationsPage: React.FC = () => {
       setRuns([]);
       await refreshPage(draft.id);
     } catch (actionError) {
-      console.error('Failed to clear automation runs', actionError);
-      setError(actionError instanceof Error ? actionError.message : '清空运行记录失败');
+      console.error("Failed to clear automation runs", actionError);
+      setError(
+        actionError instanceof Error ? actionError.message : "清空运行记录失败",
+      );
     } finally {
       setBusy(false);
     }
@@ -395,7 +480,7 @@ const AutomationsPage: React.FC = () => {
   const renderScheduleEditor = () => {
     if (!draft) return null;
 
-    if (draft.schedule_type === 'interval') {
+    if (draft.schedule_type === "interval") {
       const { amount, unit } = getIntervalParts(draft.schedule_value);
       return (
         <>
@@ -403,12 +488,20 @@ const AutomationsPage: React.FC = () => {
             type="number"
             min="1"
             value={amount}
-            onChange={(event) => setDraftValue({ schedule_value: buildIntervalValue(event.target.value, unit) })}
+            onChange={(event) =>
+              setDraftValue({
+                schedule_value: buildIntervalValue(event.target.value, unit),
+              })
+            }
             className="admin-input h-10 w-full px-3"
           />
           <select
             value={unit}
-            onChange={(event) => setDraftValue({ schedule_value: buildIntervalValue(amount, event.target.value) })}
+            onChange={(event) =>
+              setDraftValue({
+                schedule_value: buildIntervalValue(amount, event.target.value),
+              })
+            }
             className="admin-select h-10 w-full px-3"
           >
             <option value="minutes">分钟</option>
@@ -419,24 +512,28 @@ const AutomationsPage: React.FC = () => {
       );
     }
 
-    if (draft.schedule_type === 'daily') {
+    if (draft.schedule_type === "daily") {
       return (
         <input
           type="time"
-          value={draft.schedule_value || '09:00'}
-          onChange={(event) => setDraftValue({ schedule_value: event.target.value })}
+          value={draft.schedule_value || "09:00"}
+          onChange={(event) =>
+            setDraftValue({ schedule_value: event.target.value })
+          }
           className="admin-input h-10 w-full px-3"
         />
       );
     }
 
-    if (draft.schedule_type === 'weekly') {
+    if (draft.schedule_type === "weekly") {
       const { weekday, time } = getWeeklyParts(draft.schedule_value);
       return (
         <>
           <select
             value={weekday}
-            onChange={(event) => setDraftValue({ schedule_value: `${event.target.value}|${time}` })}
+            onChange={(event) =>
+              setDraftValue({ schedule_value: `${event.target.value}|${time}` })
+            }
             className="admin-select h-10 w-full px-3"
           >
             {WEEKDAY_OPTIONS.map((item) => (
@@ -448,19 +545,30 @@ const AutomationsPage: React.FC = () => {
           <input
             type="time"
             value={time}
-            onChange={(event) => setDraftValue({ schedule_value: `${weekday}|${event.target.value}` })}
+            onChange={(event) =>
+              setDraftValue({
+                schedule_value: `${weekday}|${event.target.value}`,
+              })
+            }
             className="admin-input h-10 w-full px-3"
           />
         </>
       );
     }
 
-    if (draft.schedule_type === 'once') {
+    if (draft.schedule_type === "once") {
       return (
         <input
           type="datetime-local"
           value={getOnceInputValue(draft.schedule_value)}
-          onChange={(event) => setDraftValue({ schedule_value: buildOnceValue(event.target.value, draft.timezone) })}
+          onChange={(event) =>
+            setDraftValue({
+              schedule_value: buildOnceValue(
+                event.target.value,
+                draft.timezone,
+              ),
+            })
+          }
           className="admin-input h-10 w-full px-3"
         />
       );
@@ -470,7 +578,9 @@ const AutomationsPage: React.FC = () => {
       <input
         type="text"
         value={draft.schedule_value}
-        onChange={(event) => setDraftValue({ schedule_value: event.target.value })}
+        onChange={(event) =>
+          setDraftValue({ schedule_value: event.target.value })
+        }
         placeholder="例如：0 9 * * 1-5"
         className="admin-input h-10 w-full px-3"
       />
@@ -479,11 +589,11 @@ const AutomationsPage: React.FC = () => {
 
   const canPersist = Boolean(
     draft &&
-      draft.id &&
-      draft.name.trim() &&
-      draft.prompt.trim() &&
-      draft.conversation_id &&
-      draft.schedule_value.trim(),
+    draft.id &&
+    draft.name.trim() &&
+    draft.prompt.trim() &&
+    draft.conversation_id &&
+    draft.schedule_value.trim(),
   );
 
   if (loading) {
@@ -491,7 +601,10 @@ const AutomationsPage: React.FC = () => {
       <MainLayout headerTitle="自动化">
         <div className="admin-page">
           <div className="admin-frame">
-            <div className="admin-card p-6 text-sm" style={{ color: 'var(--text-secondary)' }}>
+            <div
+              className="admin-card p-6 text-sm"
+              style={{ color: "var(--text-secondary)" }}
+            >
               正在加载自动化配置...
             </div>
           </div>
@@ -511,7 +624,7 @@ const AutomationsPage: React.FC = () => {
               className="btn-secondary inline-flex items-center gap-2"
               disabled={busy}
             >
-              <RefreshCw size={16} />
+              <RefreshCw size={20} />
               刷新
             </button>
             <button
@@ -520,7 +633,7 @@ const AutomationsPage: React.FC = () => {
               className="btn-primary inline-flex items-center gap-2"
               disabled={busy || conversations.length === 0}
             >
-              <Plus size={16} />
+              <Plus size={20} />
               新建任务
             </button>
           </div>
@@ -530,7 +643,10 @@ const AutomationsPage: React.FC = () => {
               <div key={card.label} className="admin-summary-card">
                 <div className="admin-summary-label">{card.label}</div>
                 <div className="admin-summary-value">{card.value}</div>
-                <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                <div
+                  className="mt-1 text-xs"
+                  style={{ color: "var(--text-muted)" }}
+                >
                   {card.hint}
                 </div>
               </div>
@@ -538,14 +654,20 @@ const AutomationsPage: React.FC = () => {
           </section>
 
           {error ? (
-            <div className="warning-banner px-4 py-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
+            <div
+              className="warning-banner px-4 py-3 text-sm"
+              style={{ color: "var(--text-secondary)" }}
+            >
               {error}
             </div>
           ) : null}
 
           <section className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
             <aside className="admin-card flex min-h-0 flex-col overflow-hidden">
-              <div className="border-b px-4 py-4" style={{ borderColor: 'var(--panel-border)' }}>
+              <div
+                className="border-b px-4 py-4"
+                style={{ borderColor: "var(--panel-border)" }}
+              >
                 <div className="admin-toolbar">
                   <input
                     type="search"
@@ -556,7 +678,11 @@ const AutomationsPage: React.FC = () => {
                   />
                   <select
                     value={statusFilter}
-                    onChange={(event) => setStatusFilter(event.target.value as 'all' | 'enabled' | 'disabled')}
+                    onChange={(event) =>
+                      setStatusFilter(
+                        event.target.value as "all" | "enabled" | "disabled",
+                      )
+                    }
                     className="admin-select h-10 w-full px-3 sm:w-[110px]"
                   >
                     <option value="all">全部</option>
@@ -569,39 +695,57 @@ const AutomationsPage: React.FC = () => {
               <div className="flex-1 overflow-y-auto p-3">
                 <div className="grid gap-2">
                   {visibleAutomations.map((automation) => {
-                    const conversation = conversations.find((item) => item.id === automation.conversation_id) || null;
+                    const conversation =
+                      conversations.find(
+                        (item) => item.id === automation.conversation_id,
+                      ) || null;
                     const isActive = automation.id === selectedAutomationId;
                     return (
                       <button
                         type="button"
                         key={automation.id}
                         onClick={() => setSelectedAutomationId(automation.id)}
-                        className={`rounded-2xl border p-3 text-left transition ${isActive ? 'shadow-sm' : ''}`}
+                        className={`rounded-2xl border p-3 text-left transition ${isActive ? "shadow-sm" : ""}`}
                         style={{
                           borderColor: isActive
-                            ? 'color-mix(in srgb, var(--accent) 35%, var(--panel-border))'
-                            : 'var(--panel-border)',
+                            ? "color-mix(in srgb, var(--accent) 35%, var(--panel-border))"
+                            : "var(--panel-border)",
                           background: isActive
-                            ? 'color-mix(in srgb, var(--accent) 10%, var(--surface-elevated))'
-                            : 'var(--surface-elevated)',
+                            ? "color-mix(in srgb, var(--accent) 10%, var(--surface-elevated))"
+                            : "var(--surface-elevated)",
                         }}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                            <div
+                              className="truncate text-sm font-semibold"
+                              style={{ color: "var(--text-primary)" }}
+                            >
                               {automation.name}
                             </div>
-                            <div className="mt-1 truncate text-xs" style={{ color: 'var(--text-muted)' }}>
-                              {normalizeConversationTitle(conversation?.title || '')}
+                            <div
+                              className="mt-1 truncate text-xs"
+                              style={{ color: "var(--text-muted)" }}
+                            >
+                              {normalizeConversationTitle(
+                                conversation?.title || "",
+                              )}
                             </div>
                           </div>
-                          <StatusBadge tone={automation.enabled ? 'success' : 'neutral'}>
-                            {automation.enabled ? '启用' : '停用'}
+                          <StatusBadge
+                            tone={automation.enabled ? "success" : "neutral"}
+                          >
+                            {automation.enabled ? "启用" : "停用"}
                           </StatusBadge>
                         </div>
-                        <div className="mt-3 grid gap-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                        <div
+                          className="mt-3 grid gap-1 text-xs"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
                           <div>{formatSchedule(automation)}</div>
-                          <div>下次运行：{formatRelative(automation.next_run_at)}</div>
+                          <div>
+                            下次运行：{formatRelative(automation.next_run_at)}
+                          </div>
                         </div>
                       </button>
                     );
@@ -610,7 +754,10 @@ const AutomationsPage: React.FC = () => {
                   {visibleAutomations.length === 0 ? (
                     <div
                       className="rounded-2xl border border-dashed p-4 text-sm"
-                      style={{ borderColor: 'var(--panel-border)', color: 'var(--text-muted)' }}
+                      style={{
+                        borderColor: "var(--panel-border)",
+                        color: "var(--text-muted)",
+                      }}
                     >
                       没有匹配的自动化任务。
                     </div>
@@ -623,13 +770,19 @@ const AutomationsPage: React.FC = () => {
               <div className="admin-card flex min-h-0 flex-col overflow-hidden">
                 <div
                   className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3"
-                  style={{ borderColor: 'var(--panel-border)' }}
+                  style={{ borderColor: "var(--panel-border)" }}
                 >
                   <div>
-                    <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                      {draft?.name || '选择一个自动化任务'}
+                    <div
+                      className="text-sm font-semibold"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      {draft?.name || "选择一个自动化任务"}
                     </div>
-                    <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    <div
+                      className="mt-1 text-xs"
+                      style={{ color: "var(--text-muted)" }}
+                    >
                       这里的“目标会话”就是会话页中的真实会话，不再是旧系统的残留工作会话定义。
                     </div>
                   </div>
@@ -641,7 +794,7 @@ const AutomationsPage: React.FC = () => {
                       className="btn-secondary inline-flex items-center gap-2"
                       disabled={busy || !draft?.id}
                     >
-                      <Copy size={16} />
+                      <Copy size={20} />
                       复制
                     </button>
                     <button
@@ -650,7 +803,7 @@ const AutomationsPage: React.FC = () => {
                       className="btn-secondary inline-flex items-center gap-2"
                       disabled={busy || !draft?.id}
                     >
-                      <Play size={16} />
+                      <Play size={20} />
                       立即执行
                     </button>
                     <button
@@ -659,7 +812,7 @@ const AutomationsPage: React.FC = () => {
                       className="btn-primary inline-flex items-center gap-2"
                       disabled={busy || !canPersist}
                     >
-                      <Save size={16} />
+                      <Save size={20} />
                       保存
                     </button>
                     <button
@@ -668,7 +821,7 @@ const AutomationsPage: React.FC = () => {
                       className="btn-secondary inline-flex items-center gap-2"
                       disabled={busy || !draft?.id}
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={20} />
                       删除
                     </button>
                   </div>
@@ -679,28 +832,42 @@ const AutomationsPage: React.FC = () => {
                     <div className="mx-auto grid max-w-[760px] gap-4">
                       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px]">
                         <label className="grid gap-2">
-                          <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+                          <span
+                            className="text-xs font-medium"
+                            style={{ color: "var(--text-muted)" }}
+                          >
                             任务名称
                           </span>
                           <input
                             type="text"
                             value={draft.name}
-                            onChange={(event) => setDraftValue({ name: event.target.value })}
+                            onChange={(event) =>
+                              setDraftValue({ name: event.target.value })
+                            }
                             className="admin-input h-11 px-3"
                             placeholder="例如：每日工作总结"
                           />
                         </label>
 
                         <div className="grid gap-2">
-                          <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+                          <span
+                            className="text-xs font-medium"
+                            style={{ color: "var(--text-muted)" }}
+                          >
                             启用状态
                           </span>
                           <div
                             className="flex h-11 items-center justify-between rounded-xl border px-3"
-                            style={{ borderColor: 'var(--panel-border)', background: 'var(--input-bg)' }}
+                            style={{
+                              borderColor: "var(--panel-border)",
+                              background: "var(--input-bg)",
+                            }}
                           >
-                            <span className="text-sm" style={{ color: 'var(--text-primary)' }}>
-                              {draft.enabled ? '已启用' : '已停用'}
+                            <span
+                              className="text-sm"
+                              style={{ color: "var(--text-primary)" }}
+                            >
+                              {draft.enabled ? "已启用" : "已停用"}
                             </span>
                             <Switch
                               checked={draft.enabled}
@@ -712,28 +879,44 @@ const AutomationsPage: React.FC = () => {
                       </div>
 
                       <label className="grid gap-2">
-                        <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+                        <span
+                          className="text-xs font-medium"
+                          style={{ color: "var(--text-muted)" }}
+                        >
                           目标会话
                         </span>
                         <select
-                          value={draft.conversation_id ?? ''}
-                          onChange={(event) => setDraftValue({ conversation_id: Number(event.target.value) })}
+                          value={draft.conversation_id ?? ""}
+                          onChange={(event) =>
+                            setDraftValue({
+                              conversation_id: Number(event.target.value),
+                            })
+                          }
                           className="admin-select h-11 px-3"
                         >
                           <option value="" disabled>
                             请选择目标会话
                           </option>
                           {conversations.map((conversation) => (
-                            <option key={conversation.id} value={conversation.id}>
+                            <option
+                              key={conversation.id}
+                              value={conversation.id}
+                            >
                               {normalizeConversationTitle(conversation.title)}
                             </option>
                           ))}
                         </select>
                       </label>
 
-                      <div className="grid gap-3 rounded-2xl border p-4" style={{ borderColor: 'var(--panel-border)' }}>
-                        <div className="flex items-center gap-2 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                          <Clock3 size={16} />
+                      <div
+                        className="grid gap-3 rounded-2xl border p-4"
+                        style={{ borderColor: "var(--panel-border)" }}
+                      >
+                        <div
+                          className="flex items-center gap-2 text-sm font-medium"
+                          style={{ color: "var(--text-primary)" }}
+                        >
+                          <Clock3 size={20} />
                           调度设置
                         </div>
                         <div className="grid gap-3 lg:grid-cols-[160px_minmax(0,1fr)_220px]">
@@ -742,15 +925,16 @@ const AutomationsPage: React.FC = () => {
                             onChange={(event) => {
                               const nextType = event.target.value;
                               const defaults: Record<string, string> = {
-                                interval: '60',
-                                daily: '09:00',
-                                weekly: '0|09:00',
-                                once: '',
-                                cron: '0 9 * * 1-5',
+                                interval: "60",
+                                daily: "09:00",
+                                weekly: "0|09:00",
+                                once: "",
+                                cron: "0 9 * * 1-5",
                               };
                               setDraftValue({
                                 schedule_type: nextType,
-                                schedule_value: defaults[nextType] ?? draft.schedule_value,
+                                schedule_value:
+                                  defaults[nextType] ?? draft.schedule_value,
                               });
                             }}
                             className="admin-select h-10 px-3"
@@ -764,9 +948,10 @@ const AutomationsPage: React.FC = () => {
 
                           <div
                             className={`grid gap-3 ${
-                              draft.schedule_type === 'interval' || draft.schedule_type === 'weekly'
-                                ? 'md:grid-cols-2'
-                                : ''
+                              draft.schedule_type === "interval" ||
+                              draft.schedule_type === "weekly"
+                                ? "md:grid-cols-2"
+                                : ""
                             }`}
                           >
                             {renderScheduleEditor()}
@@ -776,7 +961,9 @@ const AutomationsPage: React.FC = () => {
                             type="text"
                             list="automation-timezones"
                             value={draft.timezone}
-                            onChange={(event) => setDraftValue({ timezone: event.target.value })}
+                            onChange={(event) =>
+                              setDraftValue({ timezone: event.target.value })
+                            }
                             className="admin-input h-10 px-3"
                             placeholder="时区"
                           />
@@ -789,12 +976,17 @@ const AutomationsPage: React.FC = () => {
                       </div>
 
                       <label className="grid gap-2">
-                        <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+                        <span
+                          className="text-xs font-medium"
+                          style={{ color: "var(--text-muted)" }}
+                        >
                           执行提示词
                         </span>
                         <textarea
                           value={draft.prompt}
-                          onChange={(event) => setDraftValue({ prompt: event.target.value })}
+                          onChange={(event) =>
+                            setDraftValue({ prompt: event.target.value })
+                          }
                           rows={12}
                           className="admin-input min-h-[180px] sm:min-h-[260px] resize-y px-3 py-3"
                           placeholder="描述自动化执行时要让 AI 完成的任务。"
@@ -803,7 +995,10 @@ const AutomationsPage: React.FC = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-1 items-center justify-center p-8 text-sm" style={{ color: 'var(--text-muted)' }}>
+                  <div
+                    className="flex flex-1 items-center justify-center p-8 text-sm"
+                    style={{ color: "var(--text-muted)" }}
+                  >
                     先从左侧选择一个自动化任务，或新建一个任务开始配置。
                   </div>
                 )}
@@ -811,38 +1006,76 @@ const AutomationsPage: React.FC = () => {
 
               <aside className="grid gap-4">
                 <div className="admin-card p-4">
-                  <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  <div
+                    className="text-sm font-semibold"
+                    style={{ color: "var(--text-primary)" }}
+                  >
                     运行概览
                   </div>
                   <div className="mt-3 grid gap-3 text-sm">
-                    <div className="rounded-xl border p-3" style={{ borderColor: 'var(--panel-border)' }}>
-                      <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    <div
+                      className="rounded-xl border p-3"
+                      style={{ borderColor: "var(--panel-border)" }}
+                    >
+                      <div
+                        className="text-xs"
+                        style={{ color: "var(--text-muted)" }}
+                      >
                         目标会话
                       </div>
-                      <div className="mt-1 font-medium" style={{ color: 'var(--text-primary)' }}>
-                        {activeConversation ? normalizeConversationTitle(activeConversation.title) : '未选择'}
+                      <div
+                        className="mt-1 font-medium"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        {activeConversation
+                          ? normalizeConversationTitle(activeConversation.title)
+                          : "未选择"}
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="rounded-xl border p-3" style={{ borderColor: 'var(--panel-border)' }}>
-                        <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      <div
+                        className="rounded-xl border p-3"
+                        style={{ borderColor: "var(--panel-border)" }}
+                      >
+                        <div
+                          className="text-xs"
+                          style={{ color: "var(--text-muted)" }}
+                        >
                           最近运行
                         </div>
-                        <div className="mt-1 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                        <div
+                          className="mt-1 text-sm font-medium"
+                          style={{ color: "var(--text-primary)" }}
+                        >
                           {formatRelative(draft?.last_run_at)}
                         </div>
-                        <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                        <div
+                          className="mt-1 text-xs"
+                          style={{ color: "var(--text-muted)" }}
+                        >
                           {formatDateTime(draft?.last_run_at)}
                         </div>
                       </div>
-                      <div className="rounded-xl border p-3" style={{ borderColor: 'var(--panel-border)' }}>
-                        <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      <div
+                        className="rounded-xl border p-3"
+                        style={{ borderColor: "var(--panel-border)" }}
+                      >
+                        <div
+                          className="text-xs"
+                          style={{ color: "var(--text-muted)" }}
+                        >
                           下次运行
                         </div>
-                        <div className="mt-1 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                        <div
+                          className="mt-1 text-sm font-medium"
+                          style={{ color: "var(--text-primary)" }}
+                        >
                           {formatRelative(draft?.next_run_at)}
                         </div>
-                        <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                        <div
+                          className="mt-1 text-xs"
+                          style={{ color: "var(--text-muted)" }}
+                        >
                           {formatDateTime(draft?.next_run_at)}
                         </div>
                       </div>
@@ -853,14 +1086,23 @@ const AutomationsPage: React.FC = () => {
                 <div className="admin-card flex min-h-[360px] flex-col p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                      <div
+                        className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}
+                      >
                         最新运行记录
                       </div>
-                      <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-                        这里展示的是后端 automation_runs 的真实执行记录，不是前端模拟数据。
+                      <div
+                        className="mt-1 text-xs"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        这里展示的是后端 automation_runs
+                        的真实执行记录，不是前端模拟数据。
                       </div>
                     </div>
-                    {draft?.id ? <StatusBadge tone="info">{runs.length} 条</StatusBadge> : null}
+                    {draft?.id ? (
+                      <StatusBadge tone="info">{runs.length} 条</StatusBadge>
+                    ) : null}
                   </div>
 
                   <div className="mt-2 flex justify-end">
@@ -879,23 +1121,45 @@ const AutomationsPage: React.FC = () => {
                       <div
                         key={run.id}
                         className="rounded-2xl border p-3"
-                        style={{ borderColor: 'var(--panel-border)', background: 'var(--surface-elevated)' }}
+                        style={{
+                          borderColor: "var(--panel-border)",
+                          background: "var(--surface-elevated)",
+                        }}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                              {run.trigger_mode === 'manual' ? '手动触发' : '定时触发'}
+                            <div
+                              className="text-sm font-medium"
+                              style={{ color: "var(--text-primary)" }}
+                            >
+                              {run.trigger_mode === "manual"
+                                ? "手动触发"
+                                : "定时触发"}
                             </div>
-                            <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                            <div
+                              className="mt-1 text-xs"
+                              style={{ color: "var(--text-muted)" }}
+                            >
                               {formatDateTime(run.triggered_at)}
                             </div>
                           </div>
-                          <StatusBadge tone={getRunTone(run.status)}>{formatRunStatus(run.status)}</StatusBadge>
+                          <StatusBadge tone={getRunTone(run.status)}>
+                            {formatRunStatus(run.status)}
+                          </StatusBadge>
                         </div>
-                        <div className="mt-3 grid gap-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
-                          <div>运行 ID：{run.run_id || '未返回'}</div>
-                          <div>完成时间：{formatDateTime(run.completed_at)}</div>
-                          {run.error ? <div style={{ color: '#dc2626' }}>错误：{run.error}</div> : null}
+                        <div
+                          className="mt-3 grid gap-1 text-xs"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
+                          <div>运行 ID：{run.run_id || "未返回"}</div>
+                          <div>
+                            完成时间：{formatDateTime(run.completed_at)}
+                          </div>
+                          {run.error ? (
+                            <div style={{ color: "#dc2626" }}>
+                              错误：{run.error}
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                     ))}
@@ -903,7 +1167,10 @@ const AutomationsPage: React.FC = () => {
                     {draft?.id && runs.length === 0 ? (
                       <div
                         className="rounded-2xl border border-dashed p-4 text-sm"
-                        style={{ borderColor: 'var(--panel-border)', color: 'var(--text-muted)' }}
+                        style={{
+                          borderColor: "var(--panel-border)",
+                          color: "var(--text-muted)",
+                        }}
                       >
                         这个任务还没有运行记录。
                       </div>
@@ -912,7 +1179,10 @@ const AutomationsPage: React.FC = () => {
                     {!draft?.id ? (
                       <div
                         className="rounded-2xl border border-dashed p-4 text-sm"
-                        style={{ borderColor: 'var(--panel-border)', color: 'var(--text-muted)' }}
+                        style={{
+                          borderColor: "var(--panel-border)",
+                          color: "var(--text-muted)",
+                        }}
                       >
                         选择一个任务后可查看它的最近执行记录。
                       </div>

@@ -93,7 +93,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ language = 'code', value }) => {
           <div className="code-header">
             <span className="language-label">{language}</span>
             <button onClick={handleCopy} className="copy-button" title={copied ? '已复制' : '复制代码'}>
-              {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+              {copied ? <Check size={18} className="text-green-500" /> : <Copy size={18} />}
             </button>
           </div>
           <pre className={`${className} code-block-pre`} style={style}>

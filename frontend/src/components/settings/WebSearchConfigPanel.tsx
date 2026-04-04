@@ -46,7 +46,7 @@ const WebSearchConfigPanel: React.FC<WebSearchConfigPanelProps> = ({ config, onC
                   placeholder={tavilyApiKeySet ? "已配置，重新输入将覆盖" : "输入后自动保存"}
                 />
                 <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 p-1" onClick={() => setShowTavilyKey((prev) => !prev)} style={{ color: "var(--text-muted)" }}>
-                  {showTavilyKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {showTavilyKey ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
               <a href="https://tavily.com" target="_blank" rel="noreferrer" className="settings-link">

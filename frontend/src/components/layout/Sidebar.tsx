@@ -4,6 +4,7 @@ import {
   Database,
   Clock3,
   Logs,
+  Menu,
   MessageCircleMore,
   MessageSquare,
   PlugZap,
@@ -29,7 +30,7 @@ interface NavGroup {
   items: NavItem[];
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
   const location = useLocation();
 
   const navGroups = useMemo<NavGroup[]>(
@@ -40,7 +41,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
           {
             path: "/chat",
             label: "聊天",
-            icon: <MessageCircleMore size={16} />,
+            icon: <MessageCircleMore size={20} />,
             pattern: "/chat/*",
           },
         ],
@@ -51,22 +52,22 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
           {
             path: "/conversations",
             label: "会话",
-            icon: <MessageSquare size={16} />,
+            icon: <MessageSquare size={20} />,
           },
           {
             path: "/rules",
             label: "规则",
-            icon: <ScrollText size={16} />,
+            icon: <ScrollText size={20} />,
           },
           {
             path: "/knowledge",
             label: "知识库",
-            icon: <Database size={16} />,
+            icon: <Database size={20} />,
           },
           {
             path: "/automations",
             label: "自动化",
-            icon: <Clock3 size={16} />,
+            icon: <Clock3 size={20} />,
           },
         ],
       },
@@ -76,22 +77,22 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
           {
             path: "/tools",
             label: "工具",
-            icon: <Wrench size={16} />,
+            icon: <Wrench size={20} />,
           },
           {
             path: "/mcp",
             label: "MCP",
-            icon: <PlugZap size={16} />,
+            icon: <PlugZap size={20} />,
           },
           {
             path: "/settings",
             label: "配置",
-            icon: <Settings size={16} />,
+            icon: <Settings size={20} />,
           },
           {
             path: "/logs",
             label: "日志",
-            icon: <Logs size={16} />,
+            icon: <Logs size={20} />,
             pattern: "/logs/*",
           },
         ],
@@ -117,13 +118,34 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
 
   return (
     <aside className={`nav ${isCollapsed ? "nav--collapsed" : ""}`}>
-      <div className="nav-brand">
-        <div className="brand-logo">
-          <img src="/myclaw.svg" alt="MyClaw" width={24} height={24} />
-        </div>
-        <div className="brand-text">
-          <div className="brand-title">MyClaw</div>
-        </div>
+      <div className={`nav-brand ${isCollapsed ? "nav-brand--collapsed" : ""}`}>
+        {isCollapsed ? (
+          <button
+            className="nav-toggle-btn nav-toggle-btn--centered"
+            onClick={onToggleCollapse}
+            title="展开导航"
+            aria-label="展开导航"
+          >
+            <Menu size={20} />
+          </button>
+        ) : (
+          <>
+            <div className="brand-logo">
+              <img src="/myclaw.svg" alt="MyClaw" width={24} height={24} />
+            </div>
+            <div className="brand-text">
+              <div className="brand-title">MyClaw</div>
+            </div>
+            <button
+              className="nav-toggle-btn"
+              onClick={onToggleCollapse}
+              title="收起导航"
+              aria-label="收起导航"
+            >
+              <Menu size={20} />
+            </button>
+          </>
+        )}
       </div>
       {navGroups.map((group) => (
         <div className="nav-group" key={group.title}>

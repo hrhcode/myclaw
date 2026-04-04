@@ -37,7 +37,7 @@ const MemoryList: React.FC<MemoryListProps> = ({ memories, onEdit, onDelete }) =
   if (memories.length === 0) {
     return (
       <SectionCard className="py-12 text-center">
-        <Star size={40} className="mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
+        <Star size={50} className="mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
         <p style={{ color: 'var(--text-muted)' }}>还没有长期记忆，先创建一条来积累长期上下文。</p>
       </SectionCard>
     );
@@ -140,7 +140,7 @@ const MemoryCard: React.FC<MemoryCardProps> = ({ memory, onEdit, onDelete }) => 
             onClick={() => onEdit(memory)}
             title="编辑记忆"
           >
-            <Edit3 size={16} />
+            <Edit3 size={20} />
           </button>
           <button
             type="button"
@@ -149,7 +149,7 @@ const MemoryCard: React.FC<MemoryCardProps> = ({ memory, onEdit, onDelete }) => 
             onClick={() => onDelete(memory.id)}
             title="删除记忆"
           >
-            <Trash2 size={16} />
+            <Trash2 size={20} />
           </button>
         </div>
       </div>

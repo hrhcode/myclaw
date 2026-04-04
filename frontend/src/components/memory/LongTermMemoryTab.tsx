@@ -93,7 +93,7 @@ const LongTermMemoryTab: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 size={36} className="text-primary animate-spin" />
+        <Loader2 size={45} className="text-primary animate-spin" />
       </div>
     );
   }
@@ -109,13 +109,13 @@ const LongTermMemoryTab: React.FC = () => {
             setIsFormOpen(true);
           }}
         >
-          <Plus size={16} />
+          <Plus size={20} />
           <span>新增记忆</span>
         </button>
 
         <div className="relative min-w-[220px] flex-1">
           <Search
-            size={16}
+            size={20}
             className="absolute left-3 top-1/2 -translate-y-1/2"
             style={{ color: 'var(--text-muted)' }}
           />

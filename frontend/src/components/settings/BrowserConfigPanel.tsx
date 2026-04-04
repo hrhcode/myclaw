@@ -67,7 +67,7 @@ const BrowserConfigPanel: React.FC<BrowserConfigPanelProps> = ({ config, wide, o
               <div className="settings-inlineToggle__desc">只在可信环境中开启</div>
             </div>
             <div className="inline-flex items-center gap-2">
-              {config.ssrf_allow_private ? <AlertTriangle size={14} style={{ color: "#d97706" }} /> : null}
+              {config.ssrf_allow_private ? <AlertTriangle size={18} style={{ color: "#d97706" }} /> : null}
               <Switch checked={config.ssrf_allow_private} onChange={(checked) => onChange("ssrf_allow_private", checked)} ariaLabel="切换内网访问" />
             </div>
           </div>

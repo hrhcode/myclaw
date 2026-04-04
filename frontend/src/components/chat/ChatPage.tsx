@@ -378,7 +378,7 @@ const ChatPage: React.FC = () => {
         {isConfigured === false ? (
           <div className="callout danger">
             <div className="row">
-              <AlertTriangle size={16} />
+              <AlertTriangle size={20} />
               <span>
                 尚未配置接口密钥。<Link to="/settings">前往设置</Link>
               </span>

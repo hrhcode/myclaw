@@ -10,7 +10,6 @@ import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import {
   AlertTriangle,
-  BookOpenText,
   Bot,
   CheckCircle2,
   Copy,
@@ -47,9 +46,9 @@ const MessageAvatar = React.memo(({ role }: { role: "user" | "assistant" }) => (
     className={`message-avatar ${role === "user" ? "is-user" : "is-assistant"}`}
   >
     {role === "user" ? (
-      <User size={16} style={{ color: "var(--text-primary)" }} />
+      <User size={20} style={{ color: "var(--text-primary)" }} />
     ) : (
-      <Bot size={16} className="text-primary" />
+      <Bot size={20} className="text-primary" />
     )}
   </div>
 ));
@@ -77,7 +76,7 @@ const EmptyState: React.FC = () => (
         transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
         className="chat-empty-icon"
       >
-        <Sparkles size={40} className="text-primary" />
+        <Sparkles size={50} className="text-primary" />
       </motion.div>
       <h3
         className="mb-2 text-xl font-semibold"
@@ -244,7 +243,7 @@ const getTraceMeta = (item: TraceDisplayItem) => {
 
   if (event.type === "reasoning") {
     return {
-      icon: <Search size={14} className="text-primary" />,
+      icon: <Search size={18} className="text-primary" />,
       title: isPostToolReflection(event) ? "thinking" : "推理",
       tone: isPostToolReflection(event) ? "next" : "thinking",
     };
@@ -252,7 +251,7 @@ const getTraceMeta = (item: TraceDisplayItem) => {
 
   if (event.type === "tool_call") {
     return {
-      icon: <Wrench size={14} className="text-primary" />,
+      icon: <Wrench size={18} className="text-primary" />,
       title: event.payload.tool_name || "工具调用",
       tone: "tool",
     };
@@ -261,9 +260,9 @@ const getTraceMeta = (item: TraceDisplayItem) => {
   if (event.type === "tool_result") {
     return {
       icon: resultData?.success ? (
-        <CheckCircle2 size={14} className="text-emerald-500" />
+        <CheckCircle2 size={18} className="text-emerald-500" />
       ) : (
-        <Loader2 size={14} className="text-primary" />
+        <Loader2 size={18} className="text-primary" />
       ),
       title: "工具结果",
       tone: resultData?.success ? "success" : "tool",
@@ -272,14 +271,14 @@ const getTraceMeta = (item: TraceDisplayItem) => {
 
   if (event.type === "knowledge_hits") {
     return {
-      icon: <Database size={14} className="text-primary" />,
+      icon: <Database size={18} className="text-primary" />,
       title: "命中知识库",
       tone: "knowledge" as const,
     };
   }
 
   return {
-    icon: <AlertTriangle size={14} className="text-amber-500" />,
+    icon: <AlertTriangle size={18} className="text-amber-500" />,
     title: event.type === "progress_warning" ? "进度提醒" : "循环提醒",
     tone: "warning",
   };
@@ -499,7 +498,7 @@ const AssistantResponseBlock: React.FC<{
             title="复制"
             aria-label="复制"
           >
-            <Copy size={14} />
+            <Copy size={18} />
           </button>
           {isLastAssistant ? (
             <button
@@ -510,7 +509,7 @@ const AssistantResponseBlock: React.FC<{
               title="重新执行"
               aria-label="重新执行"
             >
-              <RotateCcw size={14} />
+              <RotateCcw size={18} />
             </button>
           ) : null}
           <button
@@ -522,9 +521,9 @@ const AssistantResponseBlock: React.FC<{
             aria-label={isSaving ? "正在保存到知识库" : "保存到知识库"}
           >
             {isSaving ? (
-              <Loader2 size={14} className="animate-spin" />
+              <Loader2 size={18} className="animate-spin" />
             ) : (
-              <Save size={14} />
+              <Save size={18} />
             )}
           </button>
         </div>
@@ -618,7 +617,7 @@ const MessageList: React.FC<MessageListProps> = ({
                     title="回滚到此消息之前"
                     aria-label="回滚到此消息之前"
                   >
-                    <RotateCcw size={14} />
+                    <RotateCcw size={18} />
                   </button>
                   <div className="prose prose-sm max-w-none">
                     <ReactMarkdown>{message.content}</ReactMarkdown>
