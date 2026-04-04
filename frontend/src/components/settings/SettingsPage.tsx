@@ -299,7 +299,7 @@ const SettingsPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <MainLayout headerTitle="配置" headerSubtitle="统一管理模型、工具与检索">
+      <MainLayout headerTitle="配置">
         <div className="flex h-full items-center justify-center">
           <Loader2 size={50} className="animate-spin text-primary" />
         </div>
@@ -308,10 +308,7 @@ const SettingsPage: React.FC = () => {
   }
 
   return (
-    <MainLayout
-      headerTitle="配置"
-      headerSubtitle="更克制、更紧凑的全局配置台。"
-    >
+    <MainLayout headerTitle="配置">
       <Toast message={message} />
       <div className="admin-page">
         <div className="admin-frame settings-page-shell settings-page-shell--minimal">

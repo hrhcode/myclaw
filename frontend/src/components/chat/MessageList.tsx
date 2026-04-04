@@ -106,6 +106,29 @@ const tryFormatJson = (value?: string) => {
   }
 };
 
+const formatToolName = (rawName: string): string => {
+  if (rawName.startsWith("mcp__")) {
+    const parts = rawName.split("__");
+    // mcp__<server_id>__<tool_name> — 去掉前缀和 server_id，只显示工具原始名称
+    return parts.slice(2).join("__") || rawName;
+  }
+  return rawName;
+};
+
+const extractToolResultContent = (rawContent: string): string => {
+  try {
+    const parsed = JSON.parse(rawContent);
+    if (parsed && typeof parsed === "object" && "content" in parsed) {
+      const inner = parsed.content;
+      if (typeof inner === "string") return inner;
+      return JSON.stringify(inner, null, 2);
+    }
+    return rawContent;
+  } catch {
+    return rawContent;
+  }
+};
+
 const parseToolResult = (value?: string) => {
   if (!value) {
     return null;
@@ -252,7 +275,7 @@ const getTraceMeta = (item: TraceDisplayItem) => {
   if (event.type === "tool_call") {
     return {
       icon: <Wrench size={18} className="text-primary" />,
-      title: event.payload.tool_name || "工具调用",
+      title: formatToolName(event.payload.tool_name || "工具调用"),
       tone: "tool",
     };
   }
@@ -354,7 +377,7 @@ const TraceEventCard: React.FC<{
                   <div className="trace-line__summary">{summary}</div>
                 </div>
               </div>
-              <span className="trace-line__toggle" />
+              <span className={`trace-line__toggle${expanded ? " trace-line__toggle--expanded" : ""}`} />
             </button>
 
             {expanded ? (
@@ -377,7 +400,7 @@ const TraceEventCard: React.FC<{
                     ) : null}
                     {linkedToolResultContent ? (
                       <pre className="trace-event-content trace-event-content--result max-h-80 overflow-x-auto text-xs">
-                        {tryFormatJson(linkedToolResultContent)}
+                        {tryFormatJson(extractToolResultContent(linkedToolResultContent))}
                       </pre>
                     ) : null}
                   </>
@@ -391,7 +414,7 @@ const TraceEventCard: React.FC<{
                       </div>
                     ) : null}
                     <pre className="trace-event-content trace-event-content--result max-h-80 overflow-x-auto text-xs">
-                      {tryFormatJson(event.payload.content || "")}
+                      {tryFormatJson(extractToolResultContent(event.payload.content || ""))}
                     </pre>
                   </>
                 ) : null}

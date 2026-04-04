@@ -8,7 +8,6 @@ import Sidebar from "./Sidebar";
 interface MainLayoutProps {
   children: ReactNode;
   headerTitle?: string;
-  headerSubtitle?: string;
   headerActions?: ReactNode;
   contentClassName?: string;
 }
@@ -16,7 +15,6 @@ interface MainLayoutProps {
 const MainLayout: React.FC<MainLayoutProps> = ({
   children,
   headerTitle,
-  headerSubtitle,
   headerActions,
   contentClassName = "",
 }) => {
@@ -25,7 +23,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   return (
     <div className={`shell ${sidebarCollapsed ? "shell--nav-collapsed" : ""}`}>
       <header className="topbar">
-        <div className="topbar-left"></div>
+        <div className="topbar-left">
+          {headerTitle ? (
+            <span className="topbar-title">{headerTitle}</span>
+          ) : null}
+          {headerActions ? (
+            <div className="topbar-actions">{headerActions}</div>
+          ) : null}
+        </div>
 
         <div className="topbar-status">
           <div className="pill">
@@ -42,25 +47,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         onToggleCollapse={toggleSidebar}
       />
 
-      <main className={`content ${contentClassName}`.trim()}>
-        {headerTitle || headerActions ? (
-          <section className="content-header">
-            <div>
-              {headerTitle ? (
-                <div className="page-title">{headerTitle}</div>
-              ) : null}
-              {headerSubtitle ? (
-                <div className="page-sub">{headerSubtitle}</div>
-              ) : null}
-            </div>
-            {headerActions ? (
-              <div className="page-meta">{headerActions}</div>
-            ) : null}
-          </section>
-        ) : null}
-
-        {children}
-      </main>
+      <main className={`content ${contentClassName}`.trim()}>{children}</main>
     </div>
   );
 };

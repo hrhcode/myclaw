@@ -271,6 +271,8 @@ class ToolInfo(BaseModel):
     description: str
     enabled: bool
     parameters: dict
+    source: str = "builtin"
+    mcp_server_name: Optional[str] = None
 
 
 class ToolListResponse(BaseModel):
@@ -601,3 +603,19 @@ class McpStatsResponse(BaseModel):
     enabled: int
     resources: int
     alerts: int
+
+
+class McpImportRequest(BaseModel):
+    json_text: str
+    auto_probe: bool = True
+
+
+class McpImportResult(BaseModel):
+    servers: List[McpServerResponse]
+    errors: List[str]
+    created_count: int
+    skipped_count: int
+
+
+class McpToggleRequest(BaseModel):
+    enabled: bool

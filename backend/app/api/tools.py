@@ -28,16 +28,30 @@ async def list_tools():
         工具列表
     """
     tools = tool_registry.list_tools()
-    
-    tool_infos = [
-        ToolInfo(
-            name=tool.name,
-            description=tool.description,
-            enabled=tool.enabled,
-            parameters=tool.parameters
+
+    tool_infos = []
+    for tool in tools:
+        if tool.name.startswith("mcp__"):
+            source = "mcp"
+            # 从 description 的 [MCP:server_name] 前缀提取服务器名称
+            mcp_server_name = None
+            desc = tool.description or ""
+            if desc.startswith("[MCP:") and "]" in desc:
+                mcp_server_name = desc[5 : desc.index("]")]
+        else:
+            source = "builtin"
+            mcp_server_name = None
+
+        tool_infos.append(
+            ToolInfo(
+                name=tool.name,
+                description=tool.description,
+                enabled=tool.enabled,
+                parameters=tool.parameters,
+                source=source,
+                mcp_server_name=mcp_server_name,
+            )
         )
-        for tool in tools
-    ]
     
     return ToolListResponse(
         tools=tool_infos,

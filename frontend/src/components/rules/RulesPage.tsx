@@ -123,10 +123,7 @@ const RulesPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <MainLayout
-        headerTitle="规则"
-        headerSubtitle="用强约束规则统一限制模型输出和行为"
-      >
+      <MainLayout headerTitle="规则">
         <div className="flex h-full items-center justify-center py-16">
           <Loader2 size={40} className="animate-spin text-primary" />
         </div>
@@ -135,10 +132,7 @@ const RulesPage: React.FC = () => {
   }
 
   return (
-    <MainLayout
-      headerTitle="规则"
-      headerSubtitle="规则会在myclaw生成回复前以系统提示词注入，属于强制生效的行为约束。"
-    >
+    <MainLayout headerTitle="规则">
       <div className="admin-page">
         <div className="admin-frame rules-page">
           {notice ? <div className="callout mb-4">{notice}</div> : null}

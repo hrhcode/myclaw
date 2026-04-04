@@ -230,10 +230,76 @@ class McpService:
 
     async def probe_all(self, db: AsyncSession) -> list[dict[str, Any]]:
         servers = await self._load_servers(db)
-        probed = [await self._probe(server) for server in servers]
+        results = list(
+            await asyncio.gather(
+                *(self._probe(server) for server in servers),
+                return_exceptions=True,
+            )
+        )
+        probed: list[dict[str, Any]] = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                server = dict(servers[i])
+                server["status"] = "degraded"
+                server["status_reason"] = str(result)
+                probed.append(server)
+            else:
+                probed.append(result)
         await self._save_servers(db, probed)
         await self.sync_runtime_tools(db, probed)
         return probed
+
+    async def toggle_server(self, db: AsyncSession, server_id: str, enabled: bool) -> dict[str, Any] | None:
+        """直接切换服务器的启用/停用状态。"""
+        return await self.update_server(db, server_id, {"enabled": enabled})
+
+    async def import_from_json(
+        self, db: AsyncSession, json_text: str, auto_probe: bool = True
+    ) -> dict[str, Any]:
+        """从 JSON 文本导入 MCP 服务器配置。
+
+        返回 { "servers": [...], "errors": [...], "created_count": N, "skipped_count": M }
+        """
+        from app.services.mcp_config_parser import parse_mcp_config
+
+        parsed_servers, parse_errors = parse_mcp_config(json_text)
+        if not parsed_servers and parse_errors:
+            return {"servers": [], "errors": parse_errors, "created_count": 0, "skipped_count": 0}
+
+        existing = await self._load_servers(db)
+        existing_names = {s.get("name", "").lower() for s in existing}
+
+        created: list[dict[str, Any]] = []
+        skipped: int = 0
+        errors: list[str] = list(parse_errors)
+
+        for cfg in parsed_servers:
+            name = cfg.get("name", "")
+            if name.lower() in existing_names:
+                skipped += 1
+                continue
+            try:
+                server = await self.create_server(db, cfg)
+                created.append(server)
+                existing_names.add(name.lower())
+            except ValueError as exc:
+                errors.append(f"服务 '{name}': {exc}")
+
+        if auto_probe and created:
+            for idx, server in enumerate(created):
+                try:
+                    probed = await self.probe_server(db, server["id"])
+                    if probed:
+                        created[idx] = probed
+                except Exception as exc:
+                    errors.append(f"探测 '{server['name']}' 失败: {exc}")
+
+        return {
+            "servers": created,
+            "errors": errors,
+            "created_count": len(created),
+            "skipped_count": skipped,
+        }
 
     async def sync_runtime_tools(
         self,
@@ -452,7 +518,7 @@ class McpService:
 
     async def _probe_stdio(self, server: dict[str, Any]) -> dict[str, Any]:
         command, args = self._split_command(server["command"], server.get("args", []))
-        timeout = max(int(server.get("timeout_seconds", 8)), 1)
+        timeout = max(int(server.get("timeout_seconds", 30)), 1)
         env = os.environ.copy()
         env.update({str(key): str(value) for key, value in server.get("env", {}).items()})
         cwd = server.get("workspaces", [None])[0] or None
@@ -465,6 +531,8 @@ class McpService:
             cwd=cwd,
             env=env,
         )
+        stderr_chunks: list[bytes] = []
+        stderr_task = asyncio.create_task(self._drain_stderr(process.stderr, stderr_chunks))
         try:
             await asyncio.wait_for(
                 self._stdio_request(process, "initialize", {
@@ -486,12 +554,43 @@ class McpService:
                 except asyncio.TimeoutError:
                     process.kill()
                     await process.wait()
+            stderr_task.cancel()
+            try:
+                await stderr_task
+            except asyncio.CancelledError:
+                pass
 
         return self._build_probe_result(tools, resources, prompts)
 
+    @staticmethod
+    async def _drain_stderr(
+        stream: asyncio.StreamReader | None,
+        chunks: list[bytes],
+    ) -> None:
+        if stream is None:
+            return
+        while True:
+            try:
+                chunk = await stream.read(4096)
+                if not chunk:
+                    return
+                chunks.append(chunk)
+            except asyncio.CancelledError:
+                try:
+                    remaining = await stream.read()
+                    if remaining:
+                        chunks.append(remaining)
+                except Exception:
+                    pass
+                raise
+
     async def _probe_http(self, server: dict[str, Any]) -> dict[str, Any]:
-        timeout = max(int(server.get("timeout_seconds", 8)), 1)
-        headers = {"Content-Type": "application/json", **server.get("headers", {})}
+        timeout = max(int(server.get("timeout_seconds", 30)), 1)
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            **server.get("headers", {}),
+        }
         async with httpx.AsyncClient(timeout=timeout) as client:
             await self._http_request(
                 client,
@@ -510,7 +609,7 @@ class McpService:
         return self._build_probe_result(tools, resources, prompts)
 
     async def _probe_sse(self, server: dict[str, Any]) -> dict[str, Any]:
-        timeout = max(int(server.get("timeout_seconds", 8)), 1)
+        timeout = max(int(server.get("timeout_seconds", 30)), 1)
         headers = {"Accept": "text/event-stream", **server.get("headers", {})}
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.get(server["endpoint"], headers=headers)
@@ -531,10 +630,8 @@ class McpService:
     async def _safe_stdio_list(self, process: asyncio.subprocess.Process, method: str, timeout: int) -> list[dict[str, Any]]:
         try:
             response = await asyncio.wait_for(self._stdio_request(process, method, {}), timeout=timeout)
-        except RuntimeError as exc:
-            if "Method not found" in str(exc):
-                return []
-            raise
+        except Exception:
+            return []
         return self._extract_items(response)
 
     async def _safe_http_list(
@@ -546,10 +643,8 @@ class McpService:
     ) -> list[dict[str, Any]]:
         try:
             response = await self._http_request(client, endpoint, headers, method, {})
-        except RuntimeError as exc:
-            if "Method not found" in str(exc):
-                return []
-            raise
+        except Exception:
+            return []
         return self._extract_items(response)
 
     def _extract_items(self, payload: Any) -> list[dict[str, Any]]:
@@ -640,7 +735,11 @@ class McpService:
 
     async def _call_http_tool(self, server: dict[str, Any], tool_name: str, arguments: dict[str, Any]) -> Any:
         timeout = max(int(server.get("timeout_seconds", 8)), 1)
-        headers = {"Content-Type": "application/json", **server.get("headers", {})}
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            **server.get("headers", {}),
+        }
         async with httpx.AsyncClient(timeout=timeout) as client:
             await self._http_request(
                 client,
@@ -724,7 +823,11 @@ class McpService:
             headers=headers,
         )
         response.raise_for_status()
-        data = response.json()
+        content_type = response.headers.get("content-type", "")
+        if "text/event-stream" in content_type:
+            data = self._parse_sse_response(response.text, request_id)
+        else:
+            data = response.json()
         if isinstance(data, dict) and "error" in data:
             error = data["error"]
             if isinstance(error, dict):
@@ -733,3 +836,21 @@ class McpService:
         if not isinstance(data, dict):
             raise RuntimeError("invalid MCP response")
         return data.get("result", {})
+
+    @staticmethod
+    def _parse_sse_response(text: str, request_id: str) -> dict[str, Any]:
+        """解析 SSE 格式的 MCP 响应，提取消息事件对应的 JSON-RPC result。"""
+        for line in text.splitlines():
+            line = line.strip()
+            if not line.startswith("data:"):
+                continue
+            payload = line[len("data:") :].strip()
+            if not payload:
+                continue
+            try:
+                obj = json.loads(payload)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(obj, dict) and obj.get("id") == request_id:
+                return obj
+        raise RuntimeError("no matching JSON-RPC response found in SSE stream")

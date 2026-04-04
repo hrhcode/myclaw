@@ -296,10 +296,7 @@ const ConversationsPage: React.FC = () => {
   };
 
   return (
-    <MainLayout
-      headerTitle="会话"
-      headerSubtitle="查看和管理你的历史会话，继续未完成的上下文。"
-    >
+    <MainLayout headerTitle="会话">
       <div className="flex h-full flex-col p-6">
         <div className="mb-6">
           <div className="relative">

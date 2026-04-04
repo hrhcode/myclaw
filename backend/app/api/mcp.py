@@ -5,10 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.schemas.schemas import (
+    McpImportRequest,
+    McpImportResult,
     McpServerCreate,
     McpServerResponse,
     McpServerUpdate,
     McpStatsResponse,
+    McpToggleRequest,
 )
 from app.services.mcp_service import McpService
 
@@ -55,6 +58,23 @@ async def delete_mcp_server(server_id: str, db: AsyncSession = Depends(get_db)):
     if not deleted:
         raise HTTPException(status_code=404, detail="mcp server not found")
     return {"success": True}
+
+
+@router.patch("/mcp/servers/{server_id}/toggle", response_model=McpServerResponse)
+async def toggle_mcp_server(
+    server_id: str,
+    payload: McpToggleRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    updated = await mcp_service.toggle_server(db, server_id, payload.enabled)
+    if not updated:
+        raise HTTPException(status_code=404, detail="mcp server not found")
+    return updated
+
+
+@router.post("/mcp/import", response_model=McpImportResult)
+async def import_mcp_servers(payload: McpImportRequest, db: AsyncSession = Depends(get_db)):
+    return await mcp_service.import_from_json(db, payload.json_text, payload.auto_probe)
 
 
 @router.post("/mcp/servers/{server_id}/probe", response_model=McpServerResponse)

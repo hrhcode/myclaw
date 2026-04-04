@@ -21,6 +21,7 @@ import type {
   McpServer,
   McpServerPayload,
   McpStats,
+  McpImportResult,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
@@ -469,6 +470,8 @@ export interface ToolInfo {
   description: string;
   enabled: boolean;
   parameters: Record<string, unknown>;
+  source: string;
+  mcp_server_name?: string | null;
 }
 
 export interface ToolListResponse {
@@ -692,5 +695,15 @@ export const probeMcpServer = async (serverId: string): Promise<McpServer> => {
 
 export const probeAllMcpServers = async (): Promise<McpServer[]> => {
   const response = await api.post<McpServer[]>('/mcp/probe-all');
+  return response.data;
+};
+
+export const toggleMcpServer = async (serverId: string, enabled: boolean): Promise<McpServer> => {
+  const response = await api.patch<McpServer>(`/mcp/servers/${serverId}/toggle`, { enabled });
+  return response.data;
+};
+
+export const importMcpServers = async (jsonText: string, autoProbe: boolean = true): Promise<McpImportResult> => {
+  const response = await api.post<McpImportResult>('/mcp/import', { json_text: jsonText, auto_probe: autoProbe });
   return response.data;
 };

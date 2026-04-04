@@ -239,6 +239,8 @@ export interface ToolInfo {
   description: string;
   enabled: boolean;
   parameters: Record<string, unknown>;
+  source: string;
+  mcp_server_name?: string | null;
 }
 
 export interface ToolListResponse {
@@ -310,4 +312,11 @@ export interface McpStats {
   enabled: number;
   resources: number;
   alerts: number;
+}
+
+export interface McpImportResult {
+  servers: McpServer[];
+  errors: string[];
+  created_count: number;
+  skipped_count: number;
 }
