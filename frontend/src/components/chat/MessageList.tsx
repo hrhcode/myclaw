@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
@@ -11,6 +17,7 @@ import {
   Database,
   Loader2,
   RotateCcw,
+  Save,
   Search,
   Sparkles,
   User,
@@ -36,7 +43,9 @@ interface TraceDisplayItem {
 }
 
 const MessageAvatar = React.memo(({ role }: { role: "user" | "assistant" }) => (
-  <div className={`message-avatar ${role === "user" ? "is-user" : "is-assistant"}`}>
+  <div
+    className={`message-avatar ${role === "user" ? "is-user" : "is-assistant"}`}
+  >
     {role === "user" ? (
       <User size={16} style={{ color: "var(--text-primary)" }} />
     ) : (
@@ -70,10 +79,16 @@ const EmptyState: React.FC = () => (
       >
         <Sparkles size={40} className="text-primary" />
       </motion.div>
-      <h3 className="mb-2 text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
+      <h3
+        className="mb-2 text-xl font-semibold"
+        style={{ color: "var(--text-primary)" }}
+      >
         开始一段新对话
       </h3>
-      <p className="mx-auto max-w-xs text-sm" style={{ color: "var(--text-muted)" }}>
+      <p
+        className="mx-auto max-w-xs text-sm"
+        style={{ color: "var(--text-muted)" }}
+      >
         这里适合研究、编码、分析和多步推理。
       </p>
     </div>
@@ -115,7 +130,9 @@ const isPostToolReflection = (event: AgentTraceEvent) =>
 const normalizePostToolReflectionContent = (content: string) =>
   content.replace(/^\s*关键信息[：:]\s*/gm, "").trim();
 
-const buildTraceDisplayItems = (events: AgentTraceEvent[] = []): TraceDisplayItem[] => {
+const buildTraceDisplayItems = (
+  events: AgentTraceEvent[] = [],
+): TraceDisplayItem[] => {
   const consumedToolResultIndexes = new Set<number>();
   const items: TraceDisplayItem[] = [];
 
@@ -190,8 +207,13 @@ const AssistantMarkdownBody: React.FC<{ content: string }> = ({ content }) => (
 
 const getTraceSummary = (item: TraceDisplayItem) => {
   const { event, linkedToolResultContent } = item;
-  const linkedResultData = linkedToolResultContent ? parseToolResult(linkedToolResultContent) : null;
-  const resultData = event.type === "tool_result" ? parseToolResult(event.payload.content) : null;
+  const linkedResultData = linkedToolResultContent
+    ? parseToolResult(linkedToolResultContent)
+    : null;
+  const resultData =
+    event.type === "tool_result"
+      ? parseToolResult(event.payload.content)
+      : null;
 
   if (event.type === "tool_call") {
     if (linkedResultData?.success) return "工具执行成功";
@@ -215,7 +237,10 @@ const getTraceSummary = (item: TraceDisplayItem) => {
 
 const getTraceMeta = (item: TraceDisplayItem) => {
   const { event } = item;
-  const resultData = event.type === "tool_result" ? parseToolResult(event.payload.content) : null;
+  const resultData =
+    event.type === "tool_result"
+      ? parseToolResult(event.payload.content)
+      : null;
 
   if (event.type === "reasoning") {
     return {
@@ -283,12 +308,21 @@ const TraceEventCard: React.FC<{
   index: number;
 }> = ({ item, index }) => {
   const { event, linkedToolResultContent } = item;
-  const [expanded, setExpanded] = useState(() => shouldExpandTraceEventByDefault(item));
+  const [expanded, setExpanded] = useState(() =>
+    shouldExpandTraceEventByDefault(item),
+  );
   const meta = getTraceMeta(item);
   const summary = getTraceSummary(item);
-  const linkedResultData = linkedToolResultContent ? parseToolResult(linkedToolResultContent) : null;
-  const resultData = event.type === "tool_result" ? parseToolResult(event.payload.content) : null;
-  const reasoningContent = normalizePostToolReflectionContent(event.payload.content || "");
+  const linkedResultData = linkedToolResultContent
+    ? parseToolResult(linkedToolResultContent)
+    : null;
+  const resultData =
+    event.type === "tool_result"
+      ? parseToolResult(event.payload.content)
+      : null;
+  const reasoningContent = normalizePostToolReflectionContent(
+    event.payload.content || "",
+  );
 
   return (
     <div className={`trace-line trace-line--${meta.tone}`}>
@@ -333,48 +367,61 @@ const TraceEventCard: React.FC<{
                 ) : null}
 
                 {event.type === "tool_call" ? (
-              <>
-                <pre className="trace-event-content overflow-x-auto text-xs">
-                  {tryFormatJson(event.payload.arguments || "{}")}
-                </pre>
-                {linkedResultData?.execution_time_ms ? (
-                  <div className="trace-line__meta">执行耗时：{linkedResultData.execution_time_ms} ms</div>
+                  <>
+                    <pre className="trace-event-content overflow-x-auto text-xs">
+                      {tryFormatJson(event.payload.arguments || "{}")}
+                    </pre>
+                    {linkedResultData?.execution_time_ms ? (
+                      <div className="trace-line__meta">
+                        执行耗时：{linkedResultData.execution_time_ms} ms
+                      </div>
+                    ) : null}
+                    {linkedToolResultContent ? (
+                      <pre className="trace-event-content trace-event-content--result max-h-80 overflow-x-auto text-xs">
+                        {tryFormatJson(linkedToolResultContent)}
+                      </pre>
+                    ) : null}
+                  </>
                 ) : null}
-                {linkedToolResultContent ? (
-                  <pre className="trace-event-content trace-event-content--result max-h-80 overflow-x-auto text-xs">
-                    {tryFormatJson(linkedToolResultContent)}
-                  </pre>
+
+                {event.type === "tool_result" ? (
+                  <>
+                    {resultData?.execution_time_ms ? (
+                      <div className="trace-line__meta">
+                        执行耗时：{resultData.execution_time_ms} ms
+                      </div>
+                    ) : null}
+                    <pre className="trace-event-content trace-event-content--result max-h-80 overflow-x-auto text-xs">
+                      {tryFormatJson(event.payload.content || "")}
+                    </pre>
+                  </>
                 ) : null}
-              </>
-            ) : null}
 
-            {event.type === "tool_result" ? (
-              <>
-                {resultData?.execution_time_ms ? (
-                  <div className="trace-line__meta">执行耗时：{resultData.execution_time_ms} ms</div>
-                ) : null}
-                <pre className="trace-event-content trace-event-content--result max-h-80 overflow-x-auto text-xs">
-                  {tryFormatJson(event.payload.content || "")}
-                </pre>
-              </>
-            ) : null}
-
-            {(event.type === "progress_warning" || event.type === "loop_warning") ? (
-              <div className="trace-event-content whitespace-pre-wrap text-sm">
-                {event.payload.message || "检测到最近进展有限，智能体已经调整执行策略。"}
-              </div>
-            ) : null}
-
-            {event.type === "knowledge_hits" ? (
-              <div className="trace-event-content">
-                {item.knowledgeHits?.map((hit, i) => (
-                  <div key={`${hit.memory_id || "knowledge"}-${i}`} className="trace-event-knowledge">
-                    <div className="trace-event-knowledge__title">{hit.title || "知识片段"}</div>
-                    <div className="trace-event-knowledge__snippet">{summarizeKnowledgeHit(hit.content)}</div>
+                {event.type === "progress_warning" ||
+                event.type === "loop_warning" ? (
+                  <div className="trace-event-content whitespace-pre-wrap text-sm">
+                    {event.payload.message ||
+                      "检测到最近进展有限，智能体已经调整执行策略。"}
                   </div>
-                ))}
-              </div>
-            ) : null}
+                ) : null}
+
+                {event.type === "knowledge_hits" ? (
+                  <div className="trace-event-content">
+                    {item.knowledgeHits?.map((hit, i) => (
+                      <div
+                        key={`${hit.memory_id || "knowledge"}-${i}`}
+                        className="trace-event-knowledge"
+                      >
+                        <div className="trace-event-knowledge__title">
+                          {hit.title || "知识片段"}
+                        </div>
+                        <div className="trace-event-knowledge__snippet">
+                          {summarizeKnowledgeHit(hit.content)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </>
@@ -388,7 +435,10 @@ const AssistantTraceTimeline: React.FC<{
   traceEvents?: AgentTraceEvent[];
   isStreaming?: boolean;
 }> = ({ traceEvents, isStreaming }) => {
-  const items = useMemo(() => buildTraceDisplayItems(traceEvents || []), [traceEvents]);
+  const items = useMemo(
+    () => buildTraceDisplayItems(traceEvents || []),
+    [traceEvents],
+  );
 
   if (items.length === 0 && !isStreaming) {
     return null;
@@ -406,7 +456,8 @@ const AssistantTraceTimeline: React.FC<{
   );
 };
 
-const summarizeKnowledgeHit = (content: string) => content.replace(/\s+/g, " ").trim().slice(0, 120);
+const summarizeKnowledgeHit = (content: string) =>
+  content.replace(/\s+/g, " ").trim().slice(0, 120);
 
 const AssistantResponseBlock: React.FC<{
   message: Message;
@@ -416,7 +467,15 @@ const AssistantResponseBlock: React.FC<{
   onRegenerate?: (message: Message) => void;
   onSaveAssistantMessage?: (message: Message) => void | Promise<void>;
   savingMessageId?: number | null;
-}> = ({ message, isStreaming, isLastAssistant, onCopy, onRegenerate, onSaveAssistantMessage, savingMessageId }) => {
+}> = ({
+  message,
+  isStreaming,
+  isLastAssistant,
+  onCopy,
+  onRegenerate,
+  onSaveAssistantMessage,
+  savingMessageId,
+}) => {
   const isSaving = savingMessageId === message.id;
 
   if (message.content === "") {
@@ -462,7 +521,11 @@ const AssistantResponseBlock: React.FC<{
             title={isSaving ? "正在保存到知识库" : "保存到知识库"}
             aria-label={isSaving ? "正在保存到知识库" : "保存到知识库"}
           >
-            {isSaving ? <Loader2 size={14} className="animate-spin" /> : <BookOpenText size={14} />}
+            {isSaving ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Save size={14} />
+            )}
           </button>
         </div>
       ) : null}
@@ -470,7 +533,14 @@ const AssistantResponseBlock: React.FC<{
   );
 };
 
-const MessageList: React.FC<MessageListProps> = ({ messages, onCopyMessage, onRegenerateMessage, onSaveAssistantMessage, savingMessageId, onRollbackMessage }) => {
+const MessageList: React.FC<MessageListProps> = ({
+  messages,
+  onCopyMessage,
+  onRegenerateMessage,
+  onSaveAssistantMessage,
+  savingMessageId,
+  onRollbackMessage,
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
@@ -529,16 +599,16 @@ const MessageList: React.FC<MessageListProps> = ({ messages, onCopyMessage, onRe
             {message.role === "user" ? (
               <div className="message-shell is-user">
                 <div className="message-meta">
-                  <div className="message-meta-main">
-                    <MessageAvatar role="user" />
-                    <span className="message-role-label">你</span>
-                  </div>
                   <span className="message-time">
-                    {new Date(message.created_at).toLocaleTimeString("zh-CN", {
+                    {new Date(message.created_at).toLocaleString("zh-CN", {
                       hour: "2-digit",
                       minute: "2-digit",
+                      hour12: false,
                     })}
                   </span>
+                  <div className="message-meta-main">
+                    <MessageAvatar role="user" />
+                  </div>
                 </div>
                 <div className="message-bubble message-user">
                   <button
@@ -558,7 +628,10 @@ const MessageList: React.FC<MessageListProps> = ({ messages, onCopyMessage, onRe
             ) : (
               <div className="message-shell is-assistant">
                 <div className="message-bubble message-ai">
-                  <AssistantTraceTimeline traceEvents={message.traceEvents} isStreaming={message.isStreaming} />
+                  <AssistantTraceTimeline
+                    traceEvents={message.traceEvents}
+                    isStreaming={message.isStreaming}
+                  />
                   <AssistantResponseBlock
                     message={message}
                     isStreaming={message.isStreaming}
