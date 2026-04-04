@@ -174,9 +174,8 @@ const SettingsPage: React.FC = () => {
       <Toast message={message} />
       <div className="admin-page">
         <div className="admin-frame settings-page-shell settings-page-shell--minimal">
-          <section className="settings-section settings-section--flat">
-            <div className="settings-sectionBar"><span>模型</span></div>
-            <div className="settings-grid settings-grid--models">
+          <div className="settings-rows">
+            <div className="settings-row-2col">
               <div className="settings-block">
                 <div className="settings-block__head"><h3>对话模型</h3><span>生成</span></div>
                 <div className="settings-stack">
@@ -195,20 +194,17 @@ const SettingsPage: React.FC = () => {
                 </div>
               </div>
             </div>
-          </section>
 
-          <section className="settings-section settings-section--flat">
-            <div className="settings-sectionBar"><span>工具</span></div>
-            <div className="settings-grid settings-grid--services">
+            <div className="settings-row-2col">
               <WebSearchConfigPanel config={webSearchConfig} onChange={async (key, value) => { const next = { ...webSearchConfig, [key]: value }; setWebSearchConfigState(next); try { await setWebSearchConfigApi(next); showMessage("success", "联网搜索配置已保存"); } catch (error) { console.error("Failed to save web search config:", error); showMessage("error", "联网搜索配置保存失败"); } }} onSaveKey={async (key, value) => { const next = { ...webSearchConfig, [key]: value }; setWebSearchConfigState(next); await setWebSearchConfigApi(next); setExistingWebSearchKeys((prev) => ({ ...prev, tavily: key === "tavily_api_key" ? true : prev.tavily, brave: key === "brave_api_key" ? true : prev.brave, perplexity: key === "perplexity_api_key" ? true : prev.perplexity })); showMessage("success", "搜索服务密钥已保存"); }} tavilyApiKeySet={existingWebSearchKeys.tavily} />
+
+              <SearchConfigPanel config={memoryRetrievalConfig} onChange={async (key, value) => { setMemoryRetrievalConfig((prev) => ({ ...prev, [key]: value })); try { await setConfig(key, value); } catch (error) { console.error(`Failed to save ${key}:`, error); showMessage("error", "知识库检索配置保存失败"); } }} />
+            </div>
+
+            <div className="settings-row-1col">
               <BrowserConfigPanel config={browserConfig} onChange={async (key, value) => { const next = { ...browserConfig, [key]: value }; setBrowserConfigState(next); try { await setBrowserConfigApi(next); showMessage("success", "浏览器配置已保存"); } catch (error) { console.error("Failed to save browser config:", error); showMessage("error", "浏览器配置保存失败"); } }} />
             </div>
-          </section>
-
-          <section className="settings-section settings-section--flat">
-            <div className="settings-sectionBar"><span>知识检索</span></div>
-            <SearchConfigPanel config={memoryRetrievalConfig} onChange={async (key, value) => { setMemoryRetrievalConfig((prev) => ({ ...prev, [key]: value })); try { await setConfig(key, value); } catch (error) { console.error(`Failed to save ${key}:`, error); showMessage("error", "知识库检索配置保存失败"); } }} />
-          </section>
+          </div>
         </div>
       </div>
     </MainLayout>

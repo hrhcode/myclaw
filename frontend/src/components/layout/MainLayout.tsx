@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { memo } from "react";
-import { Bot } from "lucide-react";
 
 import { useApp } from "../../contexts/AppContext";
 import ThemeToggle from "../common/ThemeToggle";
@@ -35,16 +34,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({
           >
             <span className="nav-collapse-toggle__icon">≡</span>
           </button>
-
-          <div className="brand">
-            <div className="brand-logo">
-              <Bot size={18} />
-            </div>
-            <div className="brand-text">
-              <div className="brand-title">MyClaw</div>
-              <div className="brand-sub">个人智能体控制台</div>
-            </div>
-          </div>
         </div>
 
         <div className="topbar-status">

@@ -60,3 +60,7 @@ Thumbs.db
 
 # Trae IDE
 .trae/
+
+# Claude Code
+CLAUDE.md
+.claude/

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Save, ScrollText } from "lucide-react";
+import { Loader2, Save } from "lucide-react";
 
 import MainLayout from "../layout/MainLayout";
 import { SectionCard } from "../admin";
@@ -13,7 +13,9 @@ import {
 
 const RulesPage: React.FC = () => {
   const { conversations, currentConversationId, loadConversations } = useApp();
-  const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<
+    number | null
+  >(null);
   const [globalRule, setGlobalRule] = useState("");
   const [conversationRule, setConversationRule] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -33,7 +35,7 @@ const RulesPage: React.FC = () => {
     if (!selectedConversationId && conversations.length > 0) {
       setSelectedConversationId(conversations[0].id);
     }
-  }, [conversations, currentConversationId, selectedConversationId]);
+  }, [conversations, currentConversationId]);
 
   useEffect(() => {
     const load = async () => {
@@ -71,7 +73,8 @@ const RulesPage: React.FC = () => {
   }, [selectedConversationId]);
 
   const selectedConversation = useMemo(
-    () => conversations.find((item) => item.id === selectedConversationId) || null,
+    () =>
+      conversations.find((item) => item.id === selectedConversationId) || null,
     [conversations, selectedConversationId],
   );
 
@@ -103,7 +106,10 @@ const RulesPage: React.FC = () => {
 
     try {
       setIsSavingConversation(true);
-      const response = await updateConversationRule(selectedConversationId, conversationRule);
+      const response = await updateConversationRule(
+        selectedConversationId,
+        conversationRule,
+      );
       setConversationRule(response.rule);
       showNotice("会话规则已保存");
       await loadConversations();
@@ -117,7 +123,10 @@ const RulesPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <MainLayout headerTitle="规则" headerSubtitle="用强约束规则统一限制模型输出和行为">
+      <MainLayout
+        headerTitle="规则"
+        headerSubtitle="用强约束规则统一限制模型输出和行为"
+      >
         <div className="flex h-full items-center justify-center py-16">
           <Loader2 size={32} className="animate-spin text-primary" />
         </div>
@@ -128,23 +137,11 @@ const RulesPage: React.FC = () => {
   return (
     <MainLayout
       headerTitle="规则"
-      headerSubtitle="规则会在生成前以系统提示词注入，属于强制生效的用户约束。"
+      headerSubtitle="规则会在myclaw生成回复前以系统提示词注入，属于强制生效的行为约束。"
     >
       <div className="admin-page">
         <div className="admin-frame rules-page">
           {notice ? <div className="callout mb-4">{notice}</div> : null}
-
-          <section className="rules-hero">
-            <div className="rules-hero__icon">
-              <ScrollText size={18} />
-            </div>
-            <div>
-              <div className="rules-hero__title">规则不是建议，而是硬约束</div>
-              <div className="rules-hero__copy">
-                全局规则作用于所有会话，会话规则只作用于当前会话。它们会和历史消息、知识库检索结果一起进入模型上下文。
-              </div>
-            </div>
-          </section>
 
           <div className="rules-grid">
             <SectionCard className="rules-card">
@@ -167,14 +164,20 @@ const RulesPage: React.FC = () => {
               />
 
               <div className="rules-card__footer">
-                <div className="rules-hint">建议用分条短句描述，便于长期维护。</div>
+                <div className="rules-hint">
+                  建议用分条短句描述，便于长期维护。
+                </div>
                 <button
                   type="button"
                   className="btn rules-save-btn"
                   onClick={() => void handleSaveGlobalRule()}
                   disabled={isSavingGlobal}
                 >
-                  {isSavingGlobal ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                  {isSavingGlobal ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Save size={16} />
+                  )}
                   <span>保存全局规则</span>
                 </button>
               </div>
@@ -185,19 +188,15 @@ const RulesPage: React.FC = () => {
                 <div>
                   <h2 className="rules-card__title">会话规则</h2>
                   <p className="rules-card__desc">
-                    适合放当前这次协作的临时约束，比如扮演角色、输出格式、优先级和禁止动作。
+                    适合放当前这次协作的临时约束。
                   </p>
                 </div>
-              </div>
-
-              <div className="rules-conversation-picker">
-                <label className="mb-1 block text-sm" style={{ color: "var(--text-secondary)" }}>
-                  当前会话
-                </label>
                 <select
-                  className="admin-select w-full px-3 py-3"
+                  className="admin-select px-3 py-2 min-w-[180px]"
                   value={selectedConversationId ?? ""}
-                  onChange={(event) => setSelectedConversationId(Number(event.target.value))}
+                  onChange={(event) =>
+                    setSelectedConversationId(Number(event.target.value))
+                  }
                 >
                   {conversations.map((conversation) => (
                     <option key={conversation.id} value={conversation.id}>
@@ -229,7 +228,11 @@ const RulesPage: React.FC = () => {
                   onClick={() => void handleSaveConversationRule()}
                   disabled={!selectedConversation || isSavingConversation}
                 >
-                  {isSavingConversation ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                  {isSavingConversation ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Save size={16} />
+                  )}
                   <span>保存会话规则</span>
                 </button>
               </div>

@@ -1,11 +1,10 @@
 import { useMemo } from "react";
 import { matchPath, NavLink, useLocation } from "react-router-dom";
 import {
-  BookText,
-  Bot,
-  Brain,
+  Database,
   Clock3,
   Logs,
+  MessageCircleMore,
   MessageSquare,
   PlugZap,
   ScrollText,
@@ -41,7 +40,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
           {
             path: "/chat",
             label: "聊天",
-            icon: <MessageSquare size={16} />,
+            icon: <MessageCircleMore size={16} />,
             pattern: "/chat/*",
           },
         ],
@@ -52,7 +51,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
           {
             path: "/conversations",
             label: "会话",
-            icon: <BookText size={16} />,
+            icon: <MessageSquare size={16} />,
           },
           {
             path: "/rules",
@@ -62,7 +61,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
           {
             path: "/knowledge",
             label: "知识库",
-            icon: <Brain size={16} />,
+            icon: <Database size={16} />,
           },
           {
             path: "/mcp",
@@ -118,6 +117,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
 
   return (
     <aside className={`nav ${isCollapsed ? "nav--collapsed" : ""}`}>
+      <div className="nav-brand">
+        <div className="brand-logo">
+          <img src="/myclaw.svg" alt="MyClaw" width={24} height={24} />
+        </div>
+        <div className="brand-text">
+          <div className="brand-title">MyClaw</div>
+        </div>
+      </div>
       {navGroups.map((group) => (
         <div className="nav-group" key={group.title}>
           <div className="nav-label nav-label--static">
@@ -138,20 +145,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
           </div>
         </div>
       ))}
-
-      <div className="nav-group">
-        <div className="nav-label nav-label--static">
-          <span className="nav-label__text">智能体</span>
-        </div>
-        <div className="nav-group__items">
-          <div className="nav-item" title="MyClaw 核心">
-            <span className="nav-item__icon">
-              <Bot size={16} />
-            </span>
-            <span className="nav-item__text">MyClaw 核心</span>
-          </div>
-        </div>
-      </div>
     </aside>
   );
 };
