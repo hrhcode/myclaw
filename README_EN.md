@@ -7,6 +7,19 @@
 
 An intelligent conversational AI assistant based on GLM-4.7-Flash, featuring semantic memory search, long-term memory management, and real-time log monitoring.
 
+## Current Status
+
+- Backend has completed core personal edition capabilities:
+  - `Session Runtime`: Isolates model, workspace, tool configuration, and context summary by workspace session
+  - `Workspace + Skills`: Supports local workspaces, skill discovery, start/stop, and prompt injection
+  - `Session Tools`: Supports cross-session history query, status, and task dispatching
+  - `Automation`: Supports personal automation tasks with fixed interval, daily, and weekly scheduling
+  - `Memory`: Supports long-term memory, session-level memory strategies, and automatic extraction
+- Backend API has completed local regression testing
+- Backend tests have completed coverage for `session / automation / memory / tool executor`
+- Frontend has completed closed-loop pages for sessions, automation, and memory
+- Frontend core navigation and main page copy have been unified in Chinese
+
 ## ✨ Features
 
 - 🚀 **Modern Chat UI** - Clean and responsive interface with streaming output
@@ -246,6 +259,44 @@ python -m uvicorn app.main:app --reload  # Development with hot reload
 3. Each conversation calls the Zhipu AI API, monitor your usage
 4. Database file is created automatically on first run
 5. Vector embeddings are generated asynchronously after message save
+
+## Testing
+
+Backend tests can be run in the `backend` directory:
+
+```powershell
+$env:PYTHONPATH='D:\Project\Me\myclaw-new\myclaw\backend'
+python -m unittest discover -s tests -p "test_*.py"
+```
+
+Current key tests that have been supplemented and passed include:
+
+- `test_session_service.py`
+- `test_automation_service.py`
+- `test_memory_api.py`
+- `test_tool_executor.py`
+- `test_agent_loop_prompting.py`
+- `test_time_tool.py`
+
+Frontend build verification:
+
+```powershell
+cd frontend
+npm run build
+```
+
+## Current Known Boundaries
+
+- Currently positioned as a personal single-user version, not including team, multi-tenant, or multi-channel access
+- Security approval, sandbox isolation, and privilege control are not the focus of this phase
+- Canvas, voice, mobile nodes, and plugin marketplace are not included
+- If historical chat content is in English, it will be displayed as the original message content and will not be translated by the UI
+
+## Development Suggestions
+
+- Prioritize isolating different projects through workspace sessions
+- For long-term tasks, prioritize using automation instead of manual repeated triggering
+- For fixed project directories, it is recommended to configure `workspace_path` and local skills
 
 ## 📄 License
 

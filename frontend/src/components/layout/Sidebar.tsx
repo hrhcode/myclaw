@@ -46,7 +46,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
         ],
       },
       {
-        title: "管理",
+        title: "控制",
         items: [
           {
             path: "/conversations",
@@ -64,11 +64,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
             icon: <Database size={16} />,
           },
           {
-            path: "/mcp",
-            label: "MCP",
-            icon: <PlugZap size={16} />,
-          },
-          {
             path: "/automations",
             label: "自动化",
             icon: <Clock3 size={16} />,
@@ -76,7 +71,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
         ],
       },
       {
-        title: "系统",
+        title: "设置",
         items: [
           {
             path: "/tools",
@@ -84,8 +79,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
             icon: <Wrench size={16} />,
           },
           {
+            path: "/mcp",
+            label: "MCP",
+            icon: <PlugZap size={16} />,
+          },
+          {
             path: "/settings",
-            label: "设置",
+            label: "配置",
             icon: <Settings size={16} />,
           },
           {

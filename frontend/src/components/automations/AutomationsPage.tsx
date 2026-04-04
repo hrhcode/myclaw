@@ -488,7 +488,7 @@ const AutomationsPage: React.FC = () => {
 
   if (loading) {
     return (
-      <MainLayout headerTitle="自动化" headerSubtitle="定时任务、真实运行记录与目标会话绑定">
+      <MainLayout headerTitle="自动化">
         <div className="admin-page">
           <div className="admin-frame">
             <div className="admin-card p-6 text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -501,34 +501,30 @@ const AutomationsPage: React.FC = () => {
   }
 
   return (
-    <MainLayout
-      headerTitle="自动化"
-      headerSubtitle="基于真实会话的定时任务系统，运行记录直接来自后端执行数据。"
-      headerActions={
-        <div className="admin-toolbar">
-          <button
-            type="button"
-            onClick={() => void refreshPage(selectedAutomationId)}
-            className="btn-secondary inline-flex items-center gap-2"
-            disabled={busy}
-          >
-            <RefreshCw size={16} />
-            刷新
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleCreate()}
-            className="btn-primary inline-flex items-center gap-2"
-            disabled={busy || conversations.length === 0}
-          >
-            <Plus size={16} />
-            新建任务
-          </button>
-        </div>
-      }
-    >
+    <MainLayout headerTitle="自动化">
       <div className="admin-page">
         <div className="admin-frame max-w-[1400px]">
+          <div className="admin-toolbar mb-4">
+            <button
+              type="button"
+              onClick={() => void refreshPage(selectedAutomationId)}
+              className="btn-secondary inline-flex items-center gap-2"
+              disabled={busy}
+            >
+              <RefreshCw size={16} />
+              刷新
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleCreate()}
+              className="btn-primary inline-flex items-center gap-2"
+              disabled={busy || conversations.length === 0}
+            >
+              <Plus size={16} />
+              新建任务
+            </button>
+          </div>
+
           <section className="admin-summary">
             {summaryCards(stats).map((card) => (
               <div key={card.label} className="admin-summary-card">

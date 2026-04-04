@@ -1,5 +1,7 @@
 # MyClaw
 
+![MyClaw Logo](https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=modern%20robot%20claw%20logo%20with%20blue%20accent%20color%2C%20clean%20minimalist%20design%2C%20tech%20style&image_size=square_hd)
+
 MyClaw 是一个面向个人使用的精简 Agent 平台，主入口是 React + FastAPI 的 Web 应用。当前版本已经从“单机会话聊天应用”升级为“带工作会话、自动化、记忆和会话协作能力的个人 Agent 控制台”。
 
 ## 当前状态
@@ -123,6 +125,78 @@ myclaw/
 ├─ start_all.ps1
 └─ README.md
 ```
+
+## 数据库 Schema
+
+### conversations
+
+| 字段 | 类型 | 描述 |
+| --- | --- | --- |
+| id | INTEGER | 主键，自增 |
+| title | TEXT | 会话标题 |
+| created_at | DATETIME | 创建时间 |
+| updated_at | DATETIME | 更新时间 |
+
+### messages
+
+| 字段 | 类型 | 描述 |
+| --- | --- | --- |
+| id | INTEGER | 主键 |
+| conversation_id | INTEGER | 外键，关联 conversation |
+| role | TEXT | 角色 (user/assistant) |
+| content | TEXT | 消息内容 |
+| embedding | BLOB | 向量嵌入 |
+| created_at | DATETIME | 创建时间 |
+
+### long_term_memory
+
+| 字段 | 类型 | 描述 |
+| --- | --- | --- |
+| id | INTEGER | 主键 |
+| key | TEXT | 记忆键 (可选) |
+| content | TEXT | 记忆内容 |
+| embedding | BLOB | 向量嵌入 |
+| importance | FLOAT | 重要性评分 (0-1) |
+| source | TEXT | 记忆来源 |
+| created_at | DATETIME | 创建时间 |
+
+## 记忆搜索特性
+
+应用支持高级记忆搜索能力：
+
+- **混合搜索**：结合向量相似度和文本匹配
+- **MMR 重排**：最大边际相关性，获得多样化结果
+- **时间衰减**：基于时间的相关性评分
+- **可配置参数**：
+  - `top_k`：结果数量
+  - `min_score`：最小相似度阈值
+  - `vector_weight` / `text_weight`：混合搜索权重
+  - `mmr_lambda`：MMR 平衡参数
+  - `half_life_days`：时间衰减半衰期
+
+## 工具系统
+
+工具系统使用注册表模式进行动态工具注册和管理：
+
+- **注册工具**：通过 `ToolRegistry` 注册新工具
+- **执行工具**：通过 `ToolExecutor` 执行工具调用
+- **内置工具**：
+  - `get_current_time` - 获取当前时间
+  - `browser_start` - 启动浏览器
+  - `browser_navigate` - 导航到 URL
+  - `browser_snapshot` - 获取页面快照
+  - `browser_screenshot` - 截取页面或元素截图
+  - `browser_click` - 点击页面元素
+  - `browser_type` - 在元素中输入文本
+  - `browser_hover` - 悬停在页面元素上
+  - `browser_wait` - 等待条件
+  - `browser_scroll` - 滚动页面
+  - `browser_press` - 模拟键盘按键
+  - `browser_select` - 在下拉菜单中选择选项
+  - `browser_history` - 导航浏览器历史 (前进/后退)
+  - `browser_stop` - 停止浏览器
+  - `web_search` - 网络搜索
+- **工具过滤**：支持允许/拒绝列表来控制可用工具
 
 ## 快速开始
 
@@ -252,3 +326,7 @@ npm run build
 ## License
 
 MIT
+
+---
+
+[中文版本](README.md) | [English Version](README_EN.md)

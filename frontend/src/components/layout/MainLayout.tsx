@@ -58,9 +58,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({
               {headerTitle ? (
                 <div className="page-title">{headerTitle}</div>
               ) : null}
-              {headerSubtitle ? (
-                <div className="page-sub">{headerSubtitle}</div>
-              ) : null}
             </div>
             {headerActions ? (
               <div className="page-meta">{headerActions}</div>

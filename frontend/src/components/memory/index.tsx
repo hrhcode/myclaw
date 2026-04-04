@@ -1,9 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpenText, FileUp, Loader2, RefreshCw, Search, Trash2 } from "lucide-react";
+import {
+  BookOpenText,
+  FileUp,
+  Loader2,
+  RefreshCw,
+  Search,
+  Trash2,
+} from "lucide-react";
 
 import MainLayout from "../layout/MainLayout";
 import { SectionCard } from "../admin";
-import { deleteKnowledge, getKnowledgeBase, uploadMarkdownKnowledge } from "../../services/api";
+import {
+  deleteKnowledge,
+  getKnowledgeBase,
+  uploadMarkdownKnowledge,
+} from "../../services/api";
 import type { KnowledgeBaseItem, KnowledgeBaseListResponse } from "../../types";
 
 const formatDate = (value: string) =>
@@ -18,7 +29,9 @@ const formatDate = (value: string) =>
 const KnowledgeBasePage: React.FC = () => {
   const [data, setData] = useState<KnowledgeBaseListResponse | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filter, setFilter] = useState<"all" | "markdown" | "assistant_reply" | "note">("all");
+  const [filter, setFilter] = useState<
+    "all" | "markdown" | "assistant_reply" | "note"
+  >("all");
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -44,7 +57,8 @@ const KnowledgeBasePage: React.FC = () => {
     const items = data?.items || [];
     const query = searchQuery.trim().toLowerCase();
     return items.filter((item) => {
-      const matchesFilter = filter === "all" ? true : item.content_type === filter;
+      const matchesFilter =
+        filter === "all" ? true : item.content_type === filter;
       const matchesQuery = query
         ? [item.title, item.preview, item.source || ""].some((value) =>
             value.toLowerCase().includes(query),
@@ -58,7 +72,9 @@ const KnowledgeBasePage: React.FC = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) {
@@ -99,22 +115,37 @@ const KnowledgeBasePage: React.FC = () => {
             onChange={(event) => void handleFileChange(event)}
           />
 
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <SectionCard className="p-5">
-              <div className="text-xs" style={{ color: "var(--text-muted)" }}>知识条目</div>
-              <div className="mt-2 text-2xl font-semibold" style={{ color: "var(--text-primary)" }}>
+              <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+                知识条目
+              </div>
+              <div
+                className="mt-2 text-2xl font-semibold"
+                style={{ color: "var(--text-primary)" }}
+              >
                 {data?.stats.total_items ?? 0}
               </div>
             </SectionCard>
             <SectionCard className="p-5">
-              <div className="text-xs" style={{ color: "var(--text-muted)" }}>Markdown 文档</div>
-              <div className="mt-2 text-2xl font-semibold" style={{ color: "var(--text-primary)" }}>
+              <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+                Markdown 文档
+              </div>
+              <div
+                className="mt-2 text-2xl font-semibold"
+                style={{ color: "var(--text-primary)" }}
+              >
                 {data?.stats.markdown_groups ?? 0}
               </div>
             </SectionCard>
             <SectionCard className="p-5">
-              <div className="text-xs" style={{ color: "var(--text-muted)" }}>保存的 AI 回复</div>
-              <div className="mt-2 text-2xl font-semibold" style={{ color: "var(--text-primary)" }}>
+              <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+                保存的 AI 回复
+              </div>
+              <div
+                className="mt-2 text-2xl font-semibold"
+                style={{ color: "var(--text-primary)" }}
+              >
                 {data?.stats.assistant_replies ?? 0}
               </div>
             </SectionCard>
@@ -127,7 +158,11 @@ const KnowledgeBasePage: React.FC = () => {
               onClick={handleChooseFile}
               disabled={isUploading}
             >
-              {isUploading ? <Loader2 size={16} className="animate-spin" /> : <FileUp size={16} />}
+              {isUploading ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <FileUp size={16} />
+              )}
               <span>{isUploading ? "上传中..." : "上传 Markdown"}</span>
             </button>
 
@@ -160,7 +195,13 @@ const KnowledgeBasePage: React.FC = () => {
               className="admin-select px-3 py-2.5"
               value={filter}
               onChange={(event) =>
-                setFilter(event.target.value as "all" | "markdown" | "assistant_reply" | "note")
+                setFilter(
+                  event.target.value as
+                    | "all"
+                    | "markdown"
+                    | "assistant_reply"
+                    | "note",
+                )
               }
             >
               <option value="all">全部类型</option>
@@ -176,8 +217,15 @@ const KnowledgeBasePage: React.FC = () => {
             </div>
           ) : filteredItems.length === 0 ? (
             <SectionCard className="py-12 text-center">
-              <BookOpenText size={40} className="mx-auto mb-3" style={{ color: "var(--text-muted)" }} />
-              <p style={{ color: "var(--text-muted)" }}>知识库还是空的。你可以上传 Markdown，或在聊天页把优质回复保存进来。</p>
+              <BookOpenText
+                size={40}
+                className="mx-auto mb-3"
+                style={{ color: "var(--text-muted)" }}
+              />
+              <p style={{ color: "var(--text-muted)" }}>
+                知识库还是空的。你可以上传
+                Markdown，或在聊天页把优质回复保存进来。
+              </p>
             </SectionCard>
           ) : (
             <div className="grid gap-3">
@@ -216,30 +264,45 @@ const KnowledgeRow: React.FC<{
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <span
               className="rounded-md px-2 py-0.5 text-xs"
-              style={{ backgroundColor: "var(--surface-subtle)", color: "var(--text-secondary)" }}
+              style={{
+                backgroundColor: "var(--surface-subtle)",
+                color: "var(--text-secondary)",
+              }}
             >
               {typeLabel}
             </span>
             <span
               className="rounded-md px-2 py-0.5 text-xs"
-              style={{ backgroundColor: "var(--surface-subtle)", color: "var(--text-secondary)" }}
+              style={{
+                backgroundColor: "var(--surface-subtle)",
+                color: "var(--text-secondary)",
+              }}
             >
               {item.item_count} 段
             </span>
             {item.source ? (
               <span
                 className="rounded-md px-2 py-0.5 text-xs"
-                style={{ backgroundColor: "var(--surface-subtle)", color: "var(--text-secondary)" }}
+                style={{
+                  backgroundColor: "var(--surface-subtle)",
+                  color: "var(--text-secondary)",
+                }}
               >
                 来源: {item.source}
               </span>
             ) : null}
           </div>
 
-          <h3 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>
+          <h3
+            className="text-base font-semibold"
+            style={{ color: "var(--text-primary)" }}
+          >
             {item.title}
           </h3>
-          <p className="mt-2 text-sm leading-7" style={{ color: "var(--text-secondary)" }}>
+          <p
+            className="mt-2 text-sm leading-7"
+            style={{ color: "var(--text-secondary)" }}
+          >
             {item.preview}
           </p>
           <div className="mt-3 text-xs" style={{ color: "var(--text-muted)" }}>
@@ -255,7 +318,11 @@ const KnowledgeRow: React.FC<{
           disabled={deleting}
           title="删除知识"
         >
-          {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+          {deleting ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Trash2 size={16} />
+          )}
         </button>
       </div>
     </SectionCard>

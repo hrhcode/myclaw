@@ -278,7 +278,7 @@ const McpPage: React.FC = () => {
 
   if (loading) {
     return (
-      <MainLayout headerTitle="MCP" headerSubtitle="正在加载 MCP 配置与最近状态">
+      <MainLayout headerTitle="MCP">
         <div className="admin-page">
           <div className="admin-frame">
             <SectionCard className="p-6">
@@ -293,43 +293,39 @@ const McpPage: React.FC = () => {
   }
 
   return (
-    <MainLayout
-      headerTitle="MCP"
-      headerSubtitle="只保留 MCP 管理最关键的动作：查看、新增、启停、删除、探测。探测成功后会自动接入运行时工具。"
-      headerActions={
-        <div className="admin-toolbar">
-          <button
-            type="button"
-            onClick={() => void loadPage(selectedId === "__new__" ? undefined : selectedId)}
-            className="btn-secondary inline-flex items-center gap-2"
-            disabled={busy}
-          >
-            <RefreshCw size={16} />
-            刷新
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleProbeAll()}
-            className="btn-secondary inline-flex items-center gap-2"
-            disabled={busy || servers.length === 0}
-          >
-            {busy ? <Loader2 size={16} className="animate-spin" /> : <Activity size={16} />}
-            全量探测
-          </button>
-          <button
-            type="button"
-            onClick={handleCreateDraft}
-            className="btn-primary inline-flex items-center gap-2"
-            disabled={busy}
-          >
-            <Plus size={16} />
-            新建服务
-          </button>
-        </div>
-      }
-    >
+    <MainLayout headerTitle="MCP">
       <div className="admin-page">
         <div className="admin-frame max-w-[1400px]">
+          <div className="admin-toolbar mb-4">
+            <button
+              type="button"
+              onClick={() => void loadPage(selectedId === "__new__" ? undefined : selectedId)}
+              className="btn-secondary inline-flex items-center gap-2"
+              disabled={busy}
+            >
+              <RefreshCw size={16} />
+              刷新
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleProbeAll()}
+              className="btn-secondary inline-flex items-center gap-2"
+              disabled={busy || servers.length === 0}
+            >
+              {busy ? <Loader2 size={16} className="animate-spin" /> : <Activity size={16} />}
+              全量探测
+            </button>
+            <button
+              type="button"
+              onClick={handleCreateDraft}
+              className="btn-primary inline-flex items-center gap-2"
+              disabled={busy}
+            >
+              <Plus size={16} />
+              新建服务
+            </button>
+          </div>
+
           <section className="admin-summary">
             <SummaryCard label="MCP 服务" value={stats.total} hint="统一纳入左侧控制台管理" />
             <SummaryCard label="已启用" value={stats.enabled} hint="启用后可执行探测与资源发现" />
