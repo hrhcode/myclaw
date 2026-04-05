@@ -107,6 +107,10 @@ async def ensure_runtime_schema(engine: AsyncEngine) -> None:
         await _ensure_column(conn, "automations", "timezone", "VARCHAR NOT NULL DEFAULT 'UTC'")
         await _ensure_column(conn, "automation_runs", "trigger_mode", "VARCHAR NOT NULL DEFAULT 'scheduled'")
         await _ensure_column(conn, "automation_runs", "conversation_id", "INTEGER")
+        # 迁移 channels.session_id → conversation_id
+        await _migrate_channel_session_to_conversation(conn)
+        # 迁移 channel_chats.session_id → conversation_id
+        await _migrate_channel_chat_session_to_conversation(conn)
         await conn.execute(
             text(
                 """
@@ -122,6 +126,47 @@ async def ensure_runtime_schema(engine: AsyncEngine) -> None:
                     completed_at DATETIME,
                     FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE,
                     FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+                )
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS channels (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name VARCHAR NOT NULL,
+                    channel_type VARCHAR NOT NULL,
+                    enabled BOOLEAN NOT NULL DEFAULT 1,
+                    config TEXT NOT NULL DEFAULT '{}',
+                    conversation_id INTEGER,
+                    status VARCHAR NOT NULL DEFAULT 'stopped',
+                    status_message TEXT,
+                    last_event_at DATETIME,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE SET NULL
+                )
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS channel_chats (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    channel_id INTEGER NOT NULL,
+                    external_chat_id VARCHAR NOT NULL,
+                    external_chat_type VARCHAR NOT NULL,
+                    conversation_id INTEGER,
+                    external_user_id VARCHAR,
+                    external_user_name VARCHAR,
+                    last_message_at DATETIME,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(channel_id) REFERENCES channels(id) ON DELETE CASCADE,
+                    FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE SET NULL,
+                    UNIQUE(channel_id, external_chat_id)
                 )
                 """
             )
@@ -187,3 +232,34 @@ async def _ensure_column(conn, table_name: str, column_name: str, column_sql: st
     columns = {row[1] for row in result.fetchall()}
     if column_name not in columns:
         await conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_sql}"))
+
+
+async def _migrate_channel_session_to_conversation(conn) -> None:
+    """迁移 channels 表的 session_id 列到 conversation_id。
+
+    SQLite 不支持列重命名（含外键约束），所以：
+    1. 如果已有 conversation_id 列且无 session_id 列 → 已迁移，跳过
+    2. 如果已有 session_id 列且无 conversation_id 列 → 添加 conversation_id，清空 session_id
+    3. 如果两者都存在 → 添加 conversation_id（已有），清空 session_id
+    4. 如果都不存在 → 新表，由 CREATE TABLE 处理
+    """
+    result = await conn.execute(text("PRAGMA table_info(channels)"))
+    columns = {row[1] for row in result.fetchall()}
+
+    if "conversation_id" not in columns:
+        await conn.execute(
+            text("ALTER TABLE channels ADD COLUMN conversation_id INTEGER REFERENCES conversations(id) ON DELETE SET NULL")
+        )
+
+    if "session_id" in columns:
+        # 清除旧列数据（保留列结构以避免 SQLite 重建表的复杂性）
+        await conn.execute(text("UPDATE channels SET session_id = NULL"))
+
+
+async def _migrate_channel_chat_session_to_conversation(conn) -> None:
+    """迁移 channel_chats 表，移除 session_id 残留。"""
+    result = await conn.execute(text("PRAGMA table_info(channel_chats)"))
+    columns = {row[1] for row in result.fetchall()}
+
+    if "session_id" in columns:
+        await conn.execute(text("UPDATE channel_chats SET session_id = NULL"))

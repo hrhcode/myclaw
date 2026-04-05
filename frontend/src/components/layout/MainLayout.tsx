@@ -47,7 +47,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         onToggleCollapse={toggleSidebar}
       />
 
-      <main className={`content ${contentClassName}`.trim()}>{children}</main>
+      <main className={`content ${contentClassName}`.trim()}>
+        {children}
+      </main>
     </div>
   );
 };

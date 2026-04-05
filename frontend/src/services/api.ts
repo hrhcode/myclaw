@@ -6,6 +6,10 @@ import type {
   AutomationPayload,
   AutomationRun,
   AutomationStats,
+  Channel,
+  ChannelChat,
+  ChannelCreatePayload,
+  ChannelUpdatePayload,
   ChatRequest,
   ConfigItem,
   ConversationRuleResponse,
@@ -666,5 +670,44 @@ export interface AgentRunInfo {
 
 export const getAgentRunByRunId = async (runId: string): Promise<AgentRunInfo> => {
   const response = await api.get<AgentRunInfo>(`/agent-runs/${runId}`);
+  return response.data;
+};
+
+export const getChannels = async (): Promise<Channel[]> => {
+  const response = await api.get<Channel[]>('/channels');
+  return response.data;
+};
+
+export const createChannel = async (payload: ChannelCreatePayload): Promise<Channel> => {
+  const response = await api.post<Channel>('/channels', payload);
+  return response.data;
+};
+
+export const updateChannel = async (channelId: number, payload: ChannelUpdatePayload): Promise<Channel> => {
+  const response = await api.put<Channel>(`/channels/${channelId}`, payload);
+  return response.data;
+};
+
+export const deleteChannel = async (channelId: number): Promise<void> => {
+  await api.delete(`/channels/${channelId}`);
+};
+
+export const startChannel = async (channelId: number): Promise<Channel> => {
+  const response = await api.post<Channel>(`/channels/${channelId}/start`);
+  return response.data;
+};
+
+export const stopChannel = async (channelId: number): Promise<Channel> => {
+  const response = await api.post<Channel>(`/channels/${channelId}/stop`);
+  return response.data;
+};
+
+export const restartChannel = async (channelId: number): Promise<Channel> => {
+  const response = await api.post<Channel>(`/channels/${channelId}/restart`);
+  return response.data;
+};
+
+export const getChannelChats = async (channelId: number): Promise<ChannelChat[]> => {
+  const response = await api.get<ChannelChat[]>(`/channels/${channelId}/chats`);
   return response.data;
 };

@@ -246,3 +246,44 @@ class AgentRun(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
     session = relationship("Session", back_populates="agent_runs")
+
+
+class Channel(Base):
+    __tablename__ = "channels"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    channel_type = Column(String, nullable=False, index=True)
+    enabled = Column(Boolean, nullable=False, default=True, index=True)
+    config = Column(Text, nullable=False, default="{}")
+    conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True, index=True)
+    status = Column(String, nullable=False, default="stopped", index=True)
+    status_message = Column(Text, nullable=True)
+    last_event_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    conversation = relationship("Conversation")
+    chats = relationship("ChannelChat", back_populates="channel", cascade="all, delete-orphan")
+
+
+class ChannelChat(Base):
+    __tablename__ = "channel_chats"
+
+    id = Column(Integer, primary_key=True, index=True)
+    channel_id = Column(Integer, ForeignKey("channels.id", ondelete="CASCADE"), nullable=False, index=True)
+    external_chat_id = Column(String, nullable=False)
+    external_chat_type = Column(String, nullable=False)
+    conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True, index=True)
+    external_user_id = Column(String, nullable=True)
+    external_user_name = Column(String, nullable=True)
+    last_message_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    channel = relationship("Channel", back_populates="chats")
+    conversation = relationship("Conversation")
+
+    __table_args__ = (
+        {"sqlite_autoincrement": True},
+    )

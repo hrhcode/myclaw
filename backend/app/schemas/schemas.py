@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel
 
@@ -622,3 +622,52 @@ class McpImportResult(BaseModel):
 
 class McpToggleRequest(BaseModel):
     enabled: bool
+
+
+# ---- Channel schemas ----
+
+
+class ChannelBase(BaseModel):
+    name: str
+    channel_type: str
+    enabled: bool = True
+    config: Dict[str, Any] = {}
+    conversation_id: Optional[int] = None
+
+
+class ChannelCreate(ChannelBase):
+    pass
+
+
+class ChannelUpdate(BaseModel):
+    name: Optional[str] = None
+    enabled: Optional[bool] = None
+    config: Optional[Dict[str, Any]] = None
+    conversation_id: Optional[int] = None
+
+
+class ChannelResponse(ChannelBase):
+    id: int
+    status: str = "stopped"
+    status_message: Optional[str] = None
+    last_event_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ChannelChatResponse(BaseModel):
+    id: int
+    channel_id: int
+    external_chat_id: str
+    external_chat_type: str
+    conversation_id: Optional[int] = None
+    external_user_id: Optional[str] = None
+    external_user_name: Optional[str] = None
+    last_message_at: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

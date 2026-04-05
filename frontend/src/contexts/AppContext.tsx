@@ -4,6 +4,7 @@ import {
   useEffect,
   useCallback,
   useState,
+  useRef,
 } from "react";
 import type { ReactNode } from "react";
 
@@ -22,6 +23,8 @@ import {
   getMessages,
   renameConversation,
 } from "../services/api";
+import { useGatewayWebSocket } from "../hooks";
+import type { GatewayEvent } from "../hooks";
 
 interface AppContextType {
   conversations: Conversation[];
@@ -29,6 +32,8 @@ interface AppContextType {
   messages: Message[];
   isConfigured: boolean | null;
   sidebarCollapsed: boolean;
+  gatewayConnected: boolean;
+  gatewayStatus: "connecting" | "connected" | "disconnected" | "error";
   loadConversations: () => Promise<void>;
   selectConversation: (id: number | null) => void;
   createNewConversation: (title?: string) => Promise<Conversation | null>;
@@ -72,6 +77,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     () => localStorage.getItem("sidebar_collapsed") === "true",
   );
 
+  const currentConversationIdRef = useRef(currentConversationId);
+  currentConversationIdRef.current = currentConversationId;
+
   const loadConversations = useCallback(async () => {
     try {
       const data = await getConversations();
@@ -101,6 +109,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
       console.error("Failed to load messages:", error);
     }
   }, []);
+
+  const loadMessagesRef = useRef(loadMessages);
+  loadMessagesRef.current = loadMessages;
+  const loadConversationsRef = useRef(loadConversations);
+  loadConversationsRef.current = loadConversations;
+
+  const handleGatewayEvent = useCallback((event: GatewayEvent) => {
+    // 刷新会话列表（新会话可能被创建或标题更新）
+    void loadConversationsRef.current();
+
+    // 精确匹配：只在事件所属会话与当前活跃会话一致时刷新消息
+    const activeId = currentConversationIdRef.current;
+    const eventConvId = event.conversation_id;
+    if (eventConvId && activeId && eventConvId === activeId) {
+      void loadMessagesRef.current(activeId);
+    }
+  }, []);
+
+  const { isConnected: gatewayConnected, connectionStatus: gatewayStatus } =
+    useGatewayWebSocket({ onEvent: handleGatewayEvent });
 
   const selectConversation = useCallback((id: number | null) => {
     setCurrentConversationId(id);
@@ -186,6 +214,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         messages,
         isConfigured,
         sidebarCollapsed,
+        gatewayConnected,
+        gatewayStatus,
         loadConversations,
         selectConversation,
         createNewConversation,

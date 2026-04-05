@@ -110,6 +110,13 @@ export interface Skill {
   description: string;
 }
 
+export interface SessionSummary {
+  id: number;
+  name: string;
+  mode: string;
+  is_default: boolean;
+}
+
 export interface SessionSkill {
   skill_name: string;
   skill_path: string;
@@ -322,4 +329,45 @@ export interface McpImportResult {
   errors: string[];
   created_count: number;
   skipped_count: number;
+}
+
+export interface Channel {
+  id: number;
+  name: string;
+  channel_type: string;
+  enabled: boolean;
+  config: Record<string, unknown>;
+  conversation_id: number | null;
+  status: string;
+  status_message: string | null;
+  last_event_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChannelCreatePayload {
+  name: string;
+  channel_type: string;
+  enabled: boolean;
+  config: Record<string, unknown>;
+  conversation_id?: number | null;
+}
+
+export interface ChannelUpdatePayload {
+  name?: string;
+  enabled?: boolean;
+  config?: Record<string, unknown>;
+  conversation_id?: number | null;
+}
+
+export interface ChannelChat {
+  id: number;
+  channel_id: number;
+  external_chat_id: string;
+  external_chat_type: string;
+  conversation_id: number | null;
+  external_user_id: string | null;
+  external_user_name: string | null;
+  last_message_at: string | null;
+  created_at: string;
 }

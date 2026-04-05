@@ -481,8 +481,12 @@ class AgentLoopController:
     ) -> Dict[str, Any]:
         stream = self.run_stream(ChatRequest(session_id=session_id, conversation_id=conversation_id, message=message), db)
         final_event: Dict[str, Any] = {"session_id": session_id}
+        content_parts: list[str] = []
         async for event in stream:
             final_event = event
+            if event.get("type") == "content":
+                content_parts.append(event.get("content", ""))
+        final_event["content"] = "".join(content_parts)
         return final_event
 
     async def dispatch_message_for_automation(self, conversation_id: int, message: str, automation_id: Optional[int] = None, db: AsyncSession = None) -> str:

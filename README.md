@@ -14,14 +14,14 @@
 
 ---
 
-MyClaw 是一个面向个人使用的精简 Agent 平台，主入口是 React + FastAPI 的 Web 应用。当前版本已经从「单机会话聊天应用」升级为「带工作会话、自动化、记忆和会话协作能力的个人 Agent 控制台」。
+MyClaw 是一个面向个人使用的精简 Agent 平台，主入口是 React + FastAPI 的 Web 应用。当前版本已经从「单机会话聊天应用」升级为「带工作会话、自动化、记忆、外部通道接入和会话协作能力的个人 Agent 控制台」。
 
 ## 当前状态
 
 - 后端已补齐核心个人版能力
 - 后端 API 已完成本地回归联调
 - 后端测试已补齐 `session / automation / memory / tool executor` 相关覆盖
-- 前端已打通会话、自动化、记忆的闭环页面
+- 前端已打通会话、自动化、记忆、通道的闭环页面
 - 前端核心导航和主页面文案已统一为中文
 
 ## 核心能力
@@ -69,6 +69,14 @@ MyClaw 是一个面向个人使用的精简 Agent 平台，主入口是 React + 
 - 支持来源区分：手动创建 / 会话摘要 / 自动提炼
 - 支持记忆检索参数配置：top-k、最低相关度、混合检索权重、MMR 重排、时间衰减
 
+### 7. 外部通道
+
+- 创建、配置、启停外部消息通道
+- 支持 QQ 官方机器人接入
+- WebSocket 网关实现实时消息路由
+- 通道与会话映射，保持上下文持久化
+- 支持单通道多聊天会话
+
 ## 技术栈
 
 | 层级 | 技术 |
@@ -89,6 +97,7 @@ myclaw/
 │  ├─ src/
 │  │  ├─ components/
 │  │  │  ├─ chat/             # 聊天页
+│  │  │  ├─ channels/         # 通道管理页
 │  │  │  ├─ conversations/    # 聊天记录页
 │  │  │  ├─ sessions/         # 工作会话页
 │  │  │  ├─ automations/      # 自动化页
@@ -97,6 +106,7 @@ myclaw/
 │  │  │  ├─ tools/            # 工具页
 │  │  │  └─ layout/           # 布局组件
 │  │  ├─ contexts/            # React Context (AppContext, ThemeContext)
+│  │  ├─ hooks/               # 自定义 Hooks
 │  │  ├─ services/            # API 层 (axios + fetch SSE)
 │  │  └─ types/               # TypeScript 类型定义
 │  └─ package.json
@@ -104,6 +114,8 @@ myclaw/
 │  ├─ app/
 │  │  ├─ agent_loop/          # Agent 执行引擎 (controller.py + prompting.py)
 │  │  ├─ api/                 # API 路由 (挂载在 /api 下)
+│  │  ├─ channels/            # 通道系统 (base, gateway, manager, registry)
+│  │  │  └─ qq/               # QQ 官方机器人通道实现
 │  │  ├─ core/                # 核心配置
 │  │  ├─ dao/                 # 数据访问层
 │  │  ├─ models/              # ORM 模型
@@ -151,6 +163,37 @@ myclaw/
 | importance | FLOAT | 重要性评分 (0-1) |
 | source | TEXT | 记忆来源 |
 | created_at | DATETIME | 创建时间 |
+
+### channels
+
+| 字段 | 类型 | 描述 |
+| --- | --- | --- |
+| id | INTEGER | 主键，自增 |
+| name | TEXT | 通道名称 |
+| channel_type | TEXT | 通道类型 (如 qq_official) |
+| enabled | BOOLEAN | 是否启用 |
+| config | TEXT | 通道配置 (JSON) |
+| conversation_id | INTEGER | 外键，关联默认会话 |
+| status | TEXT | 通道状态 (stopped / running / error) |
+| status_message | TEXT | 状态消息或错误信息 |
+| last_event_at | DATETIME | 最后事件时间 |
+| created_at | DATETIME | 创建时间 |
+| updated_at | DATETIME | 更新时间 |
+
+### channel_chats
+
+| 字段 | 类型 | 描述 |
+| --- | --- | --- |
+| id | INTEGER | 主键 |
+| channel_id | INTEGER | 外键，关联通道 |
+| external_chat_id | TEXT | 外部平台聊天 ID |
+| external_chat_type | TEXT | 聊天类型 (private / group) |
+| conversation_id | INTEGER | 外键，关联映射的会话 |
+| external_user_id | TEXT | 外部用户 ID |
+| external_user_name | TEXT | 外部用户显示名 |
+| last_message_at | DATETIME | 最后消息时间 |
+| created_at | DATETIME | 创建时间 |
+| updated_at | DATETIME | 更新时间 |
 
 ## 工具系统
 
@@ -275,6 +318,17 @@ npm run dev
 | `/api/memory/long-term/{id}` | PUT / DELETE | 更新 / 删除长期记忆 |
 | `/api/memory/search` | POST | 语义记忆搜索 |
 
+### 通道
+
+| 端点 | 方法 | 描述 |
+| --- | --- | --- |
+| `/api/channels` | GET / POST | 列表 / 创建通道 |
+| `/api/channels/{id}` | PUT / DELETE | 更新 / 删除通道 |
+| `/api/channels/{id}/start` | POST | 启动通道 |
+| `/api/channels/{id}/stop` | POST | 停止通道 |
+| `/api/channels/{id}/chats` | GET | 获取通道聊天列表 |
+| `/ws/gateway` | WebSocket | 网关 WebSocket 连接 |
+
 启动后访问 [http://localhost:8000/docs](http://localhost:8000/docs) 查看完整 API 文档（Swagger UI）。
 
 ## 测试
@@ -304,7 +358,7 @@ npm run build
 
 ## 当前已知边界
 
-- 当前定位为个人单用户版本，不包含团队、多租户、多渠道接入
+- 当前定位为个人单用户版本，不包含团队、多租户支持
 - 安全审批、沙箱隔离、提权控制暂未作为本阶段重点
 - Canvas、语音、移动端节点、插件市场暂未纳入
 - 历史聊天内容如果本身是英文，会按原始消息内容展示，不会被 UI 翻译
@@ -314,6 +368,7 @@ npm run build
 - 优先通过工作会话隔离不同项目
 - 对长期任务优先使用自动化而不是手动重复触发
 - 对固定项目目录建议配置 `workspace_path` 和本地 skills
+- 使用外部通道接入 QQ 等消息平台
 
 ## License
 

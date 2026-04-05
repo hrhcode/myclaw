@@ -7,7 +7,7 @@ import sys
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import agent_runs, automations, chat, config, history, logs, mcp, memory, rules, skills, tools
+from app.api import agent_runs, automations, channels, chat, config, gateway_ws, history, logs, mcp, memory, rules, skills, tools
 from app.common.logging_config import get_logger, setup_logging
 from app.common.security import require_api_auth
 from app.core.bootstrap import ensure_default_session, ensure_runtime_schema
@@ -54,6 +54,8 @@ app.include_router(skills.router, prefix="/api", tags=["skills"], dependencies=p
 app.include_router(automations.router, prefix="/api", tags=["automations"], dependencies=protected)
 app.include_router(mcp.router, prefix="/api", tags=["mcp"], dependencies=protected)
 app.include_router(agent_runs.router, prefix="/api", tags=["agent-runs"], dependencies=protected)
+app.include_router(channels.router, prefix="/api", tags=["channels"], dependencies=protected)
+app.include_router(gateway_ws.router, prefix="/api", tags=["gateway-ws"])
 
 
 async def ensure_default_conversation() -> None:
@@ -88,6 +90,12 @@ async def startup_event() -> None:
         chat.agent_loop_controller.dispatch_message_for_automation,
     )
 
+    from app.channels.manager import init_channel_manager
+
+    channel_manager = init_channel_manager(AsyncSessionLocal)
+    channel_manager.set_agent_dispatch(chat.agent_loop_controller.dispatch_message)
+    await channel_manager.start()
+
     logger.info("registered %s builtin tools", len(tool_registry.list_tools()))
     logger.info("MyClaw backend started")
     logger.info("CORS origins: %s", ", ".join(_parse_cors_origins()))
@@ -97,6 +105,9 @@ async def startup_event() -> None:
 @app.on_event("shutdown")
 async def shutdown_event() -> None:
     await automations.automation_service.stop()
+    from app.channels.manager import channel_manager
+
+    await channel_manager.stop()
     await cleanup_log_handlers()
 
 

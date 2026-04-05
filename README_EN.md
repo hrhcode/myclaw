@@ -14,14 +14,14 @@
 
 ---
 
-MyClaw is a lightweight personal Agent platform delivered as a React + FastAPI web application. It has evolved from a single-session chat app into a personal Agent console with work sessions, automation, memory management, and cross-session collaboration.
+MyClaw is a lightweight personal Agent platform delivered as a React + FastAPI web application. It has evolved from a single-session chat app into a personal Agent console with work sessions, automation, memory management, external channel integration, and cross-session collaboration.
 
 ## Current Status
 
 - Backend has completed core personal edition capabilities
 - Backend API has passed local regression testing
 - Backend tests have been added for `session / automation / memory / tool executor`
-- Frontend has completed closed-loop pages for sessions, automation, and memory
+- Frontend has completed closed-loop pages for sessions, automation, memory, and channels
 - Frontend core navigation and main page copy have been unified in Chinese
 
 ## Core Capabilities
@@ -69,6 +69,14 @@ MyClaw is a lightweight personal Agent platform delivered as a React + FastAPI w
 - Source categories: manual creation / session summary / auto-extraction
 - Configurable retrieval parameters: top-k, minimum score, hybrid search weights, MMR reranking, temporal decay
 
+### 7. External Channels
+
+- Create, configure, enable/disable external message channels
+- Support for QQ Official Bot integration
+- WebSocket gateway for real-time message routing
+- Channel-to-conversation mapping for context persistence
+- Multi-chat support within each channel
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -89,6 +97,7 @@ myclaw/
 │  ├─ src/
 │  │  ├─ components/
 │  │  │  ├─ chat/             # Chat page
+│  │  │  ├─ channels/         # Channel management page
 │  │  │  ├─ conversations/    # Conversation history page
 │  │  │  ├─ sessions/         # Work sessions page
 │  │  │  ├─ automations/      # Automation page
@@ -97,6 +106,7 @@ myclaw/
 │  │  │  ├─ tools/            # Tools page
 │  │  │  └─ layout/           # Layout components
 │  │  ├─ contexts/            # React Context (AppContext, ThemeContext)
+│  │  ├─ hooks/               # Custom Hooks
 │  │  ├─ services/            # API layer (axios + fetch SSE)
 │  │  └─ types/               # TypeScript type definitions
 │  └─ package.json
@@ -104,6 +114,8 @@ myclaw/
 │  ├─ app/
 │  │  ├─ agent_loop/          # Agent execution engine (controller.py + prompting.py)
 │  │  ├─ api/                 # API routes (mounted under /api)
+│  │  ├─ channels/            # Channel system (base, gateway, manager, registry)
+│  │  │  └─ qq/               # QQ Official Bot channel implementation
 │  │  ├─ core/                # Core configuration
 │  │  ├─ dao/                 # Data access layer
 │  │  ├─ models/              # ORM models
@@ -151,6 +163,37 @@ myclaw/
 | importance | FLOAT | Importance score (0-1) |
 | source | TEXT | Memory source |
 | created_at | DATETIME | Creation time |
+
+### channels
+
+| Field | Type | Description |
+| --- | --- | --- |
+| id | INTEGER | Primary key, auto-increment |
+| name | TEXT | Channel name |
+| channel_type | TEXT | Channel type (e.g., qq_official) |
+| enabled | BOOLEAN | Whether channel is enabled |
+| config | TEXT | Channel configuration (JSON) |
+| conversation_id | INTEGER | Foreign key to default conversation |
+| status | TEXT | Channel status (stopped / running / error) |
+| status_message | TEXT | Status message or error info |
+| last_event_at | DATETIME | Last event timestamp |
+| created_at | DATETIME | Creation time |
+| updated_at | DATETIME | Update time |
+
+### channel_chats
+
+| Field | Type | Description |
+| --- | --- | --- |
+| id | INTEGER | Primary key |
+| channel_id | INTEGER | Foreign key to channel |
+| external_chat_id | TEXT | External platform chat ID |
+| external_chat_type | TEXT | Chat type (private / group) |
+| conversation_id | INTEGER | Foreign key to mapped conversation |
+| external_user_id | TEXT | External user ID |
+| external_user_name | TEXT | External user display name |
+| last_message_at | DATETIME | Last message timestamp |
+| created_at | DATETIME | Creation time |
+| updated_at | DATETIME | Update time |
 
 ## Tool System
 
@@ -275,6 +318,17 @@ npm run dev
 | `/api/memory/long-term/{id}` | PUT / DELETE | Update / Delete long-term memory |
 | `/api/memory/search` | POST | Semantic memory search |
 
+### Channels
+
+| Endpoint | Method | Description |
+| --- | --- | --- |
+| `/api/channels` | GET / POST | List / Create channels |
+| `/api/channels/{id}` | PUT / DELETE | Update / Delete channel |
+| `/api/channels/{id}/start` | POST | Start channel |
+| `/api/channels/{id}/stop` | POST | Stop channel |
+| `/api/channels/{id}/chats` | GET | Get channel chats |
+| `/ws/gateway` | WebSocket | Gateway WebSocket connection |
+
 After starting the backend, visit [http://localhost:8000/docs](http://localhost:8000/docs) for the full API documentation (Swagger UI).
 
 ## Testing
@@ -304,7 +358,7 @@ npm run build
 
 ## Known Boundaries
 
-- Currently designed for single-user personal use; team, multi-tenant, and multi-channel support are not included
+- Currently designed for single-user personal use; team and multi-tenant support are not included
 - Security approval, sandbox isolation, and privilege escalation controls are not a focus of this phase
 - Canvas, voice, mobile nodes, and plugin marketplace are not included
 - Historical chat content in English will be displayed as-is and will not be translated by the UI
@@ -314,6 +368,7 @@ npm run build
 - Use work sessions to isolate different projects
 - Prefer automation over manual repeated triggering for long-running tasks
 - Configure `workspace_path` and local skills for fixed project directories
+- Use external channels to integrate with messaging platforms like QQ
 
 ## License
 
