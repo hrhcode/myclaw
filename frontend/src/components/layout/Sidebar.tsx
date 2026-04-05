@@ -56,14 +56,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
             icon: <MessageSquare size={20} />,
           },
           {
-            path: "/rules",
-            label: "规则",
-            icon: <ScrollText size={20} />,
-          },
-          {
-            path: "/knowledge",
-            label: "知识库",
-            icon: <Database size={20} />,
+            path: "/channels",
+            label: "通道",
+            icon: <Radio size={20} />,
           },
           {
             path: "/automations",
@@ -71,15 +66,20 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
             icon: <Clock3 size={20} />,
           },
           {
-            path: "/channels",
-            label: "通道",
-            icon: <Radio size={20} />,
+            path: "/knowledge",
+            label: "知识库",
+            icon: <Database size={20} />,
           },
         ],
       },
       {
         title: "设置",
         items: [
+          {
+            path: "/settings",
+            label: "配置",
+            icon: <Settings size={20} />,
+          },
           {
             path: "/tools",
             label: "工具",
@@ -91,9 +91,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
             icon: <PlugZap size={20} />,
           },
           {
-            path: "/settings",
-            label: "配置",
-            icon: <Settings size={20} />,
+            path: "/rules",
+            label: "规则",
+            icon: <ScrollText size={20} />,
           },
           {
             path: "/logs",

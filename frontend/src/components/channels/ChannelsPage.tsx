@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import MainLayout from "../layout/MainLayout";
 import Switch from "../admin/Switch";
+import { Save } from "lucide-react";
 import {
   createChannel,
-  deleteChannel,
   getChannels,
   getConversations,
   updateChannel,
@@ -61,7 +61,10 @@ function Toast({ message }: { message: ToastState | null }) {
     <div
       className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-4 py-2 rounded-lg text-sm shadow-lg"
       style={{
-        background: message.type === "success" ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
+        background:
+          message.type === "success"
+            ? "rgba(34,197,94,0.15)"
+            : "rgba(239,68,68,0.15)",
         color: message.type === "success" ? "#22c55e" : "var(--accent-danger)",
         border: `1px solid ${message.type === "success" ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`,
       }}
@@ -81,10 +84,9 @@ const ChannelsPage: React.FC = () => {
   const [togglingType, setTogglingType] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
 
-  // 本地即时值（用于 input 受控渲染），不参与保存判断
-  const [localValues, setLocalValues] = useState<Record<string, Record<string, string>>>({});
-
-  // ref 保存通道最新数据，用于 onBlur 时构造完整 config
+  const [localValues, setLocalValues] = useState<
+    Record<string, Record<string, string>>
+  >({});
   const channelsRef = useRef<Channel[]>([]);
 
   const showToast = useCallback((type: "success" | "error", text: string) => {
@@ -108,13 +110,13 @@ const ChannelsPage: React.FC = () => {
 
   useEffect(() => {
     loadChannels();
-    getConversations().then(setConversations).catch(() => {});
+    getConversations()
+      .then(setConversations)
+      .catch(() => {});
   }, [loadChannels]);
 
   const getChannelByType = (type: string): Channel | undefined =>
     channels.find((ch) => ch.channel_type === type);
-
-  // ── 本地值读写 ──────────────────────────────────────────
 
   const getLocal = (type: string, key: string, fallback: unknown): string => {
     if (localValues[type] && key in localValues[type]) {
@@ -122,7 +124,8 @@ const ChannelsPage: React.FC = () => {
     }
     const ch = getChannelByType(type);
     if (key === "_name" && ch) return ch.name;
-    if (key === "conversation_id" && ch) return ch.conversation_id != null ? String(ch.conversation_id) : "";
+    if (key === "conversation_id" && ch)
+      return ch.conversation_id != null ? String(ch.conversation_id) : "";
     const val = ch ? ch.config[key] : undefined;
     if (val !== undefined && val !== null) return String(val);
     return fallback !== undefined && fallback !== null ? String(fallback) : "";
@@ -135,12 +138,6 @@ const ChannelsPage: React.FC = () => {
     }));
   };
 
-  // ── 保存 ────────────────────────────────────────────────
-
-  /**
-   * 批量保存通道配置
-   * 收集所有本地修改过的字段，一次性提交保存
-   */
   const saveChannelConfig = useCallback(
     async (type: string) => {
       const ch = channelsRef.current.find((c) => c.channel_type === type);
@@ -152,14 +149,19 @@ const ChannelsPage: React.FC = () => {
         return;
       }
 
-      const payload: { name?: string; config?: Record<string, unknown>; conversation_id?: number | null } = {};
+      const payload: {
+        name?: string;
+        config?: Record<string, unknown>;
+        conversation_id?: number | null;
+      } = {};
       const newConfig: Record<string, unknown> = { ...ch.config };
 
       for (const [key, value] of Object.entries(localData)) {
         if (key === "_name") {
           payload.name = value;
         } else if (key === "conversation_id") {
-          payload.conversation_id = value === "" || value === "0" ? null : Number(value);
+          payload.conversation_id =
+            value === "" || value === "0" ? null : Number(value);
         } else {
           newConfig[key] = value;
         }
@@ -174,7 +176,9 @@ const ChannelsPage: React.FC = () => {
         channelsRef.current = channelsRef.current.map((c) =>
           c.id === ch.id ? { ...c, ...updated } : c,
         );
-        setChannels((prev) => prev.map((c) => (c.id === ch.id ? { ...c, ...updated } : c)));
+        setChannels((prev) =>
+          prev.map((c) => (c.id === ch.id ? { ...c, ...updated } : c)),
+        );
         setLocalValues((prev) => {
           const next = { ...prev };
           delete next[type];
@@ -188,9 +192,6 @@ const ChannelsPage: React.FC = () => {
     [localValues, showToast],
   );
 
-  /**
-   * 检查通道是否有未保存的本地修改
-   */
   const hasLocalChanges = (type: string): boolean => {
     const localData = localValues[type];
     if (!localData || Object.keys(localData).length === 0) return false;
@@ -210,22 +211,13 @@ const ChannelsPage: React.FC = () => {
     return false;
   };
 
-  // ── 启用开关 ────────────────────────────────────────────
-
-  /**
-   * 切换通道的启用状态
-   * - 通道存在时：更新 enabled 字段，保留用户配置
-   * - 通道不存在时：创建新通道（使用默认配置）
-   */
   const handleToggle = async (preset: PresetChannel) => {
     const existing = getChannelByType(preset.type);
     setTogglingType(preset.type);
     try {
       if (existing) {
-        // 通道存在时，切换 enabled 状态，保留配置
         await updateChannel(existing.id, { enabled: !existing.enabled });
       } else {
-        // 通道不存在时，创建新通道
         const payload: ChannelCreatePayload = {
           name: preset.name,
           channel_type: preset.type,
@@ -242,14 +234,15 @@ const ChannelsPage: React.FC = () => {
     }
   };
 
-  // ── 渲染 ────────────────────────────────────────────────
-
   if (loading) {
     return (
       <MainLayout headerTitle="通道">
         <div className="admin-page">
           <div className="admin-frame">
-            <div className="admin-card p-6 text-sm" style={{ color: "var(--text-secondary)" }}>
+            <div
+              className="admin-card p-6 text-sm"
+              style={{ color: "var(--text-secondary)" }}
+            >
               正在加载通道配置...
             </div>
           </div>
@@ -272,124 +265,144 @@ const ChannelsPage: React.FC = () => {
             </div>
           )}
 
-          <div className="settings-rows">
+          <div className="channels-grid">
             {PRESET_CHANNELS.map((preset) => {
               const ch = getChannelByType(preset.type);
               const isEnabled = ch?.enabled ?? false;
               const busy = togglingType === preset.type;
 
               return (
-                <div key={preset.type} className="settings-block">
-                  {/* 卡片头部 */}
-                  <div className="settings-block__head">
-                    <h3>{preset.name}</h3>
-                    <div className="flex items-center gap-3">
-                      {ch && (
-                        <span
-                          className="flex items-center gap-1.5 text-xs"
-                          style={{ color: "var(--text-secondary)" }}
-                        >
-                          <span
-                            className="inline-block w-2 h-2 rounded-full"
-                            style={{ background: statusColor[ch.status] || "#94a3b8" }}
-                          />
-                          {statusLabel[ch.status] || ch.status}
-                          {ch.status_message && (
-                            <span style={{ color: "var(--accent-danger)" }}>
-                              — {ch.status_message}
-                            </span>
-                          )}
-                        </span>
-                      )}
-                      <Switch
-                        checked={isEnabled}
-                        onChange={() => handleToggle(preset)}
-                        ariaLabel={`切换${preset.name}启用状态`}
-                      />
-                      {busy && (
-                        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                          处理中…
-                        </span>
-                      )}
+                <div key={preset.type} className="channel-card">
+                  <div className="channel-card__header">
+                    <div className="channel-card__title-row">
+                      <h3 className="channel-card__title">{preset.name}</h3>
+                      <div className="flex items-center gap-2">
+                        {ch && (
+                          <span className="channel-card__status">
+                            <span
+                              className="channel-card__status-dot"
+                              style={{
+                                background: statusColor[ch.status] || "#94a3b8",
+                              }}
+                            />
+                            {statusLabel[ch.status] || ch.status}
+                          </span>
+                        )}
+                        <Switch
+                          checked={isEnabled}
+                          onChange={() => handleToggle(preset)}
+                          ariaLabel={`切换${preset.name}启用状态`}
+                        />
+                        {busy && (
+                          <span className="channel-card__busy">处理中…</span>
+                        )}
+                      </div>
                     </div>
+                    <p className="channel-card__desc">{preset.description}</p>
                   </div>
 
-                  {/* 描述 */}
-                  <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    {preset.description}
-                  </div>
-
-                  {/* 配置表单 — 始终展示 */}
-                  <div className="settings-stack">
-                    {preset.type === "qq" && (
-                      <>
-                        <div className="settings-field">
+                  {preset.type === "qq" && (
+                    <div className="channel-card__body">
+                      <div className="channel-card__row">
+                        <div className="channel-card__field">
                           <label>名称</label>
                           <input
                             type="text"
-                            className="admin-input w-full px-3 py-2.5"
+                            className="admin-input"
                             value={getLocal(preset.type, "_name", preset.name)}
-                            onChange={(e) => setLocal(preset.type, "_name", e.target.value)}
+                            onChange={(e) =>
+                              setLocal(preset.type, "_name", e.target.value)
+                            }
                             placeholder="输入名称"
                           />
                         </div>
-
-                        <div className="settings-field">
+                        <div className="channel-card__field">
                           <label>AppId</label>
                           <input
                             type="text"
-                            className="admin-input w-full px-3 py-2.5"
+                            className="admin-input"
                             value={getLocal(preset.type, "app_id", "")}
-                            onChange={(e) => setLocal(preset.type, "app_id", e.target.value)}
-                            placeholder="QQ 开放平台的机器人 AppId"
+                            onChange={(e) =>
+                              setLocal(preset.type, "app_id", e.target.value)
+                            }
+                            placeholder="机器人 AppId"
                           />
                         </div>
-
-                        <div className="settings-field">
+                      </div>
+                      <div className="channel-card__row">
+                        <div className="channel-card__field">
                           <label>AppSecret</label>
                           <input
                             type="password"
-                            className="admin-input w-full px-3 py-2.5"
+                            className="admin-input"
                             value={getLocal(preset.type, "app_secret", "")}
-                            onChange={(e) => setLocal(preset.type, "app_secret", e.target.value)}
-                            placeholder="QQ 开放平台的机器人 AppSecret"
+                            onChange={(e) =>
+                              setLocal(
+                                preset.type,
+                                "app_secret",
+                                e.target.value,
+                              )
+                            }
+                            placeholder="机器人 AppSecret"
                           />
                         </div>
-
-                        <div className="settings-field">
+                        <div className="channel-card__field">
                           <label>触发模式</label>
                           <select
-                            className="admin-select w-full px-3 py-2.5"
-                            value={getLocal(preset.type, "trigger_mode", "at_or_mention")}
-                            onChange={(e) => setLocal(preset.type, "trigger_mode", e.target.value)}
+                            className="admin-select"
+                            value={getLocal(
+                              preset.type,
+                              "trigger_mode",
+                              "at_or_mention",
+                            )}
+                            onChange={(e) =>
+                              setLocal(
+                                preset.type,
+                                "trigger_mode",
+                                e.target.value,
+                              )
+                            }
                           >
                             <option value="at_or_mention">@ 或提及</option>
                             <option value="all_messages">所有消息</option>
                           </select>
                         </div>
-
-                        <div className="settings-inlineToggle">
-                          <div>
-                            <div className="settings-inlineToggle__title">启用私聊</div>
-                            <div className="settings-inlineToggle__desc">
-                              允许通过私聊消息触发对话
-                            </div>
-                          </div>
+                      </div>
+                      <div className="channel-card__row">
+                        <div className="channel-card__field channel-card__field--toggle">
+                          <label>启用私聊</label>
                           <Switch
-                            checked={getLocal(preset.type, "private_enabled", "true") === "true"}
-                            onChange={(v) => setLocal(preset.type, "private_enabled", String(v))}
+                            checked={
+                              getLocal(
+                                preset.type,
+                                "private_enabled",
+                                "true",
+                              ) === "true"
+                            }
+                            onChange={(v) =>
+                              setLocal(
+                                preset.type,
+                                "private_enabled",
+                                String(v),
+                              )
+                            }
                             ariaLabel="切换私聊"
                           />
                         </div>
-
-                        <div className="settings-field">
+                        <div className="channel-card__field">
                           <label>绑定会话</label>
                           <select
-                            className="admin-select w-full px-3 py-2.5"
+                            className="admin-select"
                             value={getLocal(preset.type, "conversation_id", "")}
-                            onChange={(e) => setLocal(preset.type, "conversation_id", e.target.value)}
+                            onChange={(e) =>
+                              setLocal(
+                                preset.type,
+                                "conversation_id",
+                                e.target.value,
+                              )
+                            }
                           >
-                            <option value="">不绑定（每次创建新会话）</option>
+                            <option value="">不绑定</option>
                             {conversations.map((c) => (
                               <option key={c.id} value={c.id}>
                                 {c.title}
@@ -397,24 +410,20 @@ const ChannelsPage: React.FC = () => {
                             ))}
                           </select>
                         </div>
-
-                        {/* 保存按钮 */}
-                        <div className="flex justify-end pt-2">
-                          <button
-                            type="button"
-                            className="admin-btn admin-btn-primary px-4 py-2 text-sm"
-                            onClick={() => saveChannelConfig(preset.type)}
-                            disabled={!ch || !hasLocalChanges(preset.type)}
-                            style={{
-                              opacity: !ch || !hasLocalChanges(preset.type) ? 0.5 : 1,
-                            }}
-                          >
-                            保存配置
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
+                      </div>
+                      <div className="channel-card__footer">
+                        <button
+                          type="button"
+                          className="btn channel-save-btn"
+                          onClick={() => saveChannelConfig(preset.type)}
+                          disabled={!ch || !hasLocalChanges(preset.type)}
+                        >
+                          <Save size={16} />
+                          <span>保存配置</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}

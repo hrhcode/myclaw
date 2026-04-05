@@ -36,7 +36,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
           <div className="pill">
             <span className="statusDot ok"></span>
             <span>系统状态</span>
-            <span className="mono">已就绪</span>
+            <span className="mono">正常</span>
           </div>
           <ThemeToggle />
         </div>

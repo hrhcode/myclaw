@@ -1142,6 +1142,137 @@ body {
   gap: 0.75rem;
 }
 
+.channels-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.channel-card {
+  border: 1px solid color-mix(in srgb, var(--panel-border) 82%, transparent);
+  border-radius: 0.875rem;
+  background: color-mix(in srgb, var(--bg-secondary) 97%, transparent);
+  overflow: hidden;
+}
+
+.channel-card__header {
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--panel-border) 60%, transparent);
+}
+
+.channel-card__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.channel-card__title {
+  color: var(--text-primary);
+  font-size: 0.94rem;
+  font-weight: 700;
+}
+
+.channel-card__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.channel-card__status-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+}
+
+.channel-card__busy {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.channel-card__desc {
+  margin-top: 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.channel-card__body {
+  padding: 0.875rem 1rem;
+  display: grid;
+  gap: 0.625rem;
+}
+
+.channel-card__row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem;
+}
+
+.channel-card__field {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.channel-card__field label {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.channel-card__field .admin-input,
+.channel-card__field .admin-select {
+  height: 2rem;
+  padding: 0 0.625rem;
+  font-size: 0.82rem;
+}
+
+.channel-card__field--toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.channel-card__field--toggle label {
+  margin: 0;
+}
+
+.channel-card__footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.25rem;
+}
+
+.channel-card__footer .admin-btn {
+  padding: 0.35rem 0.875rem;
+  font-size: 0.8rem;
+}
+
+.channel-save-btn {
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--panel-border));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 22%, var(--bg-tertiary)),
+    color-mix(in srgb, var(--accent) 10%, var(--bg-tertiary))
+  );
+  color: var(--text-primary);
+}
+
+.channel-save-btn:hover:not(:disabled) {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 30%, var(--bg-tertiary)),
+    color-mix(in srgb, var(--accent) 15%, var(--bg-tertiary))
+  );
+}
+
+.channel-save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .settings-row-2col {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1645,6 +1776,14 @@ body {
   .rules-card__footer {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .channel-card__row {
+    grid-template-columns: 1fr;
+  }
+
+  .channels-grid {
+    grid-template-columns: 1fr;
   }
 }
 
