@@ -235,3 +235,71 @@ def truncate_text(text: str, limit: int) -> str:
     if len(text) <= limit:
         return text
     return text[: limit - 16] + "...[truncated]"
+
+
+def build_memory_context(memory_results: List[Any]) -> str:
+    """将记忆搜索结果格式化为 prompt 字符串"""
+    if not memory_results:
+        return ""
+
+    lines = ["## Relevant Memory"]
+    for result in memory_results:
+        source_label = "message" if str(result.source).startswith("message") else "knowledge"
+        lines.append(f"- [{source_label}] {result.content} (score {result.score:.2f})")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def build_rule_messages(global_rule: str, conversation_rule: str) -> List[Dict[str, str]]:
+    """将全局规则和会话规则格式化为 system message"""
+    messages: List[Dict[str, str]] = []
+
+    if global_rule.strip():
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "## Global Rules\n"
+                    "The following user-defined rules are mandatory and must always be followed.\n"
+                    f"{global_rule.strip()}"
+                ),
+            }
+        )
+
+    if conversation_rule.strip():
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "## Conversation Rules\n"
+                    "The following rules apply to this current conversation and must be followed strictly.\n"
+                    f"{conversation_rule.strip()}"
+                ),
+            }
+        )
+
+    return messages
+
+
+def build_knowledge_hits(memory_results: List[Any]) -> List[Dict[str, Any]]:
+    """从记忆结果中提取 long_term_memory 类型的命中"""
+    hits: List[Dict[str, Any]] = []
+    for result in memory_results:
+        if not str(result.source).startswith("long_term_memory"):
+            continue
+
+        hits.append(
+            {
+                "memory_id": result.memory_id,
+                "title": (
+                    result.title
+                    or (f"Knowledge #{result.memory_id}" if result.memory_id else "Knowledge")
+                ),
+                "content": result.content,
+                "content_type": result.content_type or "note",
+                "score": result.score,
+                "source": result.source,
+                "created_at": result.created_at.isoformat() if result.created_at else None,
+            }
+        )
+    return hits

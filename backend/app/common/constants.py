@@ -78,6 +78,9 @@ LOG_CLEANUP_INTERVAL_HOURS = 24
 AUTO_MEMORY_FLUSH_ENABLED = "auto_memory_flush_enabled"
 AUTO_MEMORY_FLUSH_THRESHOLD = "auto_memory_flush_threshold"
 
+# 全局规则配置键
+GLOBAL_RULE_KEY = "global_rule"
+
 # 通用常量
 LOG_SEPARATOR = "─" * 50
 LOG_SEPARATOR_SHORT = "─" * 40

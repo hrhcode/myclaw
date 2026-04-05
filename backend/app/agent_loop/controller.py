@@ -10,10 +10,16 @@ from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent_loop.prompting import build_memory_message, build_system_prompt
+from app.agent_loop.prompting import (
+    build_knowledge_hits,
+    build_memory_context,
+    build_memory_message,
+    build_rule_messages,
+    build_system_prompt,
+)
 from app.agent_loop.types import AgentRunState, LoopRuntimeConfig, ToolExecutionRecord
 from app.common.config import get_config_value
-from app.common.constants import API_KEY_KEY, LLM_MODEL_KEY
+from app.common.constants import API_KEY_KEY, GLOBAL_RULE_KEY, LLM_MODEL_KEY
 from app.dao.agent_event_dao import AgentEventDAO
 from app.dao.agent_run_dao import AgentRunDAO
 from app.dao.memory_dao import MemoryDAO
@@ -38,72 +44,6 @@ MAX_MODEL_TEXT_PREVIEW = 1200
 MAX_CONTEXT_MESSAGES = 18
 MAX_CONTEXT_CHARS = 22000
 MAX_SUMMARY_LINES = 12
-GLOBAL_RULE_KEY = "global_rule"
-
-
-def build_memory_context(memory_results: List[Any]) -> str:
-    if not memory_results:
-        return ""
-
-    lines = ["## Relevant Memory"]
-    for result in memory_results:
-        source_label = "message" if str(result.source).startswith("message") else "knowledge"
-        lines.append(f"- [{source_label}] {result.content} (score {result.score:.2f})")
-    lines.append("")
-    return "\n".join(lines)
-
-
-def build_rule_messages(global_rule: str, conversation_rule: str) -> List[Dict[str, str]]:
-    messages: List[Dict[str, str]] = []
-
-    if global_rule.strip():
-        messages.append(
-            {
-                "role": "system",
-                "content": (
-                    "## Global Rules\n"
-                    "The following user-defined rules are mandatory and must always be followed.\n"
-                    f"{global_rule.strip()}"
-                ),
-            }
-        )
-
-    if conversation_rule.strip():
-        messages.append(
-            {
-                "role": "system",
-                "content": (
-                    "## Conversation Rules\n"
-                    "The following rules apply to this current conversation and must be followed strictly.\n"
-                    f"{conversation_rule.strip()}"
-                ),
-            }
-        )
-
-    return messages
-
-
-def build_knowledge_hits(memory_results: List[MemorySearchResult]) -> List[Dict[str, Any]]:
-    hits: List[Dict[str, Any]] = []
-    for result in memory_results:
-        if not str(result.source).startswith("long_term_memory"):
-            continue
-
-        hits.append(
-            {
-                "memory_id": result.memory_id,
-                "title": (
-                    result.title
-                    or (f"Knowledge #{result.memory_id}" if result.memory_id else "Knowledge")
-                ),
-                "content": result.content,
-                "content_type": result.content_type or "note",
-                "score": result.score,
-                "source": result.source,
-                "created_at": result.created_at.isoformat() if result.created_at else None,
-            }
-        )
-    return hits
 
 
 class AgentLoopController:
@@ -746,63 +686,36 @@ class AgentLoopController:
         messages.extend(message_history)
         return messages
 
+    def _filter_tools(self, runtime_config: LoopRuntimeConfig) -> list:
+        """根据 profile/allow/deny 策略过滤可用工具，返回 ToolDefinition 列表"""
+        if not runtime_config.use_tools:
+            return []
+        enabled_tools = tool_registry.list_enabled_tools()
+        resolver = create_profile_resolver(tool_groups)
+        policy = resolver.resolve(
+            profile_id=runtime_config.profile,
+            custom_allow=runtime_config.allow,
+            custom_deny=runtime_config.deny,
+        )
+        allowed = policy.get("allow", set())
+        denied = policy.get("deny", set())
+        return [
+            t for t in enabled_tools
+            if t.name not in denied and (not allowed or t.name in allowed)
+        ]
+
     def _resolve_tools(
         self, runtime_config: LoopRuntimeConfig, state: AgentRunState
     ) -> Optional[List[Dict[str, Any]]]:
-        if not runtime_config.use_tools or state.force_answer_next:
+        if state.force_answer_next:
             return None
-
-        enabled_tools = tool_registry.list_enabled_tools()
-        resolver = create_profile_resolver(tool_groups)
-        policy = resolver.resolve(
-            profile_id=runtime_config.profile,
-            custom_allow=runtime_config.allow,
-            custom_deny=runtime_config.deny,
-        )
-        allowed = policy.get("allow", set())
-        denied = policy.get("deny", set())
-
-        filtered_tools = []
-        for tool in enabled_tools:
-            if tool.name in denied:
-                continue
-            if allowed and tool.name not in allowed:
-                continue
-            filtered_tools.append(tool)
-
-        if not filtered_tools:
-            logger.warning(
-                "[agent_loop] 褰撳墠绛栫暐涓嬫棤鍙敤宸ュ叿: profile=%s allow=%s deny=%s",
-                runtime_config.profile,
-                runtime_config.allow,
-                runtime_config.deny,
-            )
+        filtered = self._filter_tools(runtime_config)
+        if not filtered:
             return None
-
-        return tools_to_zhipu_schemas(filtered_tools)
+        return tools_to_zhipu_schemas(filtered)
 
     def _get_prompt_tool_names(self, runtime_config: LoopRuntimeConfig) -> List[str]:
-        if not runtime_config.use_tools:
-            return []
-
-        enabled_tools = tool_registry.list_enabled_tools()
-        resolver = create_profile_resolver(tool_groups)
-        policy = resolver.resolve(
-            profile_id=runtime_config.profile,
-            custom_allow=runtime_config.allow,
-            custom_deny=runtime_config.deny,
-        )
-        allowed = policy.get("allow", set())
-        denied = policy.get("deny", set())
-
-        tool_names: List[str] = []
-        for tool in enabled_tools:
-            if tool.name in denied:
-                continue
-            if allowed and tool.name not in allowed:
-                continue
-            tool_names.append(tool.name)
-        return tool_names
+        return [t.name for t in self._filter_tools(runtime_config)]
 
     def _build_assistant_tool_message(
         self,

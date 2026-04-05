@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.config import get_config_value, set_config_value
+from app.common.constants import GLOBAL_RULE_KEY
 from app.core.database import get_db
 from app.dao.conversation_dao import ConversationDAO
 from app.schemas.schemas import (
