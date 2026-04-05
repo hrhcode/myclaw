@@ -517,6 +517,9 @@ class AutomationRunResponse(BaseModel):
     completed_at: Optional[datetime] = None
     error: Optional[str] = None
     run_id: Optional[str] = None
+    automation_name: Optional[str] = None
+    conversation_id: Optional[int] = None
+    response_snippet: Optional[str] = None
 
     class Config:
         from_attributes = True

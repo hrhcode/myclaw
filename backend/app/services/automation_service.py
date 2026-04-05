@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
-from datetime import tzinfo
 from typing import Any, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -19,7 +18,7 @@ SUPPORTED_SCHEDULE_TYPES = {"once", "interval", "daily", "weekly", "cron"}
 
 
 def _utc_now() -> datetime:
-    return datetime.utcnow().replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _to_utc_naive(value: datetime) -> datetime:
@@ -28,7 +27,7 @@ def _to_utc_naive(value: datetime) -> datetime:
     return value.astimezone(UTC).replace(tzinfo=None)
 
 
-def _get_timezone(timezone: str) -> tzinfo:
+def _get_timezone(timezone: str):
     normalized = timezone or "UTC"
     if normalized.upper() == "UTC":
         return UTC
@@ -245,37 +244,32 @@ class AutomationService:
         await AutomationDAO.delete(db, automation)
         return True
 
-    async def list_runs(self, db: AsyncSession, automation_id: int):
-        return await AutomationRunDAO.list_by_automation(db, automation_id)
-
-    async def clear_runs(self, db: AsyncSession, automation_id: int) -> Optional[int]:
-        automation = await AutomationDAO.get_by_id(db, automation_id)
-        if not automation:
-            return None
-        running_count = await AutomationRunDAO.count_running_for_automation(db, automation_id)
-        if running_count > 0:
-            raise ValueError("cannot clear run history while automation is running")
-        return await AutomationRunDAO.clear_by_automation(db, automation_id)
-
     async def _execute_run(self, db: AsyncSession, automation, runner, *, trigger_mode: str) -> str:
+        # Skip if this automation already has a running execution
+        running_count = await AutomationRunDAO.count_running_for_automation(db, automation.id)
+        if running_count > 0:
+            logger.warning("[automation] skipping execution for automation_id=%s: already running", automation.id)
+            return ""
+
         run = await AutomationRunDAO.create(
             db,
             automation_id=automation.id,
             session_id=automation.session_id,
+            conversation_id=automation.conversation_id,
             status="running",
             trigger_mode=trigger_mode,
         )
-        completed_at = _utc_now()
         try:
-            run_id = await runner(automation.conversation_id, automation.prompt, automation.id)
+            run_id = await runner(automation.conversation_id, automation.prompt, automation.id, db=db)
+            finished_at = _utc_now()
             await AutomationRunDAO.update(
                 db,
                 run,
                 status="success",
                 run_id=run_id,
-                completed_at=completed_at,
+                completed_at=finished_at,
             )
-            automation_changes: dict[str, Any] = {"last_run_at": completed_at}
+            automation_changes: dict[str, Any] = {"last_run_at": finished_at}
             if trigger_mode == "scheduled":
                 if automation.schedule_type == "once":
                     automation_changes["enabled"] = False
@@ -285,7 +279,7 @@ class AutomationService:
                         automation.schedule_type,
                         automation.schedule_value,
                         timezone=automation.timezone,
-                        from_time=completed_at,
+                        from_time=finished_at,
                     )
             elif automation.schedule_type == "once":
                 automation_changes["enabled"] = False
@@ -293,15 +287,16 @@ class AutomationService:
             await AutomationDAO.update(db, automation, **automation_changes)
             return run_id
         except Exception as exc:
+            failed_at = _utc_now()
             logger.exception("[automation] run failed")
             await AutomationRunDAO.update(
                 db,
                 run,
                 status="failed",
                 error=str(exc),
-                completed_at=completed_at,
+                completed_at=failed_at,
             )
-            automation_changes = {"last_run_at": completed_at}
+            automation_changes = {"last_run_at": failed_at}
             if trigger_mode == "scheduled":
                 automation_changes["next_run_at"] = (
                     None
@@ -310,7 +305,7 @@ class AutomationService:
                         automation.schedule_type,
                         automation.schedule_value,
                         timezone=automation.timezone,
-                        from_time=completed_at,
+                        from_time=failed_at,
                     )
                 )
                 if automation.schedule_type == "once":

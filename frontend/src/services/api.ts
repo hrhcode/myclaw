@@ -13,11 +13,16 @@ import type {
   ConversationDetail,
   GlobalRuleResponse,
   KnowledgeBaseListResponse,
+  LongTermMemory,
+  MemorySearchResult,
   Message,
   Model,
   Provider,
   SessionSkill,
   Skill,
+  ToolConfig,
+  ToolInfo,
+  ToolListResponse,
   McpServer,
   McpServerPayload,
   McpStats,
@@ -326,17 +331,6 @@ export const getAllConfigs = async (): Promise<ConfigItem[]> => {
   return response.data;
 };
 
-export interface MemorySearchResult {
-  message_id: number | null;
-  memory_id: number | null;
-  title?: string | null;
-  content: string;
-  content_type?: string | null;
-  score: number;
-  source: string;
-  created_at: string | null;
-}
-
 export interface MemorySearchResponse {
   results: MemorySearchResult[];
 }
@@ -355,20 +349,6 @@ export const searchMemory = async (
   });
   return response.data;
 };
-
-export interface LongTermMemory {
-  id: number;
-  title?: string | null;
-  key: string | null;
-  content: string;
-  content_type?: string;
-  group_id?: string | null;
-  origin_message_id?: number | null;
-  importance: number;
-  source: string | null;
-  created_at: string;
-  updated_at: string;
-}
 
 export const getLongTermMemories = async (): Promise<LongTermMemory[]> => {
   const response = await api.get<LongTermMemory[]>('/memory/long-term');
@@ -464,28 +444,6 @@ export const indexConversation = async (conversationId: number): Promise<{
   const response = await api.post(`/memory/index/${conversationId}`);
   return response.data;
 };
-
-export interface ToolInfo {
-  name: string;
-  description: string;
-  enabled: boolean;
-  parameters: Record<string, unknown>;
-  source: string;
-  mcp_server_name?: string | null;
-}
-
-export interface ToolListResponse {
-  tools: ToolInfo[];
-  total: number;
-}
-
-export interface ToolConfig {
-  profile: string;
-  allow: string[];
-  deny: string[];
-  max_iterations: number;
-  timeout_seconds: number;
-}
 
 export const getTools = async (): Promise<ToolListResponse> => {
   const response = await api.get<ToolListResponse>('/tools');
@@ -642,15 +600,8 @@ export const deleteAutomation = async (automationId: number): Promise<void> => {
   await api.delete(`/automations/${automationId}`);
 };
 
-export const getAutomationRuns = async (automationId: number): Promise<AutomationRun[]> => {
-  const response = await api.get<AutomationRun[]>(`/automations/${automationId}/runs`);
-  return response.data;
-};
-
-export const clearAutomationRuns = async (
-  automationId: number,
-): Promise<{ success: boolean; deleted_count: number }> => {
-  const response = await api.delete<{ success: boolean; deleted_count: number }>(`/automations/${automationId}/runs`);
+export const getAllAutomationRuns = async (limit: number = 200): Promise<AutomationRun[]> => {
+  const response = await api.get<AutomationRun[]>(`/automations/runs`, { params: { limit } });
   return response.data;
 };
 
@@ -705,5 +656,15 @@ export const toggleMcpServer = async (serverId: string, enabled: boolean): Promi
 
 export const importMcpServers = async (jsonText: string, autoProbe: boolean = true): Promise<McpImportResult> => {
   const response = await api.post<McpImportResult>('/mcp/import', { json_text: jsonText, auto_probe: autoProbe });
+  return response.data;
+};
+
+export interface AgentRunInfo {
+  conversation_id: number;
+  message_id: number | null;
+}
+
+export const getAgentRunByRunId = async (runId: string): Promise<AgentRunInfo> => {
+  const response = await api.get<AgentRunInfo>(`/agent-runs/${runId}`);
   return response.data;
 };

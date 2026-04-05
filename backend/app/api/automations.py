@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -16,6 +16,7 @@ from app.services.automation_service import AutomationService
 from app.services.conversation_service import ConversationService
 from app.services.session_service import SessionService
 from app.api.chat import agent_loop_controller
+from app.dao.automation_dao import AutomationRunDAO
 
 router = APIRouter()
 
@@ -84,20 +85,16 @@ async def delete_automation(automation_id: int, db: AsyncSession = Depends(get_d
     return {"success": True}
 
 
-@router.get("/automations/{automation_id}/runs", response_model=list[AutomationRunResponse])
-async def list_automation_runs(automation_id: int, db: AsyncSession = Depends(get_db)):
-    return await automation_service.list_runs(db, automation_id)
-
-
-@router.delete("/automations/{automation_id}/runs")
-async def clear_automation_runs(automation_id: int, db: AsyncSession = Depends(get_db)):
-    try:
-        deleted_count = await automation_service.clear_runs(db, automation_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if deleted_count is None:
-        raise HTTPException(status_code=404, detail="automation not found")
-    return {"success": True, "deleted_count": deleted_count}
+@router.get("/automations/runs", response_model=list[AutomationRunResponse])
+async def list_all_runs(limit: int = Query(100, le=500), db: AsyncSession = Depends(get_db)):
+    rows = await AutomationRunDAO.list_all(db, limit=limit)
+    result = []
+    for run, automation_name, response_snippet in rows:
+        resp = AutomationRunResponse.model_validate(run)
+        resp.automation_name = automation_name
+        resp.response_snippet = response_snippet
+        result.append(resp)
+    return result
 
 
 @router.post("/automations/{automation_id}/run", response_model=AutomationDispatchResponse)

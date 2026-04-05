@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { AlertTriangle } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { createPortal } from "react-dom";
@@ -11,7 +11,7 @@ import type {
   Message,
 } from "../../types";
 import { useApp } from "../../contexts/AppContext";
-import { getConfig, saveMessageToKnowledge, sendMessageStream } from "../../services/api";
+import { getAgentRunByRunId, getConfig, saveMessageToKnowledge, sendMessageStream } from "../../services/api";
 import MainLayout from "../layout/MainLayout";
 import MessageInput from "./MessageInput";
 import type { MessageInputHandle } from "./MessageInput";
@@ -56,6 +56,7 @@ const appendTraceEvent = (
 
 const ChatPage: React.FC = () => {
   const { conversationId } = useParams<{ conversationId?: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const {
     conversations,
@@ -73,6 +74,7 @@ const ChatPage: React.FC = () => {
   const [savingKnowledgeMessageId, setSavingKnowledgeMessageId] = useState<number | null>(null);
   const [notice, setNotice] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [rollbackConfirmMessage, setRollbackConfirmMessage] = useState<Message | null>(null);
+  const [highlightMessageId, setHighlightMessageId] = useState<number | null>(null);
   const chunkBufferRef = useRef("");
   const flushTimerRef = useRef<number | null>(null);
   const messageInputRef = useRef<MessageInputHandle>(null);
@@ -81,6 +83,25 @@ const ChatPage: React.FC = () => {
     void checkConfiguration();
     void loadConversations();
   }, [loadConversations]);
+
+  // 处理 ?highlight=run_id 参数：通过 API 查找 message_id
+  useEffect(() => {
+    const runId = searchParams.get("highlight");
+    if (!runId) return;
+    // 清除 URL 参数避免刷新时重复触发
+    navigate(window.location.pathname, { replace: true });
+    let cancelled = false;
+    getAgentRunByRunId(runId)
+      .then((info) => {
+        if (!cancelled && info.message_id) {
+          setHighlightMessageId(info.message_id);
+        }
+      })
+      .catch(() => {
+        // 静默失败
+      });
+    return () => { cancelled = true; };
+  }, [searchParams, navigate]);
 
   useEffect(() => {
     if (!conversationId) {
@@ -393,6 +414,7 @@ const ChatPage: React.FC = () => {
           onSaveAssistantMessage={handleSaveAssistantMessage}
           savingMessageId={savingKnowledgeMessageId}
           onRollbackMessage={handleRollbackClick}
+          highlightMessageId={highlightMessageId}
         />
         <MessageInput
           ref={messageInputRef}

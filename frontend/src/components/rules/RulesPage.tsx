@@ -143,7 +143,7 @@ const RulesPage: React.FC = () => {
                 <div>
                   <h2 className="rules-card__title">全局规则</h2>
                   <p className="rules-card__desc">
-                    适合放长期稳定的约束，比如回复语言、事实严谨度、代码修改方式、风险提示要求。
+                    适合放长期稳定的约束
                   </p>
                 </div>
               </div>

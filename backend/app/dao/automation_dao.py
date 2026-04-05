@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import List, Optional
 
-from datetime import datetime, timedelta
-
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.models import Automation, AutomationRun
+from app.models.models import AgentEvent, Automation, AutomationRun, Message
 
 
 class AutomationDAO:
@@ -24,11 +22,6 @@ class AutomationDAO:
             .where(Automation.enabled.is_(True), Automation.next_run_at.is_not(None), Automation.next_run_at <= now)
             .order_by(Automation.next_run_at.asc())
         )
-        return list(result.scalars().all())
-
-    @staticmethod
-    async def list_recent(db: AsyncSession, limit: int = 5) -> List[Automation]:
-        result = await db.execute(select(Automation).order_by(Automation.updated_at.desc()).limit(limit))
         return list(result.scalars().all())
 
     @staticmethod
@@ -59,14 +52,32 @@ class AutomationDAO:
 
 class AutomationRunDAO:
     @staticmethod
-    async def list_by_automation(db: AsyncSession, automation_id: int, limit: int = 20) -> List[AutomationRun]:
+    async def list_all(db: AsyncSession, limit: int = 100) -> List[tuple]:
+        """Return (AutomationRun, automation_name, response_snippet) tuples, ordered by triggered_at DESC."""
+        # Subquery: for each run_id, pick the latest agent_event that has a message_id
+        last_event = (
+            select(
+                AgentEvent.run_id.label("run_id"),
+                func.max(AgentEvent.id).label("evt_id"),
+            )
+            .where(AgentEvent.message_id.is_not(None))
+            .group_by(AgentEvent.run_id)
+            .subquery()
+        )
+        snippet = func.substr(Message.content, 1, 120).label("response_snippet")
         result = await db.execute(
-            select(AutomationRun)
-            .where(AutomationRun.automation_id == automation_id)
+            select(AutomationRun, Automation.name.label("automation_name"), snippet)
+            .join(Automation, AutomationRun.automation_id == Automation.id)
+            .outerjoin(last_event, last_event.c.run_id == AutomationRun.run_id)
+            .outerjoin(AgentEvent, AgentEvent.id == last_event.c.evt_id)
+            .outerjoin(
+                Message,
+                (Message.id == AgentEvent.message_id) & (Message.role == "assistant"),
+            )
             .order_by(AutomationRun.triggered_at.desc())
             .limit(limit)
         )
-        return list(result.scalars().all())
+        return list(result.all())
 
     @staticmethod
     async def create(db: AsyncSession, **kwargs) -> AutomationRun:
@@ -75,17 +86,6 @@ class AutomationRunDAO:
         await db.commit()
         await db.refresh(record)
         return record
-
-    @staticmethod
-    async def clear_by_automation(db: AsyncSession, automation_id: int) -> int:
-        result = await db.execute(
-            delete(AutomationRun).where(
-                AutomationRun.automation_id == automation_id,
-                AutomationRun.status != "running",
-            )
-        )
-        await db.commit()
-        return int(result.rowcount or 0)
 
     @staticmethod
     async def update(db: AsyncSession, run: AutomationRun, **changes) -> AutomationRun:
@@ -111,7 +111,7 @@ class AutomationRunDAO:
 
     @staticmethod
     async def count_recent_failures(db: AsyncSession, within_hours: int = 24) -> int:
-        cutoff = datetime.utcnow() - timedelta(hours=within_hours)
+        cutoff = datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=within_hours)
         result = await db.execute(
             select(func.count())
             .select_from(AutomationRun)

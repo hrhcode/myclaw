@@ -248,14 +248,7 @@ const ToolsPage: React.FC = () => {
             <PageSection
               title="内置工具"
               description="系统自带的工具，提供基础能力。"
-              actions={
-                <div className="inline-flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                  <span>
-                    {filteredBuiltin.length}
-                    {filteredBuiltin.length !== builtinTools.length ? ` / ${builtinTools.length}` : ""} 项
-                  </span>
-                </div>
-              }
+              hideHeader
             >
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {filteredBuiltin.map((tool) => (
@@ -272,14 +265,7 @@ const ToolsPage: React.FC = () => {
             <PageSection
               title="MCP 工具"
               description="通过 MCP 服务集成的外部工具，可在 MCP 页面管理服务。"
-              actions={
-                <div className="inline-flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                  <span>
-                    {filteredMcp.length}
-                    {filteredMcp.length !== mcpTools.length ? ` / ${mcpTools.length}` : ""} 项
-                  </span>
-                </div>
-              }
+              hideHeader
             >
               {mcpGroups.size > 0 ? (
                 <div className="space-y-3">

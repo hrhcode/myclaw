@@ -545,10 +545,21 @@ class AgentLoopController:
             final_event = event
         return final_event
 
-    async def dispatch_message_for_automation(self, conversation_id: int, message: str, automation_id: Optional[int] = None) -> str:
+    async def dispatch_message_for_automation(self, conversation_id: int, message: str, automation_id: Optional[int] = None, db: AsyncSession = None) -> str:
         from app.core.database import AsyncSessionLocal
         from app.dao.conversation_dao import ConversationDAO
         from app.services.session_service import SessionService
+
+        if db is not None:
+            conversation = await ConversationDAO.get_by_id(db, conversation_id)
+            if not conversation:
+                raise ValueError(f"conversation not found: {conversation_id}")
+            session_id = conversation.session_id
+            if session_id is None:
+                session = await SessionService().resolve_session(db)
+                session_id = session.id
+            result = await self.dispatch_message(db, session_id, message, conversation_id=conversation_id)
+            return str(result.get("run_id") or "")
 
         async with AsyncSessionLocal() as db:
             conversation = await ConversationDAO.get_by_id(db, conversation_id)

@@ -106,6 +106,7 @@ async def ensure_runtime_schema(engine: AsyncEngine) -> None:
         await _ensure_column(conn, "automations", "conversation_id", "INTEGER")
         await _ensure_column(conn, "automations", "timezone", "VARCHAR NOT NULL DEFAULT 'UTC'")
         await _ensure_column(conn, "automation_runs", "trigger_mode", "VARCHAR NOT NULL DEFAULT 'scheduled'")
+        await _ensure_column(conn, "automation_runs", "conversation_id", "INTEGER")
         await conn.execute(
             text(
                 """

@@ -18,7 +18,6 @@ import {
   RotateCcw,
   Save,
   Search,
-  Sparkles,
   User,
   Wrench,
 } from "lucide-react";
@@ -33,6 +32,7 @@ interface MessageListProps {
   onSaveAssistantMessage?: (message: Message) => void | Promise<void>;
   savingMessageId?: number | null;
   onRollbackMessage?: (message: Message) => void;
+  highlightMessageId?: number | null;
 }
 
 interface TraceDisplayItem {
@@ -76,13 +76,13 @@ const EmptyState: React.FC = () => (
         transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
         className="chat-empty-icon"
       >
-        <Sparkles size={50} className="text-primary" />
+        <img alt="MyClaw" width="50" height="50" src="/myclaw.svg" />
       </motion.div>
       <h3
-        className="mb-2 text-xl font-semibold"
+        className="mb-2 text-xl font-semibold text-center"
         style={{ color: "var(--text-primary)" }}
       >
-        开始一段新对话
+        和myclaw聊天
       </h3>
       <p
         className="mx-auto max-w-xs text-sm"
@@ -562,6 +562,7 @@ const MessageList: React.FC<MessageListProps> = ({
   onSaveAssistantMessage,
   savingMessageId,
   onRollbackMessage,
+  highlightMessageId,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -605,6 +606,21 @@ const MessageList: React.FC<MessageListProps> = ({
     }
   }, [messages, shouldAutoScroll, scrollToBottom]);
 
+  // 高亮定位：滚动到目标消息并添加短暂高亮效果
+  useEffect(() => {
+    if (!highlightMessageId) return;
+    // 延迟等待消息渲染完成
+    const timer = setTimeout(() => {
+      const el = document.querySelector(`[data-message-id="${highlightMessageId}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("message-highlight");
+        setTimeout(() => el.classList.remove("message-highlight"), 2500);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [highlightMessageId]);
+
   return (
     <div ref={containerRef} className="message-thread" onScroll={handleScroll}>
       {messages.length === 0 ? (
@@ -613,6 +629,7 @@ const MessageList: React.FC<MessageListProps> = ({
         messages.map((message) => (
           <motion.div
             key={message.id}
+            data-message-id={message.id}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}

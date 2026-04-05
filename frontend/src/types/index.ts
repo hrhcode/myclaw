@@ -150,6 +150,9 @@ export interface AutomationRun {
   completed_at?: string | null;
   error?: string | null;
   run_id?: string | null;
+  automation_name?: string | null;
+  conversation_id?: number | null;
+  response_snippet?: string | null;
 }
 
 export interface AutomationStats {

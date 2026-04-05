@@ -227,6 +227,7 @@ class AutomationRun(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
     error = Column(Text, nullable=True)
     run_id = Column(String, nullable=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True, index=True)
 
     automation = relationship("Automation", back_populates="runs")
 
