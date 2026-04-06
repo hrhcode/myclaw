@@ -147,7 +147,7 @@ npm install
 ```powershell
 # 终端 1 — 后端
 cd backend
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+python start_server.py
 
 # 终端 2 — 前端
 cd frontend
