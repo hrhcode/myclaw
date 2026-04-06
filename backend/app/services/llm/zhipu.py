@@ -17,6 +17,34 @@ class ZhipuProvider(BaseLLMProvider):
         super().__init__(api_key, model)
         self.client = ZhipuAiClient(api_key=api_key)
 
+    @staticmethod
+    def _sanitize_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """清洗消息以适配智谱AI的格式要求。
+
+        智谱AI不接受 content 为 null 的消息，也不识别 reasoning_content 等字段。
+        """
+        sanitized = []
+        for msg in messages:
+            clean = dict(msg)
+            # content 不能为 null，空值改为 ""
+            if clean.get("content") is None:
+                clean["content"] = ""
+            # 移除智谱不支持的字段
+            clean.pop("reasoning_content", None)
+            # 清理 tool_calls 中的 null arguments
+            if "tool_calls" in clean and clean["tool_calls"]:
+                clean_tool_calls = []
+                for tc in clean["tool_calls"]:
+                    tc_copy = dict(tc)
+                    func = dict(tc_copy.get("function", {}))
+                    if func.get("arguments") is None:
+                        func["arguments"] = "{}"
+                    tc_copy["function"] = func
+                    clean_tool_calls.append(tc_copy)
+                clean["tool_calls"] = clean_tool_calls
+            sanitized.append(clean)
+        return sanitized
+
     async def chat_stream(
         self,
         messages: List[Dict[str, str]],
@@ -27,9 +55,10 @@ class ZhipuProvider(BaseLLMProvider):
             use_model = model or self.model
             logger.info(f"调用智谱AI模型(流式): {use_model}, thinking={thinking}")
 
+            clean_messages = self._sanitize_messages(messages)
             response = self.client.chat.completions.create(
                 model=use_model,
-                messages=messages,
+                messages=clean_messages,
                 stream=True,
                 thinking={"type": "enabled"} if thinking else {"type": "disabled"},
             )
@@ -58,9 +87,10 @@ class ZhipuProvider(BaseLLMProvider):
             use_model = model or self.model
             logger.info(f"调用智谱AI模型(工具调用): {use_model}, 工具数量: {len(tools)}")
 
+            clean_messages = self._sanitize_messages(messages)
             response = self.client.chat.completions.create(
                 model=use_model,
-                messages=messages,
+                messages=clean_messages,
                 tools=tools,
                 tool_choice="auto",
                 thinking={"type": "enabled"} if thinking else {"type": "disabled"},
@@ -106,9 +136,10 @@ class ZhipuProvider(BaseLLMProvider):
                 f"调用智谱AI模型(流式工具调用): {use_model}, 工具数量: {len(tools)}"
             )
 
+            clean_messages = self._sanitize_messages(messages)
             response = self.client.chat.completions.create(
                 model=use_model,
-                messages=messages,
+                messages=clean_messages,
                 tools=tools,
                 tool_choice="auto",
                 stream=True,

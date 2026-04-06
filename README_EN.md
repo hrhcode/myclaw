@@ -5,7 +5,7 @@
 <h1 align="center">MyClaw</h1>
 
 <p align="center">
-  <strong>Personal Agent Platform — Built with React + FastAPI + SQLite</strong>
+  <strong>A lightweight personal edition of OpenClaw — Built with React + FastAPI + SQLite</strong>
 </p>
 
 <p align="center">
@@ -14,68 +14,49 @@
 
 ---
 
-MyClaw is a lightweight personal Agent platform delivered as a React + FastAPI web application. It has evolved from a single-session chat app into a personal Agent console with work sessions, automation, memory management, external channel integration, and cross-session collaboration.
+MyClaw is a lightweight personal edition of [OpenClaw](https://github.com/openclaw/openclaw). OpenClaw is feature-rich but overly complex for individual users — its 22 messaging channels, native mobile apps, voice wake-up, Docker sandbox, and many other features are unnecessary for most personal use cases. MyClaw keeps only the **core capabilities** of OpenClaw (Agent loop, tool system, memory, channel integration, automation) and reimplements them with a Python + React frontend-backend architecture, allowing full configuration and management through the browser.
 
-## Current Status
+<p align="center">
+  <img src="docs/assets/电脑渠道展示截图.jpg" alt="MyClaw Desktop UI" width="85%">
+</p>
 
-- Backend has completed core personal edition capabilities
-- Backend API has passed local regression testing
-- Backend tests have been added for `session / automation / memory / tool executor`
-- Frontend has completed closed-loop pages for sessions, automation, memory, and channels
-- Frontend core navigation and main page copy have been unified in Chinese
+<p align="center">
+  <img src="docs/assets/qq渠道展示截图.jpg" alt="MyClaw QQ Channel UI" width="85%">
+</p>
+
+---
+
+## Key Differences from OpenClaw
+
+| Dimension | OpenClaw | **MyClaw** |
+| --- | --- | --- |
+| **Architecture** | CLI-First, single-process Gateway + WS control plane | **Web-First**, frontend-backend separation (FastAPI + React), all operations via browser |
+| **Entry Barrier** | Requires CLI basics, `openclaw wizard` guided setup | **Zero CLI**, open browser and use |
+| **Tech Stack** | TypeScript / Node.js | **Python + React**, backend natively suited for AI/data processing |
+| **Visual Management** | Control UI as auxiliary entry | **All pages are first-class citizens**, sessions, memory, channels, automation all visualized |
+| **Agent Anti-Loop** | Pi Agent RPC mode | **4-layer protection**: iteration cap, progress signature, loop detection, circuit breaker |
+| **Memory System** | Single memory plugin slot | **Full pipeline**: Vector + BM25 hybrid search + MMR reranking + temporal decay + Evergreen |
+| **Work Sessions** | Channel-based session model | **Independent work sessions**, each with its own model, toolset, working directory, memory strategy |
+| **Learning Curve** | Requires understanding Gateway / CLI / node concepts | **Intuitive operation**, similar to using a regular web app |
+
+---
 
 ## Core Capabilities
 
-### 1. Chat & Agent Runtime
+| Module | Capabilities |
+| --- | --- |
+| **Smart Chat** | SSE streaming responses, full tool call traces, `/new` `/reset` `/compact` `/status` commands, automatic context compression |
+| **Work Sessions** | Independent runtime environments with configurable model, toolset, working directory, memory strategy; create / switch / rename / delete / set default |
+| **Cross-Session Collaboration** | View all sessions, query other session histories, dispatch tasks to other sessions, get real-time status |
+| **Smart Memory** | Dual-layer memory (short-term messages + long-term); hybrid retrieval (Vector + BM25) + MMR reranking + temporal decay + Evergreen |
+| **External Channels** | QQ Official Bot integration, supporting channel / DM / group messages / @ trigger; 3-level session mapping; WebSocket real-time message routing |
+| **Browser Automation** | Full Playwright-based control: navigate / click / type / scroll / screenshot / dropdown select / keyboard simulate / wait for conditions |
+| **Automation Tasks** | Fixed interval / daily / weekly scheduling, results written to work sessions, visual management |
+| **Skills** | Auto-discover local skills, enable/disable per work session, supports `AGENTS.md` / `TOOLS.md` project-level prompts |
+| **MCP Services** | Built-in MCP service management page, visual configuration and management |
+| **Tool System** | 5 preset profiles (MINIMAL / STANDARD / CODING / MESSAGING / FULL), allow/deny whitelists, timeout control, sensitive field auto-hiding |
 
-- Streaming chat responses (SSE)
-- Each reply retains run traces and tool call events
-- Chat commands: `/new` `/reset` `/compact` `/status`
-
-### 2. Work Sessions
-
-- Create, switch, rename, delete work sessions
-- Set a default work session
-- Each session independently maintains:
-  - `workspace_path` — local working directory
-  - `model / provider` — model configuration
-  - `tool_profile` / `tool_allow` / `tool_deny` — tool filtering
-  - `max_iterations` — Agent loop limit
-  - `context_summary` — context summary
-  - `memory_auto_extract` / `memory_threshold` — memory strategy
-
-### 3. Skills & Prompt Injection
-
-- Automatic local skill discovery
-- Enable/disable skills per work session
-- Supports project-level prompt files: `AGENTS.md`, `TOOLS.md`
-
-### 4. Cross-Session Collaboration
-
-- `sessions_list` — view all work sessions
-- `sessions_history` — query other session histories
-- `sessions_send` — dispatch tasks to other sessions
-- `session_status` — get session status
-
-### 5. Automation
-
-- Create, edit, enable/disable, delete automation tasks
-- Supported schedules: fixed interval / daily / weekly
-- Results are written to the corresponding session history and run records
-
-### 6. Long-Term Memory
-
-- List, search, filter, sort long-term memories
-- Source categories: manual creation / session summary / auto-extraction
-- Configurable retrieval parameters: top-k, minimum score, hybrid search weights, MMR reranking, temporal decay
-
-### 7. External Channels
-
-- Create, configure, enable/disable external message channels
-- Support for QQ Official Bot integration
-- WebSocket gateway for real-time message routing
-- Channel-to-conversation mapping for context persistence
-- Multi-chat support within each channel
+---
 
 ## Tech Stack
 
@@ -88,6 +69,8 @@ MyClaw is a lightweight personal Agent platform delivered as a React + FastAPI w
 | Embeddings | sentence-transformers 2.2.0 |
 | Browser Automation | Playwright |
 | Task Scheduling | croniter |
+
+---
 
 ## Project Structure
 
@@ -125,110 +108,12 @@ myclaw/
 │  │  └─ main.py              # Application entry point
 │  ├─ tests/                  # Unit tests
 │  └─ requirements.txt
-├─ docs/                      # Project documentation
+├─ docs/                      # Project documentation + screenshots
 ├─ start_all.ps1              # One-click startup script (Windows)
 └─ README.md
 ```
 
-## Database Schema
-
-### conversations
-
-| Field | Type | Description |
-| --- | --- | --- |
-| id | INTEGER | Primary key, auto-increment |
-| title | TEXT | Conversation title |
-| created_at | DATETIME | Creation time |
-| updated_at | DATETIME | Update time |
-
-### messages
-
-| Field | Type | Description |
-| --- | --- | --- |
-| id | INTEGER | Primary key |
-| conversation_id | INTEGER | Foreign key to conversation |
-| role | TEXT | Role (user / assistant) |
-| content | TEXT | Message content |
-| embedding | BLOB | Vector embedding |
-| created_at | DATETIME | Creation time |
-
-### long_term_memory
-
-| Field | Type | Description |
-| --- | --- | --- |
-| id | INTEGER | Primary key |
-| key | TEXT | Memory key (optional) |
-| content | TEXT | Memory content |
-| embedding | BLOB | Vector embedding |
-| importance | FLOAT | Importance score (0-1) |
-| source | TEXT | Memory source |
-| created_at | DATETIME | Creation time |
-
-### channels
-
-| Field | Type | Description |
-| --- | --- | --- |
-| id | INTEGER | Primary key, auto-increment |
-| name | TEXT | Channel name |
-| channel_type | TEXT | Channel type (e.g., qq_official) |
-| enabled | BOOLEAN | Whether channel is enabled |
-| config | TEXT | Channel configuration (JSON) |
-| conversation_id | INTEGER | Foreign key to default conversation |
-| status | TEXT | Channel status (stopped / running / error) |
-| status_message | TEXT | Status message or error info |
-| last_event_at | DATETIME | Last event timestamp |
-| created_at | DATETIME | Creation time |
-| updated_at | DATETIME | Update time |
-
-### channel_chats
-
-| Field | Type | Description |
-| --- | --- | --- |
-| id | INTEGER | Primary key |
-| channel_id | INTEGER | Foreign key to channel |
-| external_chat_id | TEXT | External platform chat ID |
-| external_chat_type | TEXT | Chat type (private / group) |
-| conversation_id | INTEGER | Foreign key to mapped conversation |
-| external_user_id | TEXT | External user ID |
-| external_user_name | TEXT | External user display name |
-| last_message_at | DATETIME | Last message timestamp |
-| created_at | DATETIME | Creation time |
-| updated_at | DATETIME | Update time |
-
-## Tool System
-
-The tool system uses a registry pattern for dynamic tool registration and management:
-
-- **Register tools**: Register new tools via `ToolRegistry`
-- **Execute tools**: Execute tool calls via `ToolExecutor`
-- **Tool filtering**: Support allow / deny lists to control available tools
-
-### Built-in Tools
-
-| Tool Name | Description |
-| --- | --- |
-| `get_current_time` | Get current time |
-| `browser_start` | Start browser |
-| `browser_navigate` | Navigate to URL |
-| `browser_snapshot` | Get page snapshot |
-| `browser_screenshot` | Take page or element screenshot |
-| `browser_click` | Click page element |
-| `browser_type` | Type text in element |
-| `browser_hover` | Hover over page element |
-| `browser_wait` | Wait for condition |
-| `browser_scroll` | Scroll the page |
-| `browser_press` | Simulate keyboard key press |
-| `browser_select` | Select option in dropdown |
-| `browser_history` | Navigate browser history (back / forward) |
-| `browser_stop` | Stop browser |
-| `web_search` | Web search |
-
-## Memory Search Features
-
-- **Hybrid Search**: Combines vector similarity and text matching
-- **MMR Reranking**: Maximal Marginal Relevance for diverse results
-- **Temporal Decay**: Time-based relevance scoring
-- **Configurable Parameters**: `top_k`, `min_score`, `vector_weight` / `text_weight`, `mmr_lambda`, `half_life_days`
+---
 
 ## Quick Start
 
@@ -277,98 +162,7 @@ npm run dev
 3. Enter your model API Key
 4. Save configuration
 
-## API Reference
-
-### Chat
-
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/api/chat/stream` | POST | Streaming chat (SSE) |
-
-### Work Sessions
-
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/api/sessions` | GET / POST | List / Create work sessions |
-| `/api/sessions/{id}` | PUT / DELETE | Update / Delete work session |
-| `/api/sessions/{id}/status` | GET | Get session status |
-| `/api/sessions/{id}/dispatch` | POST | Dispatch task to session |
-| `/api/sessions/{id}/history-summary` | GET | Get session history summary |
-
-### Skills
-
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/api/skills` | GET | Get available skills |
-| `/api/sessions/{id}/skills` | GET / PUT | Get / Update session skills |
-
-### Automation
-
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/api/automations` | GET / POST | List / Create automation tasks |
-| `/api/automations/{id}` | PUT / DELETE | Update / Delete automation task |
-| `/api/automations/{id}/runs` | GET | Get run records |
-
-### Memory
-
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/api/memory/long-term` | GET / POST | Long-term memory list / create |
-| `/api/memory/long-term/{id}` | PUT / DELETE | Update / Delete long-term memory |
-| `/api/memory/search` | POST | Semantic memory search |
-
-### Channels
-
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/api/channels` | GET / POST | List / Create channels |
-| `/api/channels/{id}` | PUT / DELETE | Update / Delete channel |
-| `/api/channels/{id}/start` | POST | Start channel |
-| `/api/channels/{id}/stop` | POST | Stop channel |
-| `/api/channels/{id}/chats` | GET | Get channel chats |
-| `/ws/gateway` | WebSocket | Gateway WebSocket connection |
-
-After starting the backend, visit [http://localhost:8000/docs](http://localhost:8000/docs) for the full API documentation (Swagger UI).
-
-## Testing
-
-Backend tests can be run in the `backend` directory:
-
-```powershell
-$env:PYTHONPATH='D:\Project\Me\myclaw-new\myclaw\backend'
-python -m unittest discover -s tests -p "test_*.py"
-```
-
-Tests that have been added and passed:
-
-- `test_session_service.py`
-- `test_automation_service.py`
-- `test_memory_api.py`
-- `test_tool_executor.py`
-- `test_agent_loop_prompting.py`
-- `test_time_tool.py`
-
-Frontend build verification:
-
-```powershell
-cd frontend
-npm run build
-```
-
-## Known Boundaries
-
-- Currently designed for single-user personal use; team and multi-tenant support are not included
-- Security approval, sandbox isolation, and privilege escalation controls are not a focus of this phase
-- Canvas, voice, mobile nodes, and plugin marketplace are not included
-- Historical chat content in English will be displayed as-is and will not be translated by the UI
-
-## Development Tips
-
-- Use work sessions to isolate different projects
-- Prefer automation over manual repeated triggering for long-running tasks
-- Configure `workspace_path` and local skills for fixed project directories
-- Use external channels to integrate with messaging platforms like QQ
+---
 
 ## License
 

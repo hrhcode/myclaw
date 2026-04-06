@@ -5,7 +5,7 @@
 <h1 align="center">MyClaw</h1>
 
 <p align="center">
-  <strong>个人 Agent 平台 — 基于 React + FastAPI + SQLite 构建</strong>
+  <strong>OpenClaw 的个人精简版 — 基于 React + FastAPI + SQLite 构建</strong>
 </p>
 
 <p align="center">
@@ -14,68 +14,49 @@
 
 ---
 
-MyClaw 是一个面向个人使用的精简 Agent 平台，主入口是 React + FastAPI 的 Web 应用。当前版本已经从「单机会话聊天应用」升级为「带工作会话、自动化、记忆、外部通道接入和会话协作能力的个人 Agent 控制台」。
+MyClaw 是 [OpenClaw](https://github.com/openclaw/openclaw) 的个人精简版。OpenClaw 功能丰富但对个人用户来说过于庞大——22 个消息渠道、原生移动端应用、语音唤醒、Docker 沙箱等大量功能对大多数个人场景是冗余的。MyClaw 只保留 OpenClaw 的**最核心能力**（Agent 循环、工具系统、记忆、通道接入、自动化），并用 Python + React 前后端分离架构重新实现，通过浏览器即可完成全部配置与管理。
 
-## 当前状态
+<p align="center">
+  <img src="docs/assets/电脑渠道展示截图.jpg" alt="MyClaw 电脑端界面" width="85%">
+</p>
 
-- 后端已补齐核心个人版能力
-- 后端 API 已完成本地回归联调
-- 后端测试已补齐 `session / automation / memory / tool executor` 相关覆盖
-- 前端已打通会话、自动化、记忆、通道的闭环页面
-- 前端核心导航和主页面文案已统一为中文
+<p align="center">
+  <img src="docs/assets/qq渠道展示截图.jpg" alt="MyClaw QQ 通道界面" width="85%">
+</p>
+
+---
+
+## 与 OpenClaw 的核心差异
+
+| 维度 | OpenClaw | **MyClaw** |
+| --- | --- | --- |
+| **架构** | CLI-First，单进程 Gateway + WS 控制平面 | **Web-First**，前后端分离（FastAPI + React），浏览器完成全部操作 |
+| **上手门槛** | 需要命令行基础，`openclaw wizard` 引导 | **零命令行**，打开浏览器即用 |
+| **技术栈** | TypeScript / Node.js | **Python + React**，后端原生适配 AI/数据处理 |
+| **可视化** | Control UI 为辅助入口 | **所有页面均为一等公民**，会话、记忆、通道、自动化全部可视化 |
+| **Agent 防循环** | Pi Agent RPC 模式 | **4 层防卡死**：迭代上限、进度签名、循环检测、熔断器 |
+| **记忆系统** | 单一记忆插件槽位 | **完整管线**：向量 + BM25 混合搜索 + MMR 重排 + 时间衰减 + Evergreen |
+| **工作会话** | 基于渠道的会话模型 | **独立工作会话**，每会话独立配置模型、工具集、工作目录、记忆策略 |
+| **学习曲线** | 需理解 Gateway / CLI / 节点等概念 | **直觉式操作**，类似使用普通 Web 应用 |
+
+---
 
 ## 核心能力
 
-### 1. 聊天与 Agent 运行
+| 模块 | 能力 |
+| --- | --- |
+| **智能聊天** | SSE 流式响应、完整工具调用轨迹、`/new` `/reset` `/compact` `/status` 命令、自动上下文压缩 |
+| **工作会话** | 独立运行环境，可配置模型、工具集、工作目录、记忆策略；支持创建/切换/重命名/删除/设为默认 |
+| **跨会话协作** | 查看所有会话、查询其他会话历史、向其他会话派发任务、获取实时状态 |
+| **智能记忆** | 双层记忆（短期消息 + 长期记忆）；混合检索（向量 + BM25）+ MMR 重排 + 时间衰减 + Evergreen |
+| **外部通道** | QQ 官方机器人接入，支持频道/私信/群消息/@触发；三级会话映射；WebSocket 实时消息路由 |
+| **浏览器自动化** | 基于 Playwright 的完整控制：导航/点击/输入/滚动/截图/下拉选择/键盘模拟/等待条件 |
+| **自动化任务** | 固定间隔 / 每日 / 每周调度，结果写入工作会话，可视化管理 |
+| **Skills** | 自动发现本地 skills，按工作会话独立启停，支持 `AGENTS.md` / `TOOLS.md` 项目级提示 |
+| **MCP 服务** | 内置 MCP 服务管理页面，可视化配置和管理 |
+| **工具系统** | 5 种预设配置（MINIMAL / STANDARD / CODING / MESSAGING / FULL），allow/deny 白名单，超时控制，敏感字段自动隐藏 |
 
-- 流式聊天响应（SSE）
-- 每条回复保留运行轨迹和工具调用事件
-- 支持聊天命令：`/new` `/reset` `/compact` `/status`
-
-### 2. 工作会话
-
-- 创建、切换、重命名、删除工作会话
-- 设置默认工作会话
-- 每个工作会话独立维护：
-  - `workspace_path` — 本地工作目录
-  - `model / provider` — 模型配置
-  - `tool_profile` / `tool_allow` / `tool_deny` — 工具过滤
-  - `max_iterations` — Agent 循环上限
-  - `context_summary` — 上下文摘要
-  - `memory_auto_extract` / `memory_threshold` — 记忆策略
-
-### 3. Skills 与提示注入
-
-- 自动发现本地 skills
-- 为不同工作会话独立启停 skills
-- 支持项目级提示文件：`AGENTS.md`、`TOOLS.md`
-
-### 4. 跨会话协作
-
-- `sessions_list` — 查看所有工作会话
-- `sessions_history` — 查询其他会话历史
-- `sessions_send` — 向其他会话派发任务
-- `session_status` — 获取会话状态
-
-### 5. 自动化
-
-- 创建、编辑、启停、删除自动化任务
-- 支持调度类型：固定间隔 / 每日 / 每周
-- 自动化结果写入对应工作会话历史和运行记录
-
-### 6. 长期记忆
-
-- 长期记忆列表、搜索、筛选、排序
-- 支持来源区分：手动创建 / 会话摘要 / 自动提炼
-- 支持记忆检索参数配置：top-k、最低相关度、混合检索权重、MMR 重排、时间衰减
-
-### 7. 外部通道
-
-- 创建、配置、启停外部消息通道
-- 支持 QQ 官方机器人接入
-- WebSocket 网关实现实时消息路由
-- 通道与会话映射，保持上下文持久化
-- 支持单通道多聊天会话
+---
 
 ## 技术栈
 
@@ -88,6 +69,8 @@ MyClaw 是一个面向个人使用的精简 Agent 平台，主入口是 React + 
 | 向量嵌入 | sentence-transformers 2.2.0 |
 | 浏览器自动化 | Playwright |
 | 任务调度 | croniter |
+
+---
 
 ## 项目结构
 
@@ -125,110 +108,12 @@ myclaw/
 │  │  └─ main.py              # 应用入口
 │  ├─ tests/                  # 单元测试
 │  └─ requirements.txt
-├─ docs/                      # 项目文档
+├─ docs/                      # 项目文档 + 截图资源
 ├─ start_all.ps1              # Windows 一键启动脚本
 └─ README.md
 ```
 
-## 数据库 Schema
-
-### conversations
-
-| 字段 | 类型 | 描述 |
-| --- | --- | --- |
-| id | INTEGER | 主键，自增 |
-| title | TEXT | 会话标题 |
-| created_at | DATETIME | 创建时间 |
-| updated_at | DATETIME | 更新时间 |
-
-### messages
-
-| 字段 | 类型 | 描述 |
-| --- | --- | --- |
-| id | INTEGER | 主键 |
-| conversation_id | INTEGER | 外键，关联 conversation |
-| role | TEXT | 角色 (user / assistant) |
-| content | TEXT | 消息内容 |
-| embedding | BLOB | 向量嵌入 |
-| created_at | DATETIME | 创建时间 |
-
-### long_term_memory
-
-| 字段 | 类型 | 描述 |
-| --- | --- | --- |
-| id | INTEGER | 主键 |
-| key | TEXT | 记忆键（可选） |
-| content | TEXT | 记忆内容 |
-| embedding | BLOB | 向量嵌入 |
-| importance | FLOAT | 重要性评分 (0-1) |
-| source | TEXT | 记忆来源 |
-| created_at | DATETIME | 创建时间 |
-
-### channels
-
-| 字段 | 类型 | 描述 |
-| --- | --- | --- |
-| id | INTEGER | 主键，自增 |
-| name | TEXT | 通道名称 |
-| channel_type | TEXT | 通道类型 (如 qq_official) |
-| enabled | BOOLEAN | 是否启用 |
-| config | TEXT | 通道配置 (JSON) |
-| conversation_id | INTEGER | 外键，关联默认会话 |
-| status | TEXT | 通道状态 (stopped / running / error) |
-| status_message | TEXT | 状态消息或错误信息 |
-| last_event_at | DATETIME | 最后事件时间 |
-| created_at | DATETIME | 创建时间 |
-| updated_at | DATETIME | 更新时间 |
-
-### channel_chats
-
-| 字段 | 类型 | 描述 |
-| --- | --- | --- |
-| id | INTEGER | 主键 |
-| channel_id | INTEGER | 外键，关联通道 |
-| external_chat_id | TEXT | 外部平台聊天 ID |
-| external_chat_type | TEXT | 聊天类型 (private / group) |
-| conversation_id | INTEGER | 外键，关联映射的会话 |
-| external_user_id | TEXT | 外部用户 ID |
-| external_user_name | TEXT | 外部用户显示名 |
-| last_message_at | DATETIME | 最后消息时间 |
-| created_at | DATETIME | 创建时间 |
-| updated_at | DATETIME | 更新时间 |
-
-## 工具系统
-
-工具系统使用注册表模式进行动态工具注册和管理：
-
-- **注册工具**：通过 `ToolRegistry` 注册新工具
-- **执行工具**：通过 `ToolExecutor` 执行工具调用
-- **工具过滤**：支持 allow / deny 列表控制可用工具
-
-### 内置工具
-
-| 工具名 | 描述 |
-| --- | --- |
-| `get_current_time` | 获取当前时间 |
-| `browser_start` | 启动浏览器 |
-| `browser_navigate` | 导航到 URL |
-| `browser_snapshot` | 获取页面快照 |
-| `browser_screenshot` | 截取页面或元素截图 |
-| `browser_click` | 点击页面元素 |
-| `browser_type` | 在元素中输入文本 |
-| `browser_hover` | 悬停在页面元素上 |
-| `browser_wait` | 等待条件 |
-| `browser_scroll` | 滚动页面 |
-| `browser_press` | 模拟键盘按键 |
-| `browser_select` | 在下拉菜单中选择选项 |
-| `browser_history` | 导航浏览器历史（前进 / 后退） |
-| `browser_stop` | 停止浏览器 |
-| `web_search` | 网络搜索 |
-
-## 记忆搜索特性
-
-- **混合搜索**：结合向量相似度和文本匹配
-- **MMR 重排**：最大边际相关性，获得多样化结果
-- **时间衰减**：基于时间的相关性评分
-- **可配置参数**：`top_k`、`min_score`、`vector_weight` / `text_weight`、`mmr_lambda`、`half_life_days`
+---
 
 ## 快速开始
 
@@ -277,98 +162,7 @@ npm run dev
 3. 填入模型 API Key
 4. 保存配置
 
-## 主要 API
-
-### 聊天
-
-| 端点 | 方法 | 描述 |
-| --- | --- | --- |
-| `/api/chat/stream` | POST | 流式聊天（SSE） |
-
-### 工作会话
-
-| 端点 | 方法 | 描述 |
-| --- | --- | --- |
-| `/api/sessions` | GET / POST | 列表 / 创建工作会话 |
-| `/api/sessions/{id}` | PUT / DELETE | 更新 / 删除工作会话 |
-| `/api/sessions/{id}/status` | GET | 获取会话状态 |
-| `/api/sessions/{id}/dispatch` | POST | 向会话派发任务 |
-| `/api/sessions/{id}/history-summary` | GET | 获取会话历史摘要 |
-
-### Skills
-
-| 端点 | 方法 | 描述 |
-| --- | --- | --- |
-| `/api/skills` | GET | 获取可用 skills |
-| `/api/sessions/{id}/skills` | GET / PUT | 获取 / 更新会话 skills |
-
-### 自动化
-
-| 端点 | 方法 | 描述 |
-| --- | --- | --- |
-| `/api/automations` | GET / POST | 列表 / 创建自动化任务 |
-| `/api/automations/{id}` | PUT / DELETE | 更新 / 删除自动化任务 |
-| `/api/automations/{id}/runs` | GET | 获取运行记录 |
-
-### 记忆
-
-| 端点 | 方法 | 描述 |
-| --- | --- | --- |
-| `/api/memory/long-term` | GET / POST | 长期记忆列表 / 创建 |
-| `/api/memory/long-term/{id}` | PUT / DELETE | 更新 / 删除长期记忆 |
-| `/api/memory/search` | POST | 语义记忆搜索 |
-
-### 通道
-
-| 端点 | 方法 | 描述 |
-| --- | --- | --- |
-| `/api/channels` | GET / POST | 列表 / 创建通道 |
-| `/api/channels/{id}` | PUT / DELETE | 更新 / 删除通道 |
-| `/api/channels/{id}/start` | POST | 启动通道 |
-| `/api/channels/{id}/stop` | POST | 停止通道 |
-| `/api/channels/{id}/chats` | GET | 获取通道聊天列表 |
-| `/ws/gateway` | WebSocket | 网关 WebSocket 连接 |
-
-启动后访问 [http://localhost:8000/docs](http://localhost:8000/docs) 查看完整 API 文档（Swagger UI）。
-
-## 测试
-
-后端测试可在 `backend` 目录运行：
-
-```powershell
-$env:PYTHONPATH='D:\Project\Me\myclaw-new\myclaw\backend'
-python -m unittest discover -s tests -p "test_*.py"
-```
-
-当前已通过的测试：
-
-- `test_session_service.py`
-- `test_automation_service.py`
-- `test_memory_api.py`
-- `test_tool_executor.py`
-- `test_agent_loop_prompting.py`
-- `test_time_tool.py`
-
-前端构建验证：
-
-```powershell
-cd frontend
-npm run build
-```
-
-## 当前已知边界
-
-- 当前定位为个人单用户版本，不包含团队、多租户支持
-- 安全审批、沙箱隔离、提权控制暂未作为本阶段重点
-- Canvas、语音、移动端节点、插件市场暂未纳入
-- 历史聊天内容如果本身是英文，会按原始消息内容展示，不会被 UI 翻译
-
-## 开发建议
-
-- 优先通过工作会话隔离不同项目
-- 对长期任务优先使用自动化而不是手动重复触发
-- 对固定项目目录建议配置 `workspace_path` 和本地 skills
-- 使用外部通道接入 QQ 等消息平台
+---
 
 ## License
 
