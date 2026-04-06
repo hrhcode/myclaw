@@ -4,6 +4,7 @@ from typing import List, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.dao._utils import commit_or_flush
 from app.models.models import LongTermMemory
 
 logger = logging.getLogger(__name__)
@@ -22,6 +23,8 @@ class MemoryDAO:
         content_type: str = "note",
         group_id: Optional[str] = None,
         origin_message_id: Optional[int] = None,
+        *,
+        commit: bool = True,
     ) -> LongTermMemory:
         memory = LongTermMemory(
             session_id=session_id,
@@ -35,7 +38,7 @@ class MemoryDAO:
             origin_message_id=origin_message_id,
         )
         db.add(memory)
-        await db.commit()
+        await commit_or_flush(db, commit)
         await db.refresh(memory)
         logger.info("[DAO-Memory] created long-term memory id=%s", memory.id)
         return memory
@@ -64,6 +67,8 @@ class MemoryDAO:
         importance: Optional[float] = None,
         source: Optional[str] = None,
         content_type: Optional[str] = None,
+        *,
+        commit: bool = True,
     ) -> Optional[LongTermMemory]:
         memory = await MemoryDAO.get_by_id(db, memory_id)
         if not memory:
@@ -83,19 +88,19 @@ class MemoryDAO:
         if content_type is not None:
             memory.content_type = content_type
 
-        await db.commit()
+        await commit_or_flush(db, commit)
         await db.refresh(memory)
         return memory
 
     @staticmethod
-    async def delete(db: AsyncSession, memory_id: int) -> bool:
+    async def delete(db: AsyncSession, memory_id: int, *, commit: bool = True) -> bool:
         memory = await MemoryDAO.get_by_id(db, memory_id)
         if not memory:
             logger.warning("[DAO-Memory] delete failed, memory not found id=%s", memory_id)
             return False
 
         await db.delete(memory)
-        await db.commit()
+        await commit_or_flush(db, commit)
         return True
 
     @staticmethod
@@ -183,13 +188,13 @@ class MemoryDAO:
         return items
 
     @staticmethod
-    async def delete_group_or_item(db: AsyncSession, identifier: str) -> int:
+    async def delete_group_or_item(db: AsyncSession, identifier: str, *, commit: bool = True) -> int:
         if identifier.isdigit():
             memory = await MemoryDAO.get_by_id(db, int(identifier))
             if not memory:
                 return 0
             await db.delete(memory)
-            await db.commit()
+            await commit_or_flush(db, commit)
             return 1
 
         result = await db.execute(
@@ -201,5 +206,5 @@ class MemoryDAO:
 
         for record in records:
             await db.delete(record)
-        await db.commit()
+        await commit_or_flush(db, commit)
         return len(records)

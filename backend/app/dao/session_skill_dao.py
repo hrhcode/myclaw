@@ -5,6 +5,7 @@ from typing import List
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.dao._utils import commit_or_flush
 from app.models.models import SessionSkill
 
 
@@ -17,7 +18,7 @@ class SessionSkillDAO:
         return list(result.scalars().all())
 
     @staticmethod
-    async def replace_for_session(db: AsyncSession, session_id: int, skills: list[dict]) -> List[SessionSkill]:
+    async def replace_for_session(db: AsyncSession, session_id: int, skills: list[dict], *, commit: bool = True) -> List[SessionSkill]:
         await db.execute(delete(SessionSkill).where(SessionSkill.session_id == session_id))
         records: List[SessionSkill] = []
         for item in skills:
@@ -29,7 +30,7 @@ class SessionSkillDAO:
             )
             db.add(record)
             records.append(record)
-        await db.commit()
+        await commit_or_flush(db, commit)
         for record in records:
             await db.refresh(record)
         return records

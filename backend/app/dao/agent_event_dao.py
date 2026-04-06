@@ -4,6 +4,7 @@ from typing import List, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.dao._utils import commit_or_flush
 from app.models.models import AgentEvent
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,8 @@ class AgentEventDAO:
         payload: str,
         sequence: int,
         message_id: Optional[int] = None,
+        *,
+        commit: bool = True,
     ) -> AgentEvent:
         agent_event = AgentEvent(
             session_id=session_id,
@@ -31,7 +34,7 @@ class AgentEventDAO:
             sequence=sequence,
         )
         db.add(agent_event)
-        await db.commit()
+        await commit_or_flush(db, commit)
         await db.refresh(agent_event)
         return agent_event
 
@@ -72,6 +75,8 @@ class AgentEventDAO:
         db: AsyncSession,
         run_id: str,
         message_id: int,
+        *,
+        commit: bool = True,
     ) -> int:
         events = await AgentEventDAO.list_by_run_id(db, run_id)
         if not events:
@@ -80,5 +85,5 @@ class AgentEventDAO:
         for event in events:
             event.message_id = message_id
 
-        await db.commit()
+        await commit_or_flush(db, commit)
         return len(events)

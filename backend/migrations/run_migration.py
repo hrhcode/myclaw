@@ -1,6 +1,12 @@
 """
-数据库迁移脚本：添加嵌入缓存、长期记忆扩展字段和FTS5全文搜索
-运行方式：cd backend && python -m migrations.run_migration
+[已弃用] 此迁移脚本的逻辑已全部吸收至 app/core/bootstrap.py。
+
+启动时 bootstrap.ensure_runtime_schema() 会自动处理：
+- embedding_cache 表及索引创建
+- long_term_memory 新列（content_hash, is_evergreen, embedding_generated_at）
+- FTS5 虚拟表（messages_fts, long_term_memory_fts）及同步触发器
+
+此脚本保留仅供调试参考，不再需要手动执行。
 """
 import asyncio
 import sys

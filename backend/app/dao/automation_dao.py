@@ -6,6 +6,7 @@ from typing import List, Optional
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.dao._utils import commit_or_flush
 from app.models.models import AgentEvent, Automation, AutomationRun, Message
 
 
@@ -29,32 +30,31 @@ class AutomationDAO:
         return await db.get(Automation, automation_id)
 
     @staticmethod
-    async def create(db: AsyncSession, **kwargs) -> Automation:
+    async def create(db: AsyncSession, *, commit: bool = True, **kwargs) -> Automation:
         automation = Automation(**kwargs)
         db.add(automation)
-        await db.commit()
+        await commit_or_flush(db, commit)
         await db.refresh(automation)
         return automation
 
     @staticmethod
-    async def update(db: AsyncSession, automation: Automation, **changes) -> Automation:
+    async def update(db: AsyncSession, automation: Automation, *, commit: bool = True, **changes) -> Automation:
         for key, value in changes.items():
             setattr(automation, key, value)
-        await db.commit()
+        await commit_or_flush(db, commit)
         await db.refresh(automation)
         return automation
 
     @staticmethod
-    async def delete(db: AsyncSession, automation: Automation) -> None:
+    async def delete(db: AsyncSession, automation: Automation, *, commit: bool = True) -> None:
         await db.delete(automation)
-        await db.commit()
+        await commit_or_flush(db, commit)
 
 
 class AutomationRunDAO:
     @staticmethod
     async def list_all(db: AsyncSession, limit: int = 100) -> List[tuple]:
         """Return (AutomationRun, automation_name, response_snippet) tuples, ordered by triggered_at DESC."""
-        # Subquery: for each run_id, pick the latest agent_event that has a message_id
         last_event = (
             select(
                 AgentEvent.run_id.label("run_id"),
@@ -80,18 +80,18 @@ class AutomationRunDAO:
         return list(result.all())
 
     @staticmethod
-    async def create(db: AsyncSession, **kwargs) -> AutomationRun:
+    async def create(db: AsyncSession, *, commit: bool = True, **kwargs) -> AutomationRun:
         record = AutomationRun(**kwargs)
         db.add(record)
-        await db.commit()
+        await commit_or_flush(db, commit)
         await db.refresh(record)
         return record
 
     @staticmethod
-    async def update(db: AsyncSession, run: AutomationRun, **changes) -> AutomationRun:
+    async def update(db: AsyncSession, run: AutomationRun, *, commit: bool = True, **changes) -> AutomationRun:
         for key, value in changes.items():
             setattr(run, key, value)
-        await db.commit()
+        await commit_or_flush(db, commit)
         await db.refresh(run)
         return run
 

@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.dao._utils import commit_or_flush
 from app.models.models import Channel, ChannelChat
 
 
@@ -31,25 +32,25 @@ class ChannelDAO:
         return list(result.scalars().all())
 
     @staticmethod
-    async def create(db: AsyncSession, **kwargs) -> Channel:
+    async def create(db: AsyncSession, *, commit: bool = True, **kwargs) -> Channel:
         channel = Channel(**kwargs)
         db.add(channel)
-        await db.commit()
+        await commit_or_flush(db, commit)
         await db.refresh(channel)
         return channel
 
     @staticmethod
-    async def update(db: AsyncSession, channel: Channel, **changes) -> Channel:
+    async def update(db: AsyncSession, channel: Channel, *, commit: bool = True, **changes) -> Channel:
         for key, value in changes.items():
             setattr(channel, key, value)
-        await db.commit()
+        await commit_or_flush(db, commit)
         await db.refresh(channel)
         return channel
 
     @staticmethod
-    async def delete(db: AsyncSession, channel: Channel) -> None:
+    async def delete(db: AsyncSession, channel: Channel, *, commit: bool = True) -> None:
         await db.delete(channel)
-        await db.commit()
+        await commit_or_flush(db, commit)
 
 
 class ChannelChatDAO:
@@ -63,6 +64,8 @@ class ChannelChatDAO:
         channel_id: int,
         external_chat_id: str,
         external_chat_type: str,
+        *,
+        commit: bool = True,
     ) -> ChannelChat:
         result = await db.execute(
             select(ChannelChat).where(
@@ -80,7 +83,7 @@ class ChannelChatDAO:
             external_chat_type=external_chat_type,
         )
         db.add(chat)
-        await db.commit()
+        await commit_or_flush(db, commit)
         await db.refresh(chat)
         return chat
 
@@ -95,10 +98,10 @@ class ChannelChatDAO:
 
     @staticmethod
     async def update_conversation(
-        db: AsyncSession, chat: ChannelChat, conversation_id: int
+        db: AsyncSession, chat: ChannelChat, conversation_id: int, *, commit: bool = True
     ) -> ChannelChat:
         chat.conversation_id = conversation_id
         chat.last_message_at = _utc_now()
-        await db.commit()
+        await commit_or_flush(db, commit)
         await db.refresh(chat)
         return chat

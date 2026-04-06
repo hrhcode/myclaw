@@ -11,30 +11,7 @@ from app.models.models import Session
 
 async def ensure_runtime_schema(engine: AsyncEngine) -> None:
     async with engine.begin() as conn:
-        await conn.execute(
-            text(
-                """
-                CREATE TABLE IF NOT EXISTS sessions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name VARCHAR NOT NULL UNIQUE,
-                    mode VARCHAR NOT NULL DEFAULT 'personal',
-                    workspace_path VARCHAR,
-                    model VARCHAR,
-                    provider VARCHAR,
-                    tool_profile VARCHAR NOT NULL DEFAULT 'full',
-                    tool_allow TEXT,
-                    tool_deny TEXT,
-                    max_iterations INTEGER NOT NULL DEFAULT 30,
-                    context_summary TEXT,
-                    memory_auto_extract BOOLEAN NOT NULL DEFAULT 0,
-                    memory_threshold INTEGER NOT NULL DEFAULT 8,
-                    is_default BOOLEAN NOT NULL DEFAULT 0,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-                """
-            )
-        )
+        # ── 列迁移（兼容旧数据库） ──────────────────────────────
         await _ensure_column(conn, "conversations", "session_id", "INTEGER")
         await _ensure_column(conn, "conversations", "rule", "TEXT")
         await _ensure_column(conn, "messages", "session_id", "INTEGER")
@@ -43,134 +20,25 @@ async def ensure_runtime_schema(engine: AsyncEngine) -> None:
         await _ensure_column(conn, "long_term_memory", "content_type", "VARCHAR NOT NULL DEFAULT 'note'")
         await _ensure_column(conn, "long_term_memory", "group_id", "VARCHAR")
         await _ensure_column(conn, "long_term_memory", "origin_message_id", "INTEGER")
+        await _ensure_column(conn, "long_term_memory", "content_hash", "VARCHAR(255)")
+        await _ensure_column(conn, "long_term_memory", "is_evergreen", "BOOLEAN DEFAULT 0")
+        await _ensure_column(conn, "long_term_memory", "embedding_generated_at", "TIMESTAMP")
         await _ensure_column(conn, "tool_calls", "session_id", "INTEGER")
         await _ensure_column(conn, "agent_events", "session_id", "INTEGER")
-        await conn.execute(
-            text(
-                """
-                CREATE TABLE IF NOT EXISTS session_skills (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    session_id INTEGER NOT NULL,
-                    skill_name VARCHAR NOT NULL,
-                    skill_path VARCHAR NOT NULL,
-                    enabled BOOLEAN NOT NULL DEFAULT 1,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
-                )
-                """
-            )
-        )
-        await conn.execute(
-            text(
-                """
-                CREATE TABLE IF NOT EXISTS automations (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name VARCHAR NOT NULL,
-                    conversation_id INTEGER,
-                    session_id INTEGER NOT NULL,
-                    prompt TEXT NOT NULL,
-                    schedule_type VARCHAR NOT NULL,
-                    schedule_value VARCHAR NOT NULL,
-                    timezone VARCHAR NOT NULL DEFAULT 'UTC',
-                    enabled BOOLEAN NOT NULL DEFAULT 1,
-                    last_run_at DATETIME,
-                    next_run_at DATETIME,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
-                    FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
-                )
-                """
-            )
-        )
-        await conn.execute(
-            text(
-                """
-                CREATE TABLE IF NOT EXISTS automation_runs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    automation_id INTEGER NOT NULL,
-                    session_id INTEGER NOT NULL,
-                    status VARCHAR NOT NULL DEFAULT 'pending',
-                    trigger_mode VARCHAR NOT NULL DEFAULT 'scheduled',
-                    triggered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    completed_at DATETIME,
-                    error TEXT,
-                    run_id VARCHAR,
-                    FOREIGN KEY(automation_id) REFERENCES automations(id) ON DELETE CASCADE,
-                    FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
-                )
-                """
-            )
-        )
         await _ensure_column(conn, "automations", "conversation_id", "INTEGER")
         await _ensure_column(conn, "automations", "timezone", "VARCHAR NOT NULL DEFAULT 'UTC'")
         await _ensure_column(conn, "automation_runs", "trigger_mode", "VARCHAR NOT NULL DEFAULT 'scheduled'")
         await _ensure_column(conn, "automation_runs", "conversation_id", "INTEGER")
-        # 迁移 channels.session_id → conversation_id
+
+        # ── 数据迁移 ────────────────────────────────────────────
         await _migrate_channel_session_to_conversation(conn)
-        # 迁移 channel_chats.session_id → conversation_id
         await _migrate_channel_chat_session_to_conversation(conn)
-        await conn.execute(
-            text(
-                """
-                CREATE TABLE IF NOT EXISTS agent_runs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    run_id VARCHAR NOT NULL UNIQUE,
-                    session_id INTEGER NOT NULL,
-                    conversation_id INTEGER NOT NULL,
-                    user_message TEXT NOT NULL,
-                    stop_reason VARCHAR,
-                    compacted_summary TEXT,
-                    started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    completed_at DATETIME,
-                    FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE,
-                    FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
-                )
-                """
-            )
-        )
-        await conn.execute(
-            text(
-                """
-                CREATE TABLE IF NOT EXISTS channels (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name VARCHAR NOT NULL,
-                    channel_type VARCHAR NOT NULL,
-                    enabled BOOLEAN NOT NULL DEFAULT 1,
-                    config TEXT NOT NULL DEFAULT '{}',
-                    conversation_id INTEGER,
-                    status VARCHAR NOT NULL DEFAULT 'stopped',
-                    status_message TEXT,
-                    last_event_at DATETIME,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE SET NULL
-                )
-                """
-            )
-        )
-        await conn.execute(
-            text(
-                """
-                CREATE TABLE IF NOT EXISTS channel_chats (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    channel_id INTEGER NOT NULL,
-                    external_chat_id VARCHAR NOT NULL,
-                    external_chat_type VARCHAR NOT NULL,
-                    conversation_id INTEGER,
-                    external_user_id VARCHAR,
-                    external_user_name VARCHAR,
-                    last_message_at DATETIME,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY(channel_id) REFERENCES channels(id) ON DELETE CASCADE,
-                    FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE SET NULL,
-                    UNIQUE(channel_id, external_chat_id)
-                )
-                """
-            )
-        )
+
+        # ── embedding_cache 表（ORM create_all 不处理此表的索引） ─
+        await _ensure_embedding_cache(conn)
+
+        # ── FTS5 全文搜索虚拟表 + 触发器 ─────────────────────────
+        await _ensure_fts_tables(conn)
 
 
 async def ensure_default_session(db: AsyncSession) -> Session:
@@ -232,6 +100,106 @@ async def _ensure_column(conn, table_name: str, column_name: str, column_sql: st
     columns = {row[1] for row in result.fetchall()}
     if column_name not in columns:
         await conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_sql}"))
+
+
+async def _ensure_embedding_cache(conn) -> None:
+    """确保 embedding_cache 表及其索引存在。"""
+    result = await conn.execute(
+        text("SELECT name FROM sqlite_master WHERE type='table' AND name='embedding_cache'")
+    )
+    if result.fetchone():
+        return
+
+    await conn.execute(text("""
+        CREATE TABLE embedding_cache (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            content_hash VARCHAR(255) NOT NULL UNIQUE,
+            embedding BLOB NOT NULL,
+            model VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_accessed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            access_count INTEGER DEFAULT 0
+        )
+    """))
+    await conn.execute(text("""
+        CREATE INDEX idx_embedding_cache_content_hash
+        ON embedding_cache(content_hash)
+    """))
+    await conn.execute(text("""
+        CREATE INDEX idx_embedding_cache_last_accessed
+        ON embedding_cache(last_accessed_at)
+    """))
+
+
+async def _ensure_fts_tables(conn) -> None:
+    """确保 FTS5 全文搜索虚拟表和同步触发器存在。"""
+    # messages_fts
+    result = await conn.execute(
+        text("SELECT name FROM sqlite_master WHERE type='table' AND name='messages_fts'")
+    )
+    if not result.fetchone():
+        await conn.execute(text("""
+            CREATE VIRTUAL TABLE messages_fts USING fts5(
+                content,
+                content='messages',
+                content_rowid='id'
+            )
+        """))
+
+    # long_term_memory_fts
+    result = await conn.execute(
+        text("SELECT name FROM sqlite_master WHERE type='table' AND name='long_term_memory_fts'")
+    )
+    if not result.fetchone():
+        await conn.execute(text("""
+            CREATE VIRTUAL TABLE long_term_memory_fts USING fts5(
+                content,
+                content='long_term_memory',
+                content_rowid='id'
+            )
+        """))
+
+    # messages FTS5 触发器
+    result = await conn.execute(
+        text("SELECT name FROM sqlite_master WHERE type='trigger' AND name='messages_fts_insert'")
+    )
+    if not result.fetchone():
+        await conn.execute(text("""
+            CREATE TRIGGER messages_fts_insert AFTER INSERT ON messages BEGIN
+                INSERT INTO messages_fts(rowid, content) VALUES (new.id, new.content);
+            END
+        """))
+        await conn.execute(text("""
+            CREATE TRIGGER messages_fts_update AFTER UPDATE ON messages BEGIN
+                UPDATE messages_fts SET content = new.content WHERE rowid = new.id;
+            END
+        """))
+        await conn.execute(text("""
+            CREATE TRIGGER messages_fts_delete AFTER DELETE ON messages BEGIN
+                DELETE FROM messages_fts WHERE rowid = old.id;
+            END
+        """))
+
+    # long_term_memory FTS5 触发器
+    result = await conn.execute(
+        text("SELECT name FROM sqlite_master WHERE type='trigger' AND name='long_term_memory_fts_insert'")
+    )
+    if not result.fetchone():
+        await conn.execute(text("""
+            CREATE TRIGGER long_term_memory_fts_insert AFTER INSERT ON long_term_memory BEGIN
+                INSERT INTO long_term_memory_fts(rowid, content) VALUES (new.id, new.content);
+            END
+        """))
+        await conn.execute(text("""
+            CREATE TRIGGER long_term_memory_fts_update AFTER UPDATE ON long_term_memory BEGIN
+                UPDATE long_term_memory_fts SET content = new.content WHERE rowid = new.id;
+            END
+        """))
+        await conn.execute(text("""
+            CREATE TRIGGER long_term_memory_fts_delete AFTER DELETE ON long_term_memory BEGIN
+                DELETE FROM long_term_memory_fts WHERE rowid = old.id;
+            END
+        """))
 
 
 async def _migrate_channel_session_to_conversation(conn) -> None:

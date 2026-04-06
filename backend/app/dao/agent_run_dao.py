@@ -5,15 +5,16 @@ from typing import List, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.dao._utils import commit_or_flush
 from app.models.models import AgentRun
 
 
 class AgentRunDAO:
     @staticmethod
-    async def create(db: AsyncSession, **kwargs) -> AgentRun:
+    async def create(db: AsyncSession, *, commit: bool = True, **kwargs) -> AgentRun:
         record = AgentRun(**kwargs)
         db.add(record)
-        await db.commit()
+        await commit_or_flush(db, commit)
         await db.refresh(record)
         return record
 
@@ -23,10 +24,10 @@ class AgentRunDAO:
         return result.scalar_one_or_none()
 
     @staticmethod
-    async def update(db: AsyncSession, record: AgentRun, **changes) -> AgentRun:
+    async def update(db: AsyncSession, record: AgentRun, *, commit: bool = True, **changes) -> AgentRun:
         for key, value in changes.items():
             setattr(record, key, value)
-        await db.commit()
+        await commit_or_flush(db, commit)
         await db.refresh(record)
         return record
 

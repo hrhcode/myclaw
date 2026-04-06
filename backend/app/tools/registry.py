@@ -109,13 +109,13 @@ class ToolRegistry:
     
     def get_tools_schemas(self) -> List[Dict[str, Any]]:
         """
-        获取所有工具的智谱 Schema 格式
-        
+        获取所有工具的 OpenAI Schema 格式
+
         Returns:
-            智谱工具 Schema 列表
+            OpenAI 工具 Schema 列表
         """
-        from app.tools.schemas import tools_to_zhipu_schemas
-        return tools_to_zhipu_schemas(self.list_enabled_tools())
+        from app.tools.schemas import tools_to_openai_schemas
+        return tools_to_openai_schemas(self.list_enabled_tools())
 
 
 tool_registry = ToolRegistry()

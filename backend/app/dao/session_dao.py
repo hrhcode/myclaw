@@ -5,6 +5,7 @@ from typing import List, Optional
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.dao._utils import commit_or_flush
 from app.models.models import Session
 
 
@@ -40,6 +41,7 @@ class SessionDAO:
         memory_auto_extract: bool = False,
         memory_threshold: int = 8,
         is_default: bool = False,
+        commit: bool = True,
     ) -> Session:
         if is_default:
             await db.execute(update(Session).values(is_default=False))
@@ -59,21 +61,21 @@ class SessionDAO:
             is_default=is_default,
         )
         db.add(session)
-        await db.commit()
+        await commit_or_flush(db, commit)
         await db.refresh(session)
         return session
 
     @staticmethod
-    async def update(db: AsyncSession, session: Session, **changes) -> Session:
+    async def update(db: AsyncSession, session: Session, *, commit: bool = True, **changes) -> Session:
         if changes.get("is_default"):
             await db.execute(update(Session).values(is_default=False))
         for key, value in changes.items():
             setattr(session, key, value)
-        await db.commit()
+        await commit_or_flush(db, commit)
         await db.refresh(session)
         return session
 
     @staticmethod
-    async def delete(db: AsyncSession, session: Session) -> None:
+    async def delete(db: AsyncSession, session: Session, *, commit: bool = True) -> None:
         await db.delete(session)
-        await db.commit()
+        await commit_or_flush(db, commit)

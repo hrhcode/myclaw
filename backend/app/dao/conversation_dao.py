@@ -4,17 +4,18 @@ from typing import List, Optional
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.models import Conversation, Message, ToolCall
+from app.dao._utils import commit_or_flush
+from app.models.models import Conversation, Message, ToolCall, AgentEvent, AgentRun, Automation, AutomationRun
 
 logger = logging.getLogger(__name__)
 
 
 class ConversationDAO:
     @staticmethod
-    async def create(db: AsyncSession, title: str, session_id: Optional[int] = None) -> Conversation:
+    async def create(db: AsyncSession, title: str, session_id: Optional[int] = None, *, commit: bool = True) -> Conversation:
         conversation = Conversation(title=title, session_id=session_id)
         db.add(conversation)
-        await db.commit()
+        await commit_or_flush(db, commit)
         await db.refresh(conversation)
         logger.info("[DAO-Conversation] created conversation id=%s", conversation.id)
         return conversation
@@ -42,14 +43,14 @@ class ConversationDAO:
         return list(result.scalars().all())
 
     @staticmethod
-    async def update_title(db: AsyncSession, conversation_id: int, title: str) -> Optional[Conversation]:
+    async def update_title(db: AsyncSession, conversation_id: int, title: str, *, commit: bool = True) -> Optional[Conversation]:
         conversation = await ConversationDAO.get_by_id(db, conversation_id)
         if not conversation:
             logger.warning("[DAO-Conversation] update title failed, not found id=%s", conversation_id)
             return None
 
         conversation.title = title
-        await db.commit()
+        await commit_or_flush(db, commit)
         await db.refresh(conversation)
         return conversation
 
@@ -58,6 +59,8 @@ class ConversationDAO:
         db: AsyncSession,
         conversation_id: int,
         rule: Optional[str],
+        *,
+        commit: bool = True,
     ) -> Optional[Conversation]:
         conversation = await ConversationDAO.get_by_id(db, conversation_id)
         if not conversation:
@@ -65,21 +68,25 @@ class ConversationDAO:
             return None
 
         conversation.rule = rule
-        await db.commit()
+        await commit_or_flush(db, commit)
         await db.refresh(conversation)
         return conversation
 
     @staticmethod
-    async def delete(db: AsyncSession, conversation_id: int) -> bool:
+    async def delete(db: AsyncSession, conversation_id: int, *, commit: bool = True) -> bool:
         conversation = await ConversationDAO.get_by_id(db, conversation_id)
         if not conversation:
             logger.warning("[DAO-Conversation] delete failed, not found id=%s", conversation_id)
             return False
 
+        await db.execute(delete(AgentEvent).where(AgentEvent.conversation_id == conversation_id))
+        await db.execute(delete(AgentRun).where(AgentRun.conversation_id == conversation_id))
+        await db.execute(delete(AutomationRun).where(AutomationRun.conversation_id == conversation_id))
+        await db.execute(delete(Automation).where(Automation.conversation_id == conversation_id))
         await db.execute(delete(ToolCall).where(ToolCall.conversation_id == conversation_id))
         await db.execute(delete(Message).where(Message.conversation_id == conversation_id))
         await db.delete(conversation)
-        await db.commit()
+        await commit_or_flush(db, commit)
         return True
 
     @staticmethod

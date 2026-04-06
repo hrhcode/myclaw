@@ -31,7 +31,7 @@ from app.services.message_service import MessageService
 from app.services.session_service import SessionService
 from app.services.skill_service import SkillService
 from app.services.vector_search_service import hybrid_memory_search
-from app.tools import tool_executor, tool_registry, tools_to_zhipu_schemas
+from app.tools import tool_executor, tool_registry, tools_to_openai_schemas
 from app.tools import groups as tool_groups
 from app.tools.profiles import create_profile_resolver
 from app.tools.loop_detection import LoopSeverity, create_loop_detector
@@ -716,7 +716,7 @@ class AgentLoopController:
         filtered = self._filter_tools(runtime_config)
         if not filtered:
             return None
-        return tools_to_zhipu_schemas(filtered)
+        return tools_to_openai_schemas(filtered)
 
     def _get_prompt_tool_names(self, runtime_config: LoopRuntimeConfig) -> List[str]:
         return [t.name for t in self._filter_tools(runtime_config)]

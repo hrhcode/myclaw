@@ -8,13 +8,16 @@ from app.tools.base import (
     ToolResult,
     ToolParameter,
     BaseTool,
-    create_tool
+    create_tool,
 )
 from app.tools.registry import tool_registry, ToolRegistry
 from app.tools.executor import tool_executor, ToolExecutor
 from app.tools.schemas import (
+    tool_to_openai_schema,
+    tools_to_openai_schemas,
+    # 向后兼容别名
     tool_to_zhipu_schema,
-    tools_to_zhipu_schemas
+    tools_to_zhipu_schemas,
 )
 
 __all__ = [
@@ -27,6 +30,9 @@ __all__ = [
     "ToolRegistry",
     "tool_executor",
     "ToolExecutor",
+    "tool_to_openai_schema",
+    "tools_to_openai_schemas",
+    # 向后兼容
     "tool_to_zhipu_schema",
-    "tools_to_zhipu_schemas"
+    "tools_to_zhipu_schemas",
 ]

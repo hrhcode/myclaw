@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, LargeBinary, Float, Text
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, LargeBinary, Float, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -28,6 +28,7 @@ class Session(Base):
     enabled_skills = relationship("SessionSkill", back_populates="session", cascade="all, delete-orphan")
     automations = relationship("Automation", back_populates="session", cascade="all, delete-orphan")
     agent_runs = relationship("AgentRun", back_populates="session", cascade="all, delete-orphan")
+    long_term_memories = relationship("LongTermMemory", back_populates="session")
 
 
 class Conversation(Base):
@@ -96,6 +97,8 @@ class LongTermMemory(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+    session = relationship("Session", back_populates="long_term_memories")
+
 
 class EmbeddingCache(Base):
     __tablename__ = "embedding_cache"
@@ -127,6 +130,15 @@ class Log(Base):
     __table_args__ = (
         {"sqlite_autoincrement": True}
     )
+
+    @property
+    def timestamp_dt(self):
+        """将 VARCHAR 存储的 timestamp 解析为 datetime 对象。"""
+        from datetime import datetime
+        try:
+            return datetime.fromisoformat(self.timestamp)
+        except (ValueError, TypeError):
+            return None
 
 
 class ToolCall(Base):
@@ -285,5 +297,6 @@ class ChannelChat(Base):
     conversation = relationship("Conversation")
 
     __table_args__ = (
+        UniqueConstraint("channel_id", "external_chat_id", name="uq_channel_chat_channel_external"),
         {"sqlite_autoincrement": True},
     )

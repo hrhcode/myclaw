@@ -83,21 +83,24 @@ class ToolDefinition:
     execute: Callable[[str, Any], Awaitable[Any]]
     enabled: bool = True
 
-    def to_zhipu_tool_schema(self) -> Dict[str, Any]:
+    def to_tool_schema(self) -> Dict[str, Any]:
         """
-        转换为智谱 AI 工具定义格式
-        
+        转换为 OpenAI 兼容的工具定义格式
+
         Returns:
-            智谱工具 Schema 字典
+            工具 Schema 字典
         """
         return {
             "type": "function",
             "function": {
                 "name": self.name,
                 "description": self.description,
-                "parameters": self.parameters
-            }
+                "parameters": self.parameters,
+            },
         }
+
+    # 向后兼容别名
+    to_zhipu_tool_schema = to_tool_schema
 
 
 @dataclass
@@ -178,21 +181,24 @@ class BaseTool(ABC):
         """
         pass
 
-    def to_zhipu_tool_schema(self) -> Dict[str, Any]:
+    def to_tool_schema(self) -> Dict[str, Any]:
         """
-        转换为智谱 AI 工具定义格式
-        
+        转换为 OpenAI 兼容的工具定义格式
+
         Returns:
-            智谱工具 Schema 字典
+            工具 Schema 字典
         """
         return {
             "type": "function",
             "function": {
                 "name": self.name,
                 "description": self.description,
-                "parameters": self.parameters
-            }
+                "parameters": self.parameters,
+            },
         }
+
+    # 向后兼容别名
+    to_zhipu_tool_schema = to_tool_schema
 
 
 def create_tool(
