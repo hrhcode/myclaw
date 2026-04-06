@@ -16,6 +16,8 @@
 
 MyClaw is a lightweight personal edition of [OpenClaw](https://github.com/openclaw/openclaw). OpenClaw is feature-rich but overly complex for individual users — its 22 messaging channels, native mobile apps, voice wake-up, Docker sandbox, and many other features are unnecessary for most personal use cases. MyClaw keeps only the **core capabilities** of OpenClaw (Agent loop, tool system, memory, channel integration, automation) and reimplements them with a Python + React frontend-backend architecture, allowing full configuration and management through the browser.
 
+By default, MyClaw uses the Zhipu GLM-4-Flash model, which is **completely free** — just add an API key and run at zero cost.
+
 <table>
 <tr>
 <td><img src="docs/assets/电脑渠道展示截图.jpg" alt="MyClaw Desktop UI" width="100%"></td>
@@ -37,6 +39,7 @@ MyClaw is a lightweight personal edition of [OpenClaw](https://github.com/opencl
 | **Memory System** | Single memory plugin slot | **Full pipeline**: Vector + BM25 hybrid search + MMR reranking + temporal decay + Evergreen |
 | **Work Sessions** | Channel-based session model | **Independent work sessions**, each with its own model, toolset, working directory, memory strategy |
 | **Learning Curve** | Requires understanding Gateway / CLI / node concepts | **Intuitive operation**, similar to using a regular web app |
+| **Cost** | Need to configure models and API keys yourself | **Free model by default** (GLM-4-Flash), zero cost to run |
 
 ---
 

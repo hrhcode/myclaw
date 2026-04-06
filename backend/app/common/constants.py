@@ -43,9 +43,7 @@ PROVIDERS = {
     "zhipu": {
         "name": "智谱AI",
         "models": [
-            {"id": "glm-4-flash", "name": "GLM-4-Flash (快速响应)"},
-            {"id": "glm-4", "name": "GLM-4 (高性能)"},
-            {"id": "glm-4-plus", "name": "GLM-4-Plus (旗舰)"},
+            {"id": "glm-4-flash", "name": "GLM-4-Flash (免费)"},
         ],
         "api_key_config": API_KEY_KEY,
     },
