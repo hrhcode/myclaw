@@ -16,13 +16,12 @@
 
 MyClaw 是 [OpenClaw](https://github.com/openclaw/openclaw) 的个人精简版。OpenClaw 功能丰富但对个人用户来说过于庞大——22 个消息渠道、原生移动端应用、语音唤醒、Docker 沙箱等大量功能对大多数个人场景是冗余的。MyClaw 只保留 OpenClaw 的**最核心能力**（Agent 循环、工具系统、记忆、通道接入、自动化），并用 Python + React 前后端分离架构重新实现，通过浏览器即可完成全部配置与管理。
 
-<p align="center">
-  <img src="docs/assets/电脑渠道展示截图.jpg" alt="MyClaw 电脑端界面" width="85%">
-</p>
-
-<p align="center">
-  <img src="docs/assets/qq渠道展示截图.jpg" alt="MyClaw QQ 通道界面" width="85%">
-</p>
+<table>
+<tr>
+<td><img src="docs/assets/电脑渠道展示截图.jpg" alt="MyClaw 电脑端界面" width="100%"></td>
+<td><img src="docs/assets/qq渠道展示截图.jpg" alt="MyClaw QQ 通道界面" width="100%"></td>
+</tr>
+</table>
 
 ---
 

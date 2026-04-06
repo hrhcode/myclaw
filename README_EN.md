@@ -16,13 +16,12 @@
 
 MyClaw is a lightweight personal edition of [OpenClaw](https://github.com/openclaw/openclaw). OpenClaw is feature-rich but overly complex for individual users — its 22 messaging channels, native mobile apps, voice wake-up, Docker sandbox, and many other features are unnecessary for most personal use cases. MyClaw keeps only the **core capabilities** of OpenClaw (Agent loop, tool system, memory, channel integration, automation) and reimplements them with a Python + React frontend-backend architecture, allowing full configuration and management through the browser.
 
-<p align="center">
-  <img src="docs/assets/电脑渠道展示截图.jpg" alt="MyClaw Desktop UI" width="85%">
-</p>
-
-<p align="center">
-  <img src="docs/assets/qq渠道展示截图.jpg" alt="MyClaw QQ Channel UI" width="85%">
-</p>
+<table>
+<tr>
+<td><img src="docs/assets/电脑渠道展示截图.jpg" alt="MyClaw Desktop UI" width="100%"></td>
+<td><img src="docs/assets/qq渠道展示截图.jpg" alt="MyClaw QQ Channel UI" width="100%"></td>
+</tr>
+</table>
 
 ---
 
