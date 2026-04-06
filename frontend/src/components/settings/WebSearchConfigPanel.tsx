@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { ExternalLink, Eye, EyeOff } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 
 import type { WebSearchConfig } from "../../services/api";
 import { Switch } from "../admin";
@@ -15,8 +14,6 @@ const sliderBackground = (percent: number) =>
   `linear-gradient(to right, var(--accent) 0%, var(--accent) ${percent}%, var(--panel-border) ${percent}%, var(--panel-border) 100%)`;
 
 const WebSearchConfigPanel: React.FC<WebSearchConfigPanelProps> = ({ config, onChange, onSaveKey, tavilyApiKeySet }) => {
-  const [showTavilyKey, setShowTavilyKey] = useState(false);
-
   return (
     <div className="settings-block">
       <div className="settings-block__head">
@@ -36,19 +33,14 @@ const WebSearchConfigPanel: React.FC<WebSearchConfigPanelProps> = ({ config, onC
             </div>
             <div className="settings-field">
               <label>Tavily API Key</label>
-              <div className="relative">
-                <input
-                  type={showTavilyKey ? "text" : "password"}
-                  value={config.tavily_api_key || ""}
-                  onChange={(e) => onChange("tavily_api_key", e.target.value)}
-                  onBlur={() => void (config.tavily_api_key?.trim() && onSaveKey("tavily_api_key", config.tavily_api_key))}
-                  className="admin-input w-full px-3 py-2.5 pr-10"
-                  placeholder={tavilyApiKeySet ? "已配置，重新输入将覆盖" : "输入后自动保存"}
-                />
-                <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 p-1" onClick={() => setShowTavilyKey((prev) => !prev)} style={{ color: "var(--text-muted)" }}>
-                  {showTavilyKey ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
+              <input
+                type="text"
+                value={config.tavily_api_key || ""}
+                onChange={(e) => onChange("tavily_api_key", e.target.value)}
+                onBlur={() => void (config.tavily_api_key?.trim() && onSaveKey("tavily_api_key", config.tavily_api_key))}
+                className="admin-input w-full px-3 py-2.5"
+                placeholder={tavilyApiKeySet ? "已配置，重新输入将覆盖" : "输入后自动保存"}
+              />
               <a href="https://tavily.com" target="_blank" rel="noreferrer" className="settings-link">
                 <ExternalLink size={12} />
                 获取密钥

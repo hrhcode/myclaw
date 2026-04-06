@@ -94,6 +94,11 @@ def apply_temporal_decay(
     current_time = datetime.now()
     
     for obj, score, source in results:
+        # Evergreen 记忆不衰减
+        if getattr(obj, 'is_evergreen', False):
+            decayed_results.append((obj, score, source))
+            continue
+
         if not obj or not hasattr(obj, 'created_at'):
             decayed_results.append((obj, score, source))
             continue

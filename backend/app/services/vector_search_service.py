@@ -376,7 +376,8 @@ async def hybrid_memory_search(
                     content_type=mem.content_type,
                     score=score,
                     source=f"long_term_memory_{source}",
-                    created_at=mem.created_at
+                    created_at=mem.created_at,
+                    is_evergreen=getattr(mem, 'is_evergreen', False) or False,
                 ))
             logger.info(f"[长期记忆搜索] 找到 {len(memory_results)} 条相关记忆")
         else:
@@ -403,28 +404,14 @@ async def hybrid_memory_search(
                     content_type=mem.content_type,
                     score=score,
                     source="long_term_memory",
-                    created_at=mem.created_at
+                    created_at=mem.created_at,
+                    is_evergreen=getattr(mem, 'is_evergreen', False) or False,
                 ))
             logger.info(f"[长期记忆搜索] 找到 {len(memory_results)} 条相关记忆 (纯向量模式)")
     
     logger.info(f"[混合搜索] 合并结果: {len(results)} 条")
-    
-    if enable_mmr:
-        logger.info(f"[MMR重排序] 开始MMR重排序，lambda={mmr_lambda}")
-        results_with_scores = [(r, r.score, r.source) for r in results]
-        reranked = mmr_rerank(results_with_scores, mmr_lambda, top_k)
-        results = [MemorySearchResult(
-            message_id=r.message_id if hasattr(r, 'message_id') else None,
-            memory_id=r.memory_id if hasattr(r, 'memory_id') else None,
-            title=getattr(r, 'title', None),
-            content=r.content if hasattr(r, 'content') else '',
-            content_type=getattr(r, 'content_type', None),
-            score=score,
-            source=source,
-            created_at=getattr(r, 'created_at', None)
-        ) for r, score, source in reranked]
-        logger.info(f"[MMR重排序] 完成，保留 {len(results)} 条结果")
-    
+
+    # 先时间衰减：让分数反映时效性
     if enable_temporal_decay:
         logger.info(f"[时间衰减] 应用时间衰减，半衰期={half_life_days}天")
         results_with_sources = [(r, r.score, r.source) for r in results]
@@ -437,9 +424,28 @@ async def hybrid_memory_search(
             content_type=getattr(r[0], 'content_type', None),
             score=r[1],
             source=r[2],
-            created_at=getattr(r[0], 'created_at', None)
+            created_at=getattr(r[0], 'created_at', None),
+            is_evergreen=getattr(r[0], 'is_evergreen', False) or False,
         ) for r in decayed]
         logger.debug(f"[时间衰减] 完成")
+
+    # 后 MMR 重排：在衰减后的分数基础上保证多样性
+    if enable_mmr:
+        logger.info(f"[MMR重排序] 开始MMR重排序，lambda={mmr_lambda}")
+        results_with_scores = [(r, r.score, r.source) for r in results]
+        reranked = mmr_rerank(results_with_scores, mmr_lambda, top_k)
+        results = [MemorySearchResult(
+            message_id=r.message_id if hasattr(r, 'message_id') else None,
+            memory_id=r.memory_id if hasattr(r, 'memory_id') else None,
+            title=getattr(r, 'title', None),
+            content=r.content if hasattr(r, 'content') else '',
+            content_type=getattr(r, 'content_type', None),
+            score=score,
+            source=source,
+            created_at=getattr(r, 'created_at', None),
+            is_evergreen=getattr(r, 'is_evergreen', False) or False,
+        ) for r, score, source in reranked]
+        logger.info(f"[MMR重排序] 完成，保留 {len(results)} 条结果")
     
     results.sort(key=lambda x: x.score, reverse=True)
     final_results = results[:top_k]

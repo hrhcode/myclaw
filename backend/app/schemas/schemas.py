@@ -140,6 +140,7 @@ class MemorySearchResult(BaseModel):
     score: float
     source: str
     created_at: Optional[datetime] = None
+    is_evergreen: bool = False
 
     class Config:
         from_attributes = True

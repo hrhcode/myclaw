@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertCircle, CheckCircle, Eye, EyeOff, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle, Loader2 } from "lucide-react";
 
 import MainLayout from "../layout/MainLayout";
-import { SectionCard } from "../admin";
+import { SectionCard, SegmentedTabs } from "../admin";
 import SearchConfigPanel from "../memory/components/SearchConfigPanel";
 import BrowserConfigPanel from "./BrowserConfigPanel";
 import WebSearchConfigPanel from "./WebSearchConfigPanel";
@@ -12,11 +12,13 @@ import {
   getConfig,
   getEmbeddingProviderModels,
   getEmbeddingProviders,
+  getGlobalRuntimeConfig,
   getProviderModels,
   getProviders,
   getWebSearchConfig,
   setBrowserConfig as setBrowserConfigApi,
   setConfig,
+  updateGlobalRuntimeConfig,
   setWebSearchConfig as setWebSearchConfigApi,
 } from "../../services/api";
 import type { BrowserConfig, WebSearchConfig } from "../../services/api";
@@ -105,6 +107,7 @@ const MEMORY_RETRIEVAL_KEYS = Object.keys(
 ) as Array<keyof MemoryRetrievalConfig>;
 
 const SettingsPage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<"system" | "tools">("system");
   const [providers, setProviders] = useState<Provider[]>([]);
   const [models, setModels] = useState<Model[]>([]);
   const [embeddingProviders, setEmbeddingProviders] = useState<Provider[]>([]);
@@ -115,9 +118,7 @@ const SettingsPage: React.FC = () => {
     useState("");
   const [selectedEmbeddingModel, setSelectedEmbeddingModel] = useState("");
   const [apiKey, setApiKey] = useState("");
-  const [showApiKey, setShowApiKey] = useState(false);
   const [openrouterApiKey, setOpenrouterApiKey] = useState("");
-  const [showOpenrouterKey, setShowOpenrouterKey] = useState(false);
   const [webSearchConfig, setWebSearchConfigState] = useState<WebSearchConfig>(
     defaultWebSearchConfig,
   );
@@ -128,6 +129,8 @@ const SettingsPage: React.FC = () => {
   });
   const [browserConfig, setBrowserConfigState] =
     useState<BrowserConfig>(defaultBrowserConfig);
+  const [memoryAutoExtract, setMemoryAutoExtract] = useState(false);
+  const [memoryThreshold, setMemoryThreshold] = useState(8);
   const [memoryRetrievalConfig, setMemoryRetrievalConfig] =
     useState<MemoryRetrievalConfig>(defaultMemoryRetrievalConfig);
   const [isLoading, setIsLoading] = useState(true);
@@ -263,6 +266,11 @@ const SettingsPage: React.FC = () => {
         setBrowserConfigState(
           await getBrowserConfig().catch(() => defaultBrowserConfig),
         );
+        const runtime = await getGlobalRuntimeConfig().catch(() => null);
+        if (runtime) {
+          setMemoryAutoExtract(runtime.memory_auto_extract);
+          setMemoryThreshold(runtime.memory_threshold);
+        }
       } catch (error) {
         console.error("Failed to load settings:", error);
         showMessage("error", "设置加载失败");
@@ -312,60 +320,71 @@ const SettingsPage: React.FC = () => {
       <Toast message={message} />
       <div className="admin-page">
         <div className="admin-frame settings-page-shell settings-page-shell--minimal">
-          <div className="settings-rows">
-            <div className="settings-row-2col">
-              <div className="settings-block">
-                <div className="settings-block__head">
-                  <h3>对话模型</h3>
-                  <span>生成</span>
-                </div>
-                <div className="settings-stack">
-                  <div className="settings-field">
-                    <label>提供方</label>
-                    <select
-                      className="admin-select w-full px-3 py-2.5"
-                      value={selectedProvider}
-                      onChange={(e) =>
-                        void handleProviderChange(e.target.value)
-                      }
-                    >
-                      <option value="">请选择厂商</option>
-                      {providers.map((provider) => (
-                        <option key={provider.id} value={provider.id}>
-                          {provider.name}
-                        </option>
-                      ))}
-                    </select>
+          <div className="settings-tab-bar">
+            <SegmentedTabs
+              tabs={[
+                { key: "system", label: "系统配置" },
+                { key: "tools", label: "工具配置" },
+              ]}
+              activeKey={activeTab}
+              onChange={(key) => setActiveTab(key as "system" | "tools")}
+            />
+          </div>
+
+          {activeTab === "system" ? (
+            <div className="settings-rows">
+              <div className="settings-row-2col">
+                <div className="settings-block">
+                  <div className="settings-block__head">
+                    <h3>对话模型</h3>
+                    <span>生成</span>
                   </div>
-                  <div className="settings-field">
-                    <label>模型</label>
-                    <select
-                      className="admin-select w-full px-3 py-2.5"
-                      value={selectedModel}
-                      onChange={(e) => {
-                        setSelectedModel(e.target.value);
-                        void saveConfigItem(
-                          "llm_model",
-                          e.target.value,
-                          "对话模型",
-                        );
-                      }}
-                      disabled={!selectedProvider}
-                    >
-                      <option value="">请先选择厂商</option>
-                      {models.map((model) => (
-                        <option key={model.id} value={model.id}>
-                          {model.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="settings-field">
-                    <label>智谱 API Key</label>
-                    <div className="relative">
+                  <div className="settings-stack">
+                    <div className="settings-field">
+                      <label>提供方</label>
+                      <select
+                        className="admin-select w-full px-3 py-2.5"
+                        value={selectedProvider}
+                        onChange={(e) =>
+                          void handleProviderChange(e.target.value)
+                        }
+                      >
+                        <option value="">请选择厂商</option>
+                        {providers.map((provider) => (
+                          <option key={provider.id} value={provider.id}>
+                            {provider.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="settings-field">
+                      <label>模型</label>
+                      <select
+                        className="admin-select w-full px-3 py-2.5"
+                        value={selectedModel}
+                        onChange={(e) => {
+                          setSelectedModel(e.target.value);
+                          void saveConfigItem(
+                            "llm_model",
+                            e.target.value,
+                            "对话模型",
+                          );
+                        }}
+                        disabled={!selectedProvider}
+                      >
+                        <option value="">请先选择厂商</option>
+                        {models.map((model) => (
+                          <option key={model.id} value={model.id}>
+                            {model.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="settings-field">
+                      <label>智谱 API Key</label>
                       <input
-                        type={showApiKey ? "text" : "password"}
-                        className="admin-input w-full px-3 py-2.5 pr-10"
+                        type="text"
+                        className="admin-input w-full px-3 py-2.5"
                         value={apiKey}
                         onChange={(e) => setApiKey(e.target.value)}
                         onBlur={() =>
@@ -380,71 +399,61 @@ const SettingsPage: React.FC = () => {
                         }
                         placeholder="输入后自动保存"
                       />
-                      <button
-                        type="button"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1"
-                        onClick={() => setShowApiKey((prev) => !prev)}
-                        style={{ color: "var(--text-muted)" }}
-                      >
-                        {showApiKey ? <EyeOff size={20} /> : <Eye size={20} />}
-                      </button>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="settings-block">
-                <div className="settings-block__head">
-                  <h3>向量模型</h3>
-                  <span>检索</span>
-                </div>
-                <div className="settings-stack">
-                  <div className="settings-field">
-                    <label>提供方</label>
-                    <select
-                      className="admin-select w-full px-3 py-2.5"
-                      value={selectedEmbeddingProvider}
-                      onChange={(e) =>
-                        void handleEmbeddingProviderChange(e.target.value)
-                      }
-                    >
-                      <option value="">请选择厂商</option>
-                      {embeddingProviders.map((provider) => (
-                        <option key={provider.id} value={provider.id}>
-                          {provider.name}
-                        </option>
-                      ))}
-                    </select>
+                <div className="settings-block">
+                  <div className="settings-block__head">
+                    <h3>向量模型</h3>
+                    <span>检索</span>
                   </div>
-                  <div className="settings-field">
-                    <label>模型</label>
-                    <select
-                      className="admin-select w-full px-3 py-2.5"
-                      value={selectedEmbeddingModel}
-                      onChange={(e) => {
-                        setSelectedEmbeddingModel(e.target.value);
-                        void saveConfigItem(
-                          "embedding_model",
-                          e.target.value,
-                          "向量模型",
-                        );
-                      }}
-                      disabled={!selectedEmbeddingProvider}
-                    >
-                      <option value="">请先选择厂商</option>
-                      {embeddingModels.map((model) => (
-                        <option key={model.id} value={model.id}>
-                          {model.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="settings-field">
-                    <label>OpenRouter API Key</label>
-                    <div className="relative">
+                  <div className="settings-stack">
+                    <div className="settings-field">
+                      <label>提供方</label>
+                      <select
+                        className="admin-select w-full px-3 py-2.5"
+                        value={selectedEmbeddingProvider}
+                        onChange={(e) =>
+                          void handleEmbeddingProviderChange(e.target.value)
+                        }
+                      >
+                        <option value="">请选择厂商</option>
+                        {embeddingProviders.map((provider) => (
+                          <option key={provider.id} value={provider.id}>
+                            {provider.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="settings-field">
+                      <label>模型</label>
+                      <select
+                        className="admin-select w-full px-3 py-2.5"
+                        value={selectedEmbeddingModel}
+                        onChange={(e) => {
+                          setSelectedEmbeddingModel(e.target.value);
+                          void saveConfigItem(
+                            "embedding_model",
+                            e.target.value,
+                            "向量模型",
+                          );
+                        }}
+                        disabled={!selectedEmbeddingProvider}
+                      >
+                        <option value="">请先选择厂商</option>
+                        {embeddingModels.map((model) => (
+                          <option key={model.id} value={model.id}>
+                            {model.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="settings-field">
+                      <label>OpenRouter API Key</label>
                       <input
-                        type={showOpenrouterKey ? "text" : "password"}
-                        className="admin-input w-full px-3 py-2.5 pr-10"
+                        type="text"
+                        className="admin-input w-full px-3 py-2.5"
                         value={openrouterApiKey}
                         onChange={(e) => setOpenrouterApiKey(e.target.value)}
                         onBlur={() =>
@@ -459,53 +468,10 @@ const SettingsPage: React.FC = () => {
                         }
                         placeholder="输入后自动保存"
                       />
-                      <button
-                        type="button"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1"
-                        onClick={() => setShowOpenrouterKey((prev) => !prev)}
-                        style={{ color: "var(--text-muted)" }}
-                      >
-                        {showOpenrouterKey ? (
-                          <EyeOff size={20} />
-                        ) : (
-                          <Eye size={20} />
-                        )}
-                      </button>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-
-            <div className="settings-row-2col">
-              <WebSearchConfigPanel
-                config={webSearchConfig}
-                onChange={async (key, value) => {
-                  const next = { ...webSearchConfig, [key]: value };
-                  setWebSearchConfigState(next);
-                  try {
-                    await setWebSearchConfigApi(next);
-                    showMessage("success", "联网搜索配置已保存");
-                  } catch (error) {
-                    console.error("Failed to save web search config:", error);
-                    showMessage("error", "联网搜索配置保存失败");
-                  }
-                }}
-                onSaveKey={async (key, value) => {
-                  const next = { ...webSearchConfig, [key]: value };
-                  setWebSearchConfigState(next);
-                  await setWebSearchConfigApi(next);
-                  setExistingWebSearchKeys((prev) => ({
-                    ...prev,
-                    tavily: key === "tavily_api_key" ? true : prev.tavily,
-                    brave: key === "brave_api_key" ? true : prev.brave,
-                    perplexity:
-                      key === "perplexity_api_key" ? true : prev.perplexity,
-                  }));
-                  showMessage("success", "搜索服务密钥已保存");
-                }}
-                tavilyApiKeySet={existingWebSearchKeys.tavily}
-              />
 
               <SearchConfigPanel
                 config={memoryRetrievalConfig}
@@ -521,26 +487,79 @@ const SettingsPage: React.FC = () => {
                     showMessage("error", "知识库检索配置保存失败");
                   }
                 }}
-              />
-            </div>
-
-            <div className="settings-row-1col">
-              <BrowserConfigPanel
-                config={browserConfig}
-                onChange={async (key, value) => {
-                  const next = { ...browserConfig, [key]: value };
-                  setBrowserConfigState(next);
+                autoExtract={memoryAutoExtract}
+                memoryThreshold={memoryThreshold}
+                onAutoExtractChange={async (enabled) => {
+                  setMemoryAutoExtract(enabled);
                   try {
-                    await setBrowserConfigApi(next);
-                    showMessage("success", "浏览器配置已保存");
+                    await updateGlobalRuntimeConfig({ memory_auto_extract: enabled });
+                    showMessage("success", "自动记忆提取已保存");
                   } catch (error) {
-                    console.error("Failed to save browser config:", error);
-                    showMessage("error", "浏览器配置保存失败");
+                    console.error("Failed to save auto extract:", error);
+                    showMessage("error", "自动记忆提取保存失败");
+                  }
+                }}
+                onThresholdChange={async (value) => {
+                  setMemoryThreshold(value);
+                  try {
+                    await updateGlobalRuntimeConfig({ memory_threshold: value });
+                    showMessage("success", "提取阈值已保存");
+                  } catch (error) {
+                    console.error("Failed to save threshold:", error);
+                    showMessage("error", "提取阈值保存失败");
                   }
                 }}
               />
             </div>
-          </div>
+          ) : (
+            <div className="settings-rows">
+              <div className="settings-row-2col">
+                <WebSearchConfigPanel
+                  config={webSearchConfig}
+                  onChange={async (key, value) => {
+                    const next = { ...webSearchConfig, [key]: value };
+                    setWebSearchConfigState(next);
+                    try {
+                      await setWebSearchConfigApi(next);
+                      showMessage("success", "联网搜索配置已保存");
+                    } catch (error) {
+                      console.error("Failed to save web search config:", error);
+                      showMessage("error", "联网搜索配置保存失败");
+                    }
+                  }}
+                  onSaveKey={async (key, value) => {
+                    const next = { ...webSearchConfig, [key]: value };
+                    setWebSearchConfigState(next);
+                    await setWebSearchConfigApi(next);
+                    setExistingWebSearchKeys((prev) => ({
+                      ...prev,
+                      tavily: key === "tavily_api_key" ? true : prev.tavily,
+                      brave: key === "brave_api_key" ? true : prev.brave,
+                      perplexity:
+                        key === "perplexity_api_key" ? true : prev.perplexity,
+                    }));
+                    showMessage("success", "搜索服务密钥已保存");
+                  }}
+                  tavilyApiKeySet={existingWebSearchKeys.tavily}
+                />
+
+                <BrowserConfigPanel
+                  config={browserConfig}
+                  onChange={async (key, value) => {
+                    const next = { ...browserConfig, [key]: value };
+                    setBrowserConfigState(next);
+                    try {
+                      await setBrowserConfigApi(next);
+                      showMessage("success", "浏览器配置已保存");
+                    } catch (error) {
+                      console.error("Failed to save browser config:", error);
+                      showMessage("error", "浏览器配置保存失败");
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </MainLayout>

@@ -1085,6 +1085,12 @@ body {
   max-width: 70rem;
 }
 
+.settings-tab-bar {
+  display: flex;
+  justify-content: flex-start;
+  padding-bottom: 0.25rem;
+}
+
 .settings-section {
   display: grid;
   gap: 0.75rem;
@@ -1524,6 +1530,88 @@ body {
   font-size: 0.84rem;
   font-weight: 700;
   letter-spacing: -0.01em;
+}
+
+/* ---- memory-config: 双栏分区布局 ---- */
+
+.memory-config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.memory-config-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.memory-config-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 0.875rem;
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--bg-secondary) 60%, transparent);
+}
+
+.memory-config-section__header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.memory-config-section__label {
+  color: var(--text-primary);
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.memory-config-section__hint {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
+
+.memory-config-section__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.memory-config-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 2rem;
+}
+
+.memory-config-row__label {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  min-width: 4.5rem;
+}
+
+.memory-config-slider {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.memory-config-slider .settings-range {
+  flex: 1 1 auto;
+}
+
+.memory-config-slider__value {
+  flex: 0 0 auto;
+  min-width: 2.5rem;
+  text-align: right;
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 
 .settings-subcard {

@@ -24,6 +24,7 @@ from app.dao.agent_event_dao import AgentEventDAO
 from app.dao.agent_run_dao import AgentRunDAO
 from app.dao.memory_dao import MemoryDAO
 from app.dao.tool_call_dao import ToolCallDAO
+from app.services.memory_summarizer import MemorySummarizer
 from app.schemas.schemas import ChatRequest, MemorySearchResult
 from app.services.conversation_service import ConversationService
 from app.services.llm_service import get_llm_service
@@ -460,15 +461,39 @@ class AgentLoopController:
         if len(combined) < max(session.memory_threshold, 1) * 20:
             return
         try:
-            await MemoryDAO.create(
-                db,
-                session_id=session.id,
-                title=f"Auto extract {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
-                content=self._truncate_text(combined, 2000),
-                importance=0.6,
-                source=f"workspace:{session.name}:auto_extract",
-                content_type="note",
-            )
+            summarizer = MemorySummarizer()
+            # 构造一个临时 Message-like 对象列表供 summarizer 使用
+            from types import SimpleNamespace
+            temp_messages = [
+                SimpleNamespace(
+                    content=user_message,
+                    role="user",
+                    created_at=datetime.utcnow(),
+                    id=None,
+                ),
+                SimpleNamespace(
+                    content=final_text,
+                    role="assistant",
+                    created_at=datetime.utcnow(),
+                    id=None,
+                ),
+            ]
+            key_info = summarizer.extract_key_information(temp_messages)
+            if not key_info:
+                logger.debug("[agent_loop] auto extract: no important info found, skipping")
+                return
+            summaries = summarizer.generate_summary(key_info, max_items=3)
+            for item in summaries:
+                await MemoryDAO.create(
+                    db,
+                    session_id=session.id,
+                    title=f"Auto {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
+                    content=self._truncate_text(item.get("content", ""), 2000),
+                    importance=round(item.get("importance", 0.5), 2),
+                    source=f"workspace:{session.name}:auto_extract",
+                    content_type="note",
+                )
+                logger.info(f"[agent_loop] auto extracted memory (importance={item.get('importance', 0):.2f}): {item.get('content', '')[:50]}...")
         except Exception:
             logger.exception("[agent_loop] automatic memory extraction failed")
 

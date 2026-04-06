@@ -11,17 +11,27 @@ logger = logging.getLogger(__name__)
 def estimate_tokens(text: str) -> int:
     """
     估算文本的token数量
-    
+
+    对中英文混合文本分别估算：
+    - CJK 字符：约 1 token/字符
+    - 英文/数字单词：约 1.3 tokens/word
+    - 其他字符：约 0.5 tokens/字符
+
     Args:
         text: 文本内容
-        
+
     Returns:
         估算的token数量
     """
     if not text:
         return 0
-    
-    return int(len(text.split()) * 1.3)
+
+    cjk_count = len(re.findall(r'[\u4e00-\u9fff\u3400-\u4dbf\u3000-\u303f\uff00-\uffef]', text))
+    ascii_words = re.findall(r'[a-zA-Z0-9]+', text)
+    ascii_word_tokens = int(len(ascii_words) * 1.3)
+    other_chars = len(text) - cjk_count - sum(len(w) for w in ascii_words)
+
+    return cjk_count + ascii_word_tokens + int(other_chars * 0.5)
 
 
 def calculate_importance_score(text: str, importance_keywords: List[str] = None) -> float:

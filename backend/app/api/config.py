@@ -80,13 +80,10 @@ def _mask_value(value: str | None) -> str | None:
 
 
 def _to_safe_config_response(config_item) -> ConfigResponse:
-    value = config_item.value
-    if _is_sensitive_key(config_item.key):
-        value = _mask_value(value) or ""
     return ConfigResponse(
         id=config_item.id,
         key=config_item.key,
-        value=value,
+        value=config_item.value,
         description=config_item.description,
         updated_at=config_item.updated_at,
     )
@@ -159,7 +156,7 @@ async def get_web_search_config(db: AsyncSession = Depends(get_db)):
 
     return WebSearchConfigResponse(
         provider=provider or "tavily",
-        tavily_api_key=_mask_value(tavily_key),
+        tavily_api_key=tavily_key,
         max_results=int(max_results_str) if max_results_str else 5,
         search_depth=search_depth or "basic",
         include_answer=include_answer_str.lower() == "true" if include_answer_str else True,
@@ -186,7 +183,8 @@ async def update_web_search_config(
         (WEB_SEARCH_CACHE_TTL_KEY, str(config.cache_ttl_minutes), "缓存过期时间"),
     ]
     if config.tavily_api_key:
-        entries.append((TAVILY_API_KEY_KEY, config.tavily_api_key, "Tavily API Key"))
+        if "****" not in config.tavily_api_key:
+            entries.append((TAVILY_API_KEY_KEY, config.tavily_api_key, "Tavily API Key"))
     await ConfigDAO.upsert_many(db, entries)
     return {"message": "网络搜索配置已更新"}
 
@@ -336,7 +334,7 @@ async def get_config(key: str, db: AsyncSession = Depends(get_db)):
     if value is None:
         raise HTTPException(status_code=404, detail=f"配置项 '{key}' 不存在")
     if _is_sensitive_key(key):
-        return _mask_value(value) or ""
+        return value
     return value
 
 
@@ -350,7 +348,14 @@ async def update_config(
     更新或创建配置项
     """
     logger.info(f"更新配置: {key}")
-    config = await ConfigDAO.upsert(db, key, config_update.value, config_update.description)
+    value = config_update.value
+    if _is_sensitive_key(key) and "****" in value:
+        existing = await ConfigDAO.get_value(db, key)
+        if existing and "****" not in existing:
+            return _to_safe_config_response(
+                await ConfigDAO.upsert(db, key, existing, config_update.description)
+            )
+    config = await ConfigDAO.upsert(db, key, value, config_update.description)
     return _to_safe_config_response(config)
 
 
